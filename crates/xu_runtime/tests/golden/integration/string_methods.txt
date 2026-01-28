@@ -1,0 +1,14 @@
+Hello, Tom, 2
+4
+a
+c
+42
+3.14
+hello,world
+foo-bar
+ABC
+abc
+true
+true
+3
+true

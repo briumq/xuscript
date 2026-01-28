@@ -1,0 +1,17 @@
+Ident	Span { start: ByteIndex(0), end: ByteIndex(7) }	println
+LParen	Span { start: ByteIndex(7), end: ByteIndex(8) }	(
+Str	Span { start: ByteIndex(8), end: ByteIndex(15) }	"hello"
+RParen	Span { start: ByteIndex(15), end: ByteIndex(16) }	)
+StmtEnd	Span { start: ByteIndex(16), end: ByteIndex(17) }	;
+Ident	Span { start: ByteIndex(19), end: ByteIndex(20) }	a
+Eq	Span { start: ByteIndex(21), end: ByteIndex(22) }	=
+Int	Span { start: ByteIndex(23), end: ByteIndex(24) }	1
+Plus	Span { start: ByteIndex(25), end: ByteIndex(26) }	+
+Int	Span { start: ByteIndex(27), end: ByteIndex(28) }	2
+StmtEnd	Span { start: ByteIndex(28), end: ByteIndex(29) }	;
+Ident	Span { start: ByteIndex(30), end: ByteIndex(37) }	println
+LParen	Span { start: ByteIndex(37), end: ByteIndex(38) }	(
+Str	Span { start: ByteIndex(38), end: ByteIndex(45) }	"a={a}"
+RParen	Span { start: ByteIndex(45), end: ByteIndex(46) }	)
+StmtEnd	Span { start: ByteIndex(46), end: ByteIndex(47) }	;
+Eof	Span { start: ByteIndex(48), end: ByteIndex(48) }	

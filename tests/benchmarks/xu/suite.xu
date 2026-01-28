@@ -1,0 +1,173 @@
+// Unified benchmark suite (English version)
+var BENCH_SMOKE = "0"
+var BENCH_SCALE = "10000"
+
+Foo has { x: int }
+func (self: Foo) add(n: int) -> int {
+  return self.x + n
+}
+
+func run(name: string, repeat: int, logic) -> int {
+  var min = 999999999999
+  for r in [1..repeat] {
+    var start = mono_micros()
+    logic()
+    var end = mono_micros()
+    var cost = end - start
+    if cost < min {
+      min = cost
+    }
+  }
+  return parse_int((min + 500) / 1000)
+}
+
+func bench_loop(N: int) -> int {
+  func logic() {
+    var c = 0
+    for r in [1..N] {
+      c += 1
+    }
+  }
+  return run("loop_" + to_text(N), 7, logic)
+}
+
+func bench_dict(N: int) -> int {
+  func logic() {
+    let d = {}
+    for i in [0..N-1] {
+      let k = "k" + to_text(i)
+      d insert(k, i)
+    }
+    var sum = 0
+    for i in [0..N-1] {
+      let k = "k" + to_text(i)
+      sum += d get(k)
+    }
+  }
+  return run("dict_" + to_text(N), 7, logic)
+}
+
+func bench_dict_hot(N: int) -> int {
+  func logic() {
+    let d = {}
+    for i in [0..N-1] {
+      d insert(to_text(i), i)
+    }
+    for j in [0..N-1] {
+      let _v = d get("0")
+    }
+  }
+  return run("dict_hot_" + to_text(N), 7, logic)
+}
+
+func bench_dict_intkey(N: int) -> int {
+  func logic() {
+    let d = {}
+    for i in [0..N-1] {
+      d insert_int(i, i)
+    }
+    var sum = 0
+    for i in [0..N-1] {
+      sum += d get_int(i)
+    }
+  }
+  return run("dict_intkey_" + to_text(N), 7, logic)
+}
+
+func bench_string(N: int) -> int {
+  func logic() {
+    var s = ""
+    for i in [0..N-1] {
+      s += i
+      s += ","
+    }
+  }
+  return run("string_" + to_text(N), 7, logic)
+}
+
+func bench_string_builder(N: int) -> int {
+  func logic() {
+    let b = builder_new()
+    for i in [0..N-1] {
+      builder_push(b, i)
+      builder_push(b, ",")
+    }
+    let s = builder_finalize(b)
+  }
+  return run("string_builder_" + to_text(N), 7, logic)
+}
+
+func bench_struct_method(N: int) -> int {
+  func logic() {
+    let f = Foo{ x: 1 }
+    for i in [0..N-1] {
+      let _v = f add(i)
+    }
+  }
+  return run("struct_method_" + to_text(N), 7, logic)
+}
+
+func bench_try_catch(N: int) -> int {
+  func logic() {
+    var placeholder = 0
+    for i in [1..N] {
+      try {
+        throw "e"
+      } catch error {
+        if error.length() > 0 {
+          placeholder = 0
+        }
+      } finally {
+        placeholder = 0
+      }
+    }
+  }
+  return run("try_catch_" + to_text(N), 7, logic)
+}
+
+func main() {
+  let Sizes = [5000, 10000]
+  var placeholder = 0
+  
+  try {
+    if BENCH_SMOKE == "1" {
+      let Sizes = [500]
+    }
+  } catch e {
+    placeholder = 0
+  }
+
+  try {
+    if parse_int(BENCH_SCALE) > 0 {
+      let Sizes = [parse_int(BENCH_SCALE)]
+    }
+  } catch e {
+    placeholder = 0
+  }
+  
+  for N in Sizes {
+    let v = bench_loop(N)
+    print("loop_" + to_text(N) + "=" + to_text(v))
+    
+    v = bench_dict(N)
+    print("dict_" + to_text(N) + "=" + to_text(v))
+    
+    v = bench_dict_hot(N)
+    print("dict_hot_" + to_text(N) + "=" + to_text(v))
+    
+    v = bench_dict_intkey(N)
+    print("dict_intkey_" + to_text(N) + "=" + to_text(v))
+    
+    v = bench_string(N)
+    print("string_" + to_text(N) + "=" + to_text(v))
+    
+    v = bench_string_builder(N)
+    print("string_builder_" + to_text(N) + "=" + to_text(v))
+    
+    v = bench_struct_method(N)
+    print("struct_method_" + to_text(N) + "=" + to_text(v))
+    
+    v = bench_try_catch(N)
+    print("try_catch_" + to_text(N) + "=" + to_text(v))
+  }
+}

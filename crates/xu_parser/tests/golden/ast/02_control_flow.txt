@@ -1,0 +1,135 @@
+Module {
+    stmts: [
+        Assign(
+            AssignStmt {
+                target: Ident(
+                    "x",
+                    None,
+                ),
+                op: Set,
+                value: Int(
+                    0,
+                ),
+                ty: None,
+                slot: None,
+                decl: None,
+            },
+        ),
+        If(
+            IfStmt {
+                branches: [
+                    (
+                        Bool(
+                            true,
+                        ),
+                        [
+                            Assign(
+                                AssignStmt {
+                                    target: Ident(
+                                        "x",
+                                        None,
+                                    ),
+                                    op: Set,
+                                    value: Int(
+                                        1,
+                                    ),
+                                    ty: None,
+                                    slot: None,
+                                    decl: None,
+                                },
+                            ),
+                        ],
+                    ),
+                ],
+                else_branch: Some(
+                    [
+                        Assign(
+                            AssignStmt {
+                                target: Ident(
+                                    "x",
+                                    None,
+                                ),
+                                op: Set,
+                                value: Int(
+                                    2,
+                                ),
+                                ty: None,
+                                slot: None,
+                                decl: None,
+                            },
+                        ),
+                    ],
+                ),
+            },
+        ),
+        Assign(
+            AssignStmt {
+                target: Ident(
+                    "sum",
+                    None,
+                ),
+                op: Set,
+                value: Int(
+                    0,
+                ),
+                ty: None,
+                slot: None,
+                decl: None,
+            },
+        ),
+        ForEach(
+            ForEachStmt {
+                iter: Range(
+                    Int(
+                        0,
+                    ),
+                    Int(
+                        5,
+                    ),
+                ),
+                var: "i",
+                body: [
+                    Assign(
+                        AssignStmt {
+                            target: Ident(
+                                "sum",
+                                None,
+                            ),
+                            op: Add,
+                            value: Ident(
+                                "i",
+                                None,
+                            ),
+                            ty: None,
+                            slot: None,
+                            decl: None,
+                        },
+                    ),
+                ],
+            },
+        ),
+        Expr(
+            Call(
+                CallExpr {
+                    callee: Ident(
+                        "println",
+                        None,
+                    ),
+                    args: [
+                        InterpolatedString(
+                            [
+                                Str(
+                                    "sum=",
+                                ),
+                                Ident(
+                                    "sum",
+                                    None,
+                                ),
+                            ],
+                        ),
+                    ],
+                },
+            ),
+        ),
+    ],
+}

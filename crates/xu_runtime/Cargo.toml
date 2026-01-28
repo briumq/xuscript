@@ -1,0 +1,20 @@
+[package]
+name = "xu_runtime"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+xu_ir = { path = "../xu_ir" }
+xu_syntax = { path = "../xu_syntax" }
+hashbrown = "0.14"
+ahash = "0.8"
+smallvec = "1"
+itoa = "1"
+
+[dev-dependencies]
+xu_lexer = { path = "../xu_lexer" }
+xu_parser = { path = "../xu_parser" }
+xu_driver = { path = "../xu_driver" }
+proptest = { version = "1", default-features = false, features = ["std"] }
+bumpalo = "3.19.1"

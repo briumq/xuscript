@@ -1,0 +1,15 @@
+[package]
+name = "xu_parser"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+xu_ir = { path = "../xu_ir" }
+xu_syntax = { path = "../xu_syntax" }
+xu_lexer = { path = "../xu_lexer" }
+bumpalo = { version = "3.19.1", features = ["collections"] }
+
+[dev-dependencies]
+xu_lexer = { path = "../xu_lexer" }
+proptest = { version = "1", default-features = false, features = ["std"] }

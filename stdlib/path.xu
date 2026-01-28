@@ -1,0 +1,57 @@
+func join(a: string, b: string) -> string {
+  if a.ends_with("/") or a.ends_with("\\") {
+    return a + b;
+  }
+  return a + "/" + b;
+}
+
+func basename(p: string) -> string {
+  let parts = p.split("/");
+  if parts.length is 1 {
+    parts = p.split("\\");
+  }
+  if parts.length is 0 {
+    return "";
+  }
+  return parts[parts.length - 1];
+}
+
+func extname(name: string) -> string {
+  let parts = name.split(".");
+  if parts.length < 2 {
+    return "";
+  }
+  return parts[parts.length - 1];
+}
+
+func dirname(p: string) -> string {
+  let parts = p.split("/");
+  if parts.length is 1 {
+    parts = p.split("\\");
+  }
+  if parts.length <= 1 {
+    return "";
+  }
+  let out = [];
+  let i = 0;
+  while i < parts.length - 1 {
+    out.add(parts[i]);
+    i += 1;
+  }
+  return out.join("/");
+}
+
+func change_ext(name: string, ext: string) -> string {
+  let parts = name.split(".");
+  if parts.length is 1 {
+    return name + "." + ext;
+  }
+  let out = [];
+  let i = 0;
+  while i < parts.length - 1 {
+    out.add(parts[i]);
+    i += 1;
+  }
+  let base = out.join(".");
+  return base + "." + ext;
+}

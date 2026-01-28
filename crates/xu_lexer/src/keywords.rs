@@ -1,0 +1,30 @@
+use phf::phf_map;
+use xu_syntax::TokenKind;
+
+pub(crate) static KEYWORDS_EN: phf::Map<&'static str, TokenKind> = phf_map! {
+    "true" => TokenKind::True,
+    "false" => TokenKind::False,
+    "null" => TokenKind::Null,
+    "if" => TokenKind::KwIf,
+    "else" => TokenKind::KwElse,
+    "while" => TokenKind::KwWhile,
+    "for" => TokenKind::KwFor,
+    "return" => TokenKind::KwReturn,
+    "break" => TokenKind::KwBreak,
+    "continue" => TokenKind::KwContinue,
+    "throw" => TokenKind::KwThrow,
+    "try" => TokenKind::KwTry,
+    "catch" => TokenKind::KwCatch,
+    "finally" => TokenKind::KwFinally,
+    "not" => TokenKind::KwNot,
+    "and" => TokenKind::KwAnd,
+    "or" => TokenKind::KwOr,
+    "is" => TokenKind::KwIs,
+    "isnt" => TokenKind::KwIsnt,
+    "import" => TokenKind::KwImport,
+    "use" => TokenKind::KwImport,
+    "with" => TokenKind::KwWith,
+    "has" => TokenKind::KwWith,
+    "func" => TokenKind::KwFunc,
+    "match" => TokenKind::KwMatch,
+};

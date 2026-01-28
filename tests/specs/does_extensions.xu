@@ -1,0 +1,26 @@
+func assert(x) { __builtin_assert(x) }
+
+// does extension methods and multiple blocks
+User has {
+    name: string
+    age: int
+}
+
+User does {
+    func to_json() -> string {
+        return """{"name": "{self.name}", "age": {self.age}}"""
+    }
+}
+
+User does {
+    func method1() -> string { return "m1" }
+}
+
+User does {
+    func method2() -> string { return "m2" }
+}
+
+let u = User{ name: "Alice", age: 20 }
+assert(u.to_json() is """{"name": "Alice", "age": 20}""")
+assert(u.method1() is "m1")
+assert(u.method2() is "m2")

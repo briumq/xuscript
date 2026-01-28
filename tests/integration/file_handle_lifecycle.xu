@@ -1,0 +1,6 @@
+let path = "{__ROOT__}/tests/fixtures/users.csv";
+let h = open(path);
+let content = h read();
+let lines = content split("\n");
+print(lines[0]);
+h close();

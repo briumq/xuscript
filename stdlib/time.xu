@@ -1,0 +1,15 @@
+func unix_time() -> int {
+  return __unix_time()
+}
+
+func unix_millis() -> int {
+  return __unix_millis()
+}
+
+func mono_micros() -> int {
+  return __mono_micros()
+}
+
+func mono_nanos() -> int {
+  return __mono_nanos()
+}

@@ -1,0 +1,2 @@
+if true {
+    println("oops")

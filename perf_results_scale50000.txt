@@ -1,0 +1,23 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running `target/debug/xtask perf`
+$ cargo test -q -p xu_runtime --test perf_lexer_parser --release -- --ignored --nocapture
+$ cargo test -q -p xu_runtime --test perf_runtime_exec --release -- --ignored --nocapture
+$ cargo test -q -p xu_runtime --test perf_benchmarks --release -- --ignored --nocapture
+$ cargo test -q -p xu_runtime --test perf_vm_long_interpolation --release -- --ignored --nocapture
+PERF_RESULT perf_lexer_parser_large_sequential_assign.lex_ms=0
+PERF_RESULT perf_lexer_parser_large_sequential_assign.normalize_ms=0
+PERF_RESULT perf_lexer_parser_large_sequential_assign.parse_ms=0
+PERF_RESULT perf_parse_interpolated_string_many_repeated_exprs.lex_ms=0
+PERF_RESULT perf_parse_interpolated_string_many_repeated_exprs.normalize_ms=0
+PERF_RESULT perf_parse_interpolated_string_many_repeated_exprs.parse_ms=0
+PERF_RESULT perf_runtime_bulk_dict_ops.exec_ms=0
+PERF_RESULT perf_runtime_loop_accumulate.exec_ms=0
+PERF_RESULT perf_vm_long_interpolation.exec_ms=0
+PERF_RESULT xu_bench.dict_50000=12
+PERF_RESULT xu_bench.dict_hot_50000=9
+PERF_RESULT xu_bench.dict_intkey_50000=8
+PERF_RESULT xu_bench.loop_50000=1
+PERF_RESULT xu_bench.string_50000=5
+PERF_RESULT xu_bench.string_builder_50000=7
+PERF_RESULT xu_bench.struct_method_50000=36
+PERF_RESULT xu_bench.try_catch_50000=10

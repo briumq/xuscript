@@ -1,0 +1,63 @@
+Module {
+    stmts: [
+        Expr(
+            Call(
+                CallExpr {
+                    callee: Ident(
+                        "println",
+                        None,
+                    ),
+                    args: [
+                        Str(
+                            "hello",
+                        ),
+                    ],
+                },
+            ),
+        ),
+        Assign(
+            AssignStmt {
+                target: Ident(
+                    "a",
+                    None,
+                ),
+                op: Set,
+                value: Binary {
+                    op: Add,
+                    left: Int(
+                        1,
+                    ),
+                    right: Int(
+                        2,
+                    ),
+                },
+                ty: None,
+                slot: None,
+                decl: None,
+            },
+        ),
+        Expr(
+            Call(
+                CallExpr {
+                    callee: Ident(
+                        "println",
+                        None,
+                    ),
+                    args: [
+                        InterpolatedString(
+                            [
+                                Str(
+                                    "a=",
+                                ),
+                                Ident(
+                                    "a",
+                                    None,
+                                ),
+                            ],
+                        ),
+                    ],
+                },
+            ),
+        ),
+    ],
+}

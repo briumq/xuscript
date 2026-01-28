@@ -1,0 +1,20 @@
+[package]
+name = "xu_lexer"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+phf = { version = "0.13.1", features = ["macros"] }
+xu_syntax = { path = "../xu_syntax" }
+
+[dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std"] }
+
+[features]
+fuzz = []
+
+[[test]]
+name = "fuzz_proptest"
+path = "tests/fuzz_proptest.rs"
+required-features = ["fuzz"]

@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+
+members = [
+  "crates/xu_cli",
+  "crates/xu_driver",
+  "crates/xu_ir",
+  "crates/xu_lexer",
+  "crates/xu_parser", "crates/xu_runtime",
+  "crates/xu_syntax",
+  "crates/xtask",
+]
+
+[profile.dev]
+split-debuginfo = "unpacked" # Speed up linking on macOS
+
+[profile.dev.package."*"]
+debug = false # Reduce link time by removing debug info from dependencies

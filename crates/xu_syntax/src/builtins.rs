@@ -1,0 +1,48 @@
+pub const BUILTIN_NAMES: &[&str] = &[
+    "__builtin_assert",
+    "__builtin_assert_eq",
+    "os_args",
+    "print",
+    "println",
+    "gen_id",
+    "open",
+    "import",
+    "input",
+    "time_unix",
+    "time_millis",
+    "mono_micros",
+    "mono_nanos",
+    "abs",
+    "sin",
+    "cos",
+    "tan",
+    "sqrt",
+    "log",
+    "pow",
+    "max",
+    "min",
+    "rand",
+    "to_text",
+    "parse_int",
+    "parse_float",
+    "builder_new",
+    "builder_new_cap",
+    "builder_push",
+    "builder_finalize",
+];
+
+pub fn builtin_return_type(name: &str) -> Option<&'static str> {
+    match name {
+        "__builtin_assert" | "__builtin_assert_eq" => Some("null"),
+        "print" | "println" | "builder_push" => Some("null"),
+        "gen_id" | "time_unix" | "time_millis" | "mono_micros" | "mono_nanos" | "abs" | "max"
+        | "min" | "rand" | "parse_int" => Some("int"),
+        "open" => Some("file"),
+        "import" => Some("module"),
+        "os_args" => Some("list"),
+        "input" | "to_text" | "builder_finalize" => Some("text"),
+        "parse_float" | "sin" | "cos" | "tan" | "sqrt" | "log" | "pow" => Some("float"),
+        "builder_new" | "builder_new_cap" => Some("builder"),
+        _ => None,
+    }
+}

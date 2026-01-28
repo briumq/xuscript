@@ -1,0 +1,37 @@
+let pi = 3.141592653589793;
+let e = 2.718281828459045;
+
+func sin(x: float) -> float {
+  return __sin(x);
+}
+
+func cos(x: float) -> float {
+  return __cos(x);
+}
+
+func tan(x: float) -> float {
+  return __tan(x);
+}
+
+func sqrt(x: float) -> float {
+  return __sqrt(x);
+}
+
+func log(x: float) -> float {
+  return __log(x);
+}
+
+func pow(x: float, y: float) -> float {
+  return __pow(x, y);
+}
+
+func random(min: int = 0, max: int = 1) -> int {
+  if max < min {
+    panic("random: max < min");
+  }
+  let span = (max - min) + 1;
+  if span <= 0 {
+    return min;
+  }
+  return __rand(span) + min;
+}

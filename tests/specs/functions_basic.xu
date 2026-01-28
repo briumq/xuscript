@@ -1,0 +1,14 @@
+func assert(x) { __builtin_assert(x) }
+
+// basic function
+func add(a: int, b: int) -> int {
+    return a + b
+}
+assert(add(2, 3) is 5)
+
+// default parameter
+func greet(name: string, msg = "Hello") -> string {
+    return "{msg}, {name}!"
+}
+assert(greet("Alice") is "Hello, Alice!")
+assert(greet("Bob", "Hi") is "Hi, Bob!")

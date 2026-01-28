@@ -1,0 +1,41 @@
+func assert(x) { __builtin_assert(x) }
+
+// nested struct
+Address has {
+    city: string
+    street: string
+}
+
+User has {
+    name: string
+    address: Address
+}
+
+let u = User{
+    name: "Alice",
+    address: Address{ city: "Beijing", street: "Main St" }
+}
+assert(u.address.city is "Beijing")
+
+// recursion
+func factorial(n: int) -> int {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+assert(factorial(0) is 1)
+assert(factorial(1) is 1)
+assert(factorial(5) is 120)
+
+func fib(n: int) -> int {
+    if n <= 1 {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+assert(fib(0) is 0)
+assert(fib(1) is 1)
+assert(fib(10) is 55)

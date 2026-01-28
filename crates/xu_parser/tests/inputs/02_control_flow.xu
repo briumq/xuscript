@@ -1,0 +1,14 @@
+x = 0;
+
+if true {
+    x = 1;
+} else {
+    x = 2;
+}
+
+sum = 0;
+for i in [0..5] {
+    sum += i;
+}
+
+println("sum={sum}");

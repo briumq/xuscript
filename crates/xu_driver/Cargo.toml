@@ -1,0 +1,12 @@
+[package]
+name = "xu_driver"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+xu_lexer = { path = "../xu_lexer" }
+xu_ir = { path = "../xu_ir" }
+xu_parser = { path = "../xu_parser" }
+xu_syntax = { path = "../xu_syntax" }
+bumpalo = "3.19.1"

@@ -1,0 +1,54 @@
+func parse_json(strings: string) -> Result {
+  let s = strings.trim();
+  if s is "null" {
+    return Result#ok(null);
+  }
+  if s is "true" {
+    return Result#ok(true);
+  }
+  if s is "false" {
+    return Result#ok(false);
+  }
+  if s.length >= 2 and s[0] is "\"" and s[s.length - 1] is "\"" {
+    return Result#ok(s[1..s.length - 2]);
+  }
+  if s.length > 0 {
+    let c = s[0];
+    if (c >= "0" and c <= "9") or c is "-" {
+      return float(s);
+    }
+    if c is "\{" or c is "[" {
+      return Result#err("JSON parse not implemented: only null/true/false/number/string supported");
+    }
+  }
+  return Result#err("JSON parse failed: invalid input");
+}
+
+func generate_json(data: any) -> string {
+  if data is null {
+    return "null";
+  }
+  if data is true {
+    return "true";
+  }
+  if data is false {
+    return "false";
+  }
+  return "\"" + string(data) + "\"";
+}
+
+func parse(s: string) -> Result {
+  return parse_json(s);
+}
+
+func string(value: any, indent: int = 0) -> string {
+  return generate_json(value);
+}
+
+func json_parse(strings: string) -> Result {
+  return parse_json(strings);
+}
+
+func json_stringify(data: any) -> string {
+  return generate_json(data);
+}

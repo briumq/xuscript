@@ -1,0 +1,4 @@
+var dir = "north";
+print("UP");
+var dir2 = "west";
+print("OTHER");

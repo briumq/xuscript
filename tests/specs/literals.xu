@@ -1,0 +1,46 @@
+func assert(x) { __builtin_assert(x) }
+
+// integer literals
+let a = 42
+let b = -17
+let c = 0xFF
+let d = 0b1010
+let e = 1_000_000
+
+assert(a is 42)
+assert(b is -17)
+assert(c is 255)
+assert(d is 10)
+assert(e is 1000000)
+
+// float literals
+let f1 = 3.14
+let f2 = -0.5
+let f3 = 1.0e10
+let f4 = 2.5e-3
+
+assert(f1 is 3.14)
+assert(f2 is -0.5)
+assert(f3 is 10000000000.0)
+assert(f4 is 0.0025)
+
+// string literals
+let s1 = "hello"
+let s2 = "line1\nline2"
+let s3 = """
+multiline
+string
+"""
+let s4 = r"raw\nstring"
+
+assert(s1 is "hello")
+assert(s2 contains "\n")
+assert(s3 contains "multiline")
+assert(s4 contains "\\n")
+
+// boolean literals
+let t = true
+let f = false
+assert(t is true)
+assert(f is false)
+assert(t isnt f)

@@ -1,0 +1,76 @@
+{
+  "results": [
+    {
+      "ms": 0,
+      "name": "perf_lexer_parser_large_sequential_assign.lex_ms"
+    },
+    {
+      "ms": 0,
+      "name": "perf_lexer_parser_large_sequential_assign.normalize_ms"
+    },
+    {
+      "ms": 0,
+      "name": "perf_lexer_parser_large_sequential_assign.parse_ms"
+    },
+    {
+      "ms": 0,
+      "name": "perf_parse_interpolated_string_many_repeated_exprs.lex_ms"
+    },
+    {
+      "ms": 0,
+      "name": "perf_parse_interpolated_string_many_repeated_exprs.normalize_ms"
+    },
+    {
+      "ms": 0,
+      "name": "perf_parse_interpolated_string_many_repeated_exprs.parse_ms"
+    },
+    {
+      "ms": 1,
+      "name": "perf_runtime_bulk_dict_ops.exec_ms"
+    },
+    {
+      "ms": 0,
+      "name": "perf_runtime_loop_accumulate.exec_ms"
+    },
+    {
+      "ms": 0,
+      "name": "perf_vm_long_interpolation.exec_ms"
+    },
+    {
+      "ms": 14,
+      "name": "xu_bench.dict_50000"
+    },
+    {
+      "ms": 8,
+      "name": "xu_bench.dict_build_50000"
+    },
+    {
+      "ms": 1,
+      "name": "xu_bench.dict_hot_50000"
+    },
+    {
+      "ms": 3,
+      "name": "xu_bench.dict_intkey_50000"
+    },
+    {
+      "ms": 0,
+      "name": "xu_bench.loop_50000"
+    },
+    {
+      "ms": 3,
+      "name": "xu_bench.string_50000"
+    },
+    {
+      "ms": 5,
+      "name": "xu_bench.string_builder_50000"
+    },
+    {
+      "ms": 1,
+      "name": "xu_bench.struct_method_50000"
+    },
+    {
+      "ms": 3,
+      "name": "xu_bench.try_catch_50000"
+    }
+  ]
+}

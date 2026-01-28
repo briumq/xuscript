@@ -1,0 +1,19 @@
+func assert(x) { __builtin_assert(x); }
+
+// list
+let l = [];
+l add(1);
+l add(2);
+l add(3);
+assert(l length() is 3);
+assert(l[0] is 1);
+assert(l[1] is 2);
+assert(l[2] is 3);
+assert(l contains(2));
+
+// dict
+let d = {};
+d insert("a", 1);
+assert(d get("a") is 1);
+assert(d length() is 1);
+assert(not (d contains("b")));

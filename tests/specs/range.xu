@@ -1,0 +1,8 @@
+func assert(x) { __builtin_assert(x) }
+
+// exclusive range 0..5
+var sum = 0
+for i in 0..5 {
+    sum += i
+}
+assert(sum is 10) // 0+1+2+3+4

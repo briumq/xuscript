@@ -1,0 +1,17 @@
+perf_lexer_parser_large_sequential_assign.lex_ms=0
+perf_lexer_parser_large_sequential_assign.normalize_ms=0
+perf_lexer_parser_large_sequential_assign.parse_ms=0
+perf_parse_interpolated_string_many_repeated_exprs.lex_ms=0
+perf_parse_interpolated_string_many_repeated_exprs.normalize_ms=0
+perf_parse_interpolated_string_many_repeated_exprs.parse_ms=0
+perf_runtime_bulk_dict_ops.exec_ms=0
+perf_runtime_loop_accumulate.exec_ms=0
+perf_vm_long_interpolation.exec_ms=0
+xu_bench.dict_50000=12
+xu_bench.dict_hot_50000=9
+xu_bench.dict_intkey_50000=8
+xu_bench.loop_50000=1
+xu_bench.string_50000=5
+xu_bench.string_builder_50000=7
+xu_bench.struct_method_50000=37
+xu_bench.try_catch_50000=10

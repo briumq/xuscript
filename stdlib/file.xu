@@ -1,0 +1,73 @@
+func open(path: string) -> Result {
+  return __open(path);
+}
+
+func read(path: string) -> Result {
+  match open(path) {
+    Result#ok(h) {
+      return h.read();
+    }
+    Result#err(msg) {
+      return Result#err(msg);
+    }
+  }
+}
+
+func read_lines(path: string) -> Result {
+  match read(path) {
+    Result#ok(text) { return Result#ok(text.lines()) }
+    Result#err(msg) { return Result#err(msg) }
+  }
+}
+
+func write(path: string, content: string) -> Result {
+  return Result#err("unimplemented");
+}
+
+func append(path: string, content: string) -> Result {
+  return Result#err("unimplemented");
+}
+
+func exists(path: string) -> bool {
+  return false;
+}
+
+func size(path: string) -> Result {
+  return Result#err("unimplemented");
+}
+
+func is_file(path: string) -> bool {
+  return false;
+}
+
+func is_dir(path: string) -> bool {
+  return false;
+}
+
+func delete(path: string) -> Result {
+  return Result#err("unimplemented");
+}
+
+func rename(old: string, new: string) -> Result {
+  return Result#err("unimplemented");
+}
+
+func copy(src: string, dst: string) -> Result {
+  return Result#err("unimplemented");
+}
+
+func move(src: string, dst: string) -> Result {
+  return Result#err("unimplemented");
+}
+
+func list(path: string) -> Result {
+  return Result#err("unimplemented");
+}
+
+func mkdir(path: string) -> Result {
+  return Result#err("unimplemented");
+}
+
+func mkdir_all(path: string) -> Result {
+  return Result#err("unimplemented");
+}
