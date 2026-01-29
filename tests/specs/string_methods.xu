@@ -1,0 +1,16 @@
+func assert(x) { __builtin_assert(x) }
+
+let s = "  Hello-World  "
+assert(s.length() is 15)
+assert(s.trim().length() is 11)
+assert(s.to_upper().contains("HELLO"))
+assert(s.to_lower().contains("world"))
+let parts = s.split("-")
+assert(parts.length() is 2)
+assert(parts[0].contains("Hello"))
+let s2 = s.replace("World", "Xu")
+assert(s2.contains("Xu"))
+assert("42".to_int() is 42)
+assert("3.14".to_float() is 3.14)
+assert("prefix".starts_with("pre"))
+assert("suffix".ends_with("fix"))

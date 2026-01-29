@@ -1,0 +1,28 @@
+func topo(nodes: [string], edges: [[int]]) -> [string] {
+    let indeg: [int] = []
+    for _ in nodes { indeg.add(0) }
+    for edge in edges { indeg[edge[1]] = indeg[edge[1]] + 1 }
+    let out: [string] = []
+    var changed = true
+    while changed {
+        changed = false
+        for i in 0..nodes.length {
+            if indeg[i] is 0 {
+                out.add(nodes[i])
+                indeg[i] = -1
+                for edge2 in edges {
+                    if edge2[0] is i { indeg[edge2[1]] = indeg[edge2[1]] - 1 }
+                }
+                changed = true
+            }
+        }
+    }
+    return out
+}
+
+func main() {
+    let nodes: [string] = ["A", "B", "C"]
+    let edges: [[int]] = [[0, 1], [1, 2]]
+    let order = topo(nodes, edges)
+    println("order={order.join(\"-\")}")
+}

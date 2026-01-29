@@ -16,7 +16,7 @@ fn any_xu_like() -> impl Strategy<Value = String> {
         0..40,
     )
     .prop_map(|v| v.into_iter().collect::<String>());
-    let sym = "€ Ω … ، ؛ ۔ ,;()[]{}?/* */ // \"\\ \n \t . if else while for in return break continue throw try catch finally not and or match true false null"
+    let sym = "€ Ω … ، ؛ ۔ ,;()[]{}?/* */ // \"\\ \n \t . if else while for in return break continue throw try catch finally not and or match true false"
         .to_string();
     (ascii, unicode, any::<bool>(), any::<bool>()).prop_map(move |(a, b, f1, f2)| {
         let mut s = String::new();

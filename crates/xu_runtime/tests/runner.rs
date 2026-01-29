@@ -1,7 +1,9 @@
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::thread;
 
+use serde_json::Value;
 use xu_driver::Driver;
 #[allow(unused_imports)]
 use xu_ir::{Executable, Frontend};
@@ -35,23 +37,107 @@ struct Suite {
     strategy: Strategy,
 }
 
+#[derive(Default, Clone)]
+struct ExamplesManifest {
+    check_skip_prefixes: Vec<String>,
+    run_expect_fail: Vec<String>,
+}
+
+fn parse_csv_list(s: &str) -> Vec<String> {
+    s.split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect()
+}
+
+fn env_bool(name: &str) -> Option<bool> {
+    match std::env::var(name).ok().as_deref() {
+        None => None,
+        Some("0") | Some("false") => Some(false),
+        Some("1") | Some("true") => Some(true),
+        Some(_) => None,
+    }
+}
+
+fn load_examples_manifest(examples_root: &Path) -> ExamplesManifest {
+    let path = examples_root.join("manifest.json");
+    let text = match fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) => return ExamplesManifest::default(),
+    };
+    let v: Value = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Failed to parse examples manifest {}: {}", path.display(), e);
+            return ExamplesManifest::default();
+        }
+    };
+
+    let mut out = ExamplesManifest::default();
+    if let Some(arr) = v.get("check_skip_prefixes").and_then(|v| v.as_array()) {
+        for it in arr {
+            if let Some(s) = it.as_str() {
+                out.check_skip_prefixes.push(s.to_string());
+            }
+        }
+    }
+    if let Some(arr) = v.get("run_expect_fail").and_then(|v| v.as_array()) {
+        for it in arr {
+            if let Some(s) = it.as_str() {
+                out.run_expect_fail.push(s.to_string());
+            }
+        }
+    }
+    out
+}
+
+fn path_contains_any(p: &Path, needles: &[String]) -> bool {
+    if needles.is_empty() {
+        return false;
+    }
+    let s = p.to_string_lossy();
+    needles.iter().any(|n| !n.is_empty() && s.contains(n))
+}
+
+fn example_rel_string(examples_root: &Path, p: &Path) -> String {
+    let rel = p.strip_prefix(examples_root).unwrap_or(p);
+    rel.to_string_lossy().replace('\\', "/")
+}
+
+fn example_matches_token(rel: &str, stem: &str, token: &str) -> bool {
+    if token.is_empty() {
+        return false;
+    }
+    if rel.starts_with(token) {
+        return true;
+    }
+    if stem == token {
+        return true;
+    }
+    if token.ends_with(".xu") && (rel == token || rel.ends_with(&format!("/{token}"))) {
+        return true;
+    }
+    false
+}
+
+fn example_matches_any(rel: &str, stem: &str, tokens: &[String]) -> bool {
+    tokens
+        .iter()
+        .any(|t| example_matches_token(rel, stem, t.trim()))
+}
+
 #[test]
 fn main_runner() {
     thread::Builder::new()
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
-            let suites = vec![
+            let mut suites = vec![
                 Suite {
                     name: "specs",
                     root: "tests/specs",
                     pattern: "xu",
                     strategy: Strategy::RunOnly,
-                },
-                Suite {
-                    name: "edge",
-                    root: "tests/edge",
-                    pattern: "xu",
-                    strategy: Strategy::AstVsVm,
                 },
                 Suite {
                     name: "integration",
@@ -72,8 +158,53 @@ fn main_runner() {
                     },
                 },
             ];
+            if std::env::var("XU_TEST_DRAFTS").ok().as_deref() == Some("1") {
+                suites.push(Suite {
+                    name: "specs_drafts",
+                    root: "tests/specs/v1_1_drafts",
+                    pattern: "xu",
+                    strategy: Strategy::RunOnly,
+                });
+            }
+            let edge_enabled = match std::env::var("XU_TEST_EDGE").ok().as_deref() {
+                None => true,
+                Some("0") | Some("false") => false,
+                Some("1") | Some("true") => true,
+                Some(_) => true,
+            };
+            if edge_enabled {
+                suites.push(Suite {
+                    name: "edge",
+                    root: "tests/edge",
+                    pattern: "xu",
+                    strategy: Strategy::AstVsVm,
+                });
+            }
+            let examples_enabled = match std::env::var("XU_TEST_EXAMPLES").ok().as_deref() {
+                None => true,
+                Some("0") | Some("false") => false,
+                Some("1") | Some("true") => true,
+                Some(_) => true,
+            };
+            if examples_enabled {
+                suites.push(Suite {
+                    name: "examples",
+                    root: "examples",
+                    pattern: "xu",
+                    strategy: Strategy::RunAndCompare {
+                        golden_subdir: "examples",
+                        inject_root: true,
+                    },
+                });
+            }
 
             let filter = std::env::var("XU_TEST_ONLY").ok();
+            let skip = std::env::var("XU_TEST_SKIP")
+                .ok()
+                .map(|s| parse_csv_list(&s))
+                .unwrap_or_default();
+            let include_examples_expect_fail =
+                env_bool("XU_TEST_EXAMPLES_INCLUDE_EXPECT_FAIL").unwrap_or(false);
 
             for suite in suites {
                 let root_path = repo_root().join(suite.root);
@@ -81,7 +212,29 @@ fn main_runner() {
                     eprintln!("Suite {} root not found: {:?}", suite.name, root_path);
                     continue;
                 }
-                let files = find_files(&root_path, suite.pattern);
+                let mut files = find_files(&root_path, suite.pattern);
+                if suite.name == "examples" {
+                    files.retain(|p| !p.to_string_lossy().contains("/modules/"));
+                    let manifest = load_examples_manifest(&root_path);
+                    files.retain(|p| {
+                        let rel = example_rel_string(&root_path, p);
+                        let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                        if path_contains_any(p, &skip) {
+                            return false;
+                        }
+                        if example_matches_any(&rel, stem, &manifest.check_skip_prefixes) {
+                            return false;
+                        }
+                        if !include_examples_expect_fail
+                            && example_matches_any(&rel, stem, &manifest.run_expect_fail)
+                        {
+                            return false;
+                        }
+                        true
+                    });
+                } else if !skip.is_empty() {
+                    files.retain(|p| !path_contains_any(p, &skip));
+                }
 
                 for path in files {
                     let name = path.file_stem().unwrap().to_string_lossy().to_string();
@@ -93,11 +246,10 @@ fn main_runner() {
                         }
                     }
 
-                    // Special exclusion for specs suite to avoid overlap with typecheck
                     if suite_name == "specs" && path.to_string_lossy().contains("typecheck") {
                         continue;
                     }
-                    if suite_name == "specs" && name != "assert_basic" {
+                    if suite_name == "specs" && path.to_string_lossy().contains("/v1_1_drafts/") {
                         continue;
                     }
 
@@ -122,8 +274,45 @@ fn run_test(suite_name: &str, _suite_root: &str, path: &PathBuf, strategy: Strat
     match strategy {
         Strategy::RunOnly => {
             let src = fs::read_to_string(path).expect("read source");
-            if let Err(e) = run_spec_file(path, &src) {
-                panic!("Spec failed {}: {}", path.display(), e);
+            match parse_expectation(&src) {
+                Some(Expectation::ExpectError { contains }) => {
+                    let driver = Driver::new();
+                    let parsed = driver
+                        .parse_text(path.to_string_lossy().as_ref(), &src, true)
+                        .unwrap();
+                    let errs: Vec<_> = parsed
+                        .diagnostics
+                        .into_iter()
+                        .filter(|d| matches!(d.severity, xu_syntax::Severity::Error))
+                        .collect();
+                    if errs.is_empty() {
+                        panic!("Expected error, got none: {}", path.display());
+                    }
+                    let joined = errs
+                        .iter()
+                        .map(|d| d.message.clone())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    if !joined.contains(&contains) {
+                        panic!("Expected error containing {:?}, got:\n{}", contains, joined);
+                    }
+                }
+                Some(Expectation::ExpectPanic { contains }) => match run_spec_file(path, &src) {
+                    Ok(_) => panic!("Expected runtime failure, got success: {}", path.display()),
+                    Err(e) => {
+                        if !e.contains(&contains) {
+                            panic!(
+                                "Expected runtime failure containing {:?}, got:\n{}",
+                                contains, e
+                            );
+                        }
+                    }
+                },
+                None => {
+                    if let Err(e) = run_spec_file(path, &src) {
+                        panic!("Spec failed {}: {}", path.display(), e);
+                    }
+                }
             }
         }
         Strategy::RunAndCompare {
@@ -131,29 +320,18 @@ fn run_test(suite_name: &str, _suite_root: &str, path: &PathBuf, strategy: Strat
             inject_root,
         } => {
             let src = fs::read_to_string(path).expect("read source");
-
-            let normalized = normalize_source(&src);
-            assert!(
-                normalized.diagnostics.is_empty(),
-                "Normalize errors: {:?}",
-                normalized.diagnostics
-            );
-
-            let lex = Lexer::new(&normalized.text).lex();
-            assert!(
-                lex.diagnostics.is_empty(),
-                "Lex errors: {:?}",
-                lex.diagnostics
-            );
-
-            let bump = bumpalo::Bump::new();
-            let parse = Parser::new(&normalized.text, &lex.tokens, &bump).parse();
-            let errors: Vec<_> = parse
+            let driver = Driver::new();
+            let root_predefs = ["__ROOT__"];
+            let extra_predefs: &[&str] = if inject_root { &root_predefs } else { &[] };
+            let parsed = driver
+                .parse_text_with_predefs(path.to_string_lossy().as_ref(), &src, true, extra_predefs)
+                .unwrap();
+            let errors: Vec<_> = parsed
                 .diagnostics
                 .iter()
                 .filter(|d| matches!(d.severity, xu_syntax::Severity::Error))
                 .collect();
-            assert!(errors.is_empty(), "Parse errors: {:?}", errors);
+            assert!(errors.is_empty(), "Diagnostics errors: {:?}", errors);
 
             let mut rt = Runtime::new();
             rt.set_rng_seed(1); // Deterministic
@@ -173,7 +351,7 @@ fn run_test(suite_name: &str, _suite_root: &str, path: &PathBuf, strategy: Strat
             let old_cwd = std::env::current_dir().unwrap();
             std::env::set_current_dir(&root).unwrap();
 
-            let result = rt.exec_module(&parse.module);
+            let result = rt.exec_module(&parsed.module);
 
             std::env::set_current_dir(old_cwd).unwrap();
 
@@ -239,6 +417,33 @@ fn run_test(suite_name: &str, _suite_root: &str, path: &PathBuf, strategy: Strat
             std::env::set_current_dir(old_cwd).unwrap();
         }
     }
+}
+
+#[derive(Debug, Clone)]
+enum Expectation {
+    ExpectError { contains: String },
+    ExpectPanic { contains: String },
+}
+
+fn parse_expectation(src: &str) -> Option<Expectation> {
+    for line in src.lines() {
+        if let Some(s) = parse_expectation_from_line(line, "expect_error:") {
+            return Some(Expectation::ExpectError { contains: s });
+        }
+        if let Some(s) = parse_expectation_from_line(line, "expect_panic:") {
+            return Some(Expectation::ExpectPanic { contains: s });
+        }
+    }
+    None
+}
+
+fn parse_expectation_from_line(line: &str, key: &str) -> Option<String> {
+    let i = line.find(key)?;
+    let rest = &line[i + key.len()..];
+    let q0 = rest.find('"')?;
+    let rest2 = &rest[q0 + 1..];
+    let q1 = rest2.find('"')?;
+    Some(rest2[..q1].to_string())
 }
 
 #[allow(dead_code)]

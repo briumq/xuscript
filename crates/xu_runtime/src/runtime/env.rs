@@ -92,7 +92,7 @@ impl Env {
                     if let Some(val) = self.stack.get(frame.base + i) {
                         scope.values.push(val.clone());
                     } else {
-                        scope.values.push(Value::NULL);
+                        scope.values.push(Value::UNIT);
                     }
                 }
                 frame.attached = false;
@@ -362,15 +362,15 @@ impl Env {
             if let Some(&idx) = scope.names.get(name) {
                 let val = if frame.attached {
                     if let Some(slot) = self.stack.get_mut(frame.base + idx) {
-                        std::mem::replace(slot, Value::NULL)
+                        std::mem::replace(slot, Value::UNIT)
                     } else {
-                        Value::NULL
+                        Value::UNIT
                     }
                 } else {
                     if idx < scope.values.len() {
-                        std::mem::replace(&mut scope.values[idx], Value::NULL)
+                        std::mem::replace(&mut scope.values[idx], Value::UNIT)
                     } else {
-                        Value::NULL
+                        Value::UNIT
                     }
                 };
                 self.name_cache

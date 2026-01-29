@@ -1,0 +1,15 @@
+func assert(x) { __builtin_assert(x) }
+
+Response with [
+    success(data: string) |
+    error(code: int, msg: string)
+]
+
+let r = Response#error(404, "not found")
+var text = ""
+match r {
+    Response#success(data) { text = "OK: {data}" }
+    Response#error(code, msg) { text = "Error {code}: {msg}" }
+    _ { assert(false) }
+}
+assert(text is "Error 404: not found")

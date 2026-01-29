@@ -1,0 +1,13 @@
+func transform(m: {string: any}) -> {string: any} {
+    let out: {string: any} = {}
+    for k in m.keys() {
+        out[k.to_upper()] = m[k]
+    }
+    return out
+}
+
+func main() {
+    let m = { "a": 1, "b": 2 }
+    let t = transform(m)
+    println("keys={t.keys().length} A={t[\"A\"]} B={t[\"B\"]}")
+}

@@ -1,0 +1,73 @@
+func assert(x) { __builtin_assert(x) }
+
+let i_dec = 42
+let i_hex = 0xFF
+let i_bin = 0b1010
+let i_sep = 1_000_000
+assert(i_dec is 42)
+assert(i_hex is 255)
+assert(i_bin is 10)
+assert(i_sep is 1000000)
+
+let f_basic = 3.14
+let f_sci = 1.0e-1
+assert(f_basic is 3.14)
+assert(f_sci is 0.1)
+
+let s_basic = "hello"
+assert(s_basic is "hello")
+
+let b_true = true
+let b_false = false
+assert(b_true)
+assert(not b_false)
+
+let list_ok = [1, 2, 3]
+assert(list_ok.len() is 3)
+
+let list_empty: [int] = []
+assert(list_empty.len() is 0)
+
+let dict_ok = {"a": 1}
+assert(dict_ok["a"] is 1)
+
+let set_ok = set{1, 2, 3}
+assert(set_ok.length is 3)
+
+let set_empty: {int} = set{}
+assert(set_empty.length is 0)
+
+let tup = (1, "hi")
+assert(tup.0 is 1)
+
+User has {
+    name: string
+    age: int
+}
+
+let u1 = User{ name: "Tom", age: 20 }
+assert(u1.name is "Tom")
+assert(u1.age is 20)
+
+let u2 = User{ name: "Bob", age: 0 }
+assert(u2.age is 0)
+
+let older = User{ ...u1, age: u1.age + 1 }
+assert(older.name is "Tom")
+assert(older.age is 21)
+
+Status with [ pending | approved | rejected ]
+
+func status_text(s: Status) -> string {
+    var text: string = ""
+    match s {
+        Status#pending  { text = "待处理" }
+        Status#approved { text = "已通过" }
+        Status#rejected { text = "已拒绝" }
+        _ { assert(false) }
+    }
+    return text
+}
+
+let st = Status#approved
+assert(status_text(st) is "已通过")

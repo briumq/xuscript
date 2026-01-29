@@ -25,7 +25,6 @@ pub struct Lexer<'a> {
     diagnostics: Vec<Diagnostic>,
     tokens: Vec<Token>,
     at_line_start: bool,
-    indent_stack: Vec<u32>,
     delim_depth: u32,
     delim_stack: Vec<char>,
     last_sig_kind: Option<TokenKind>,
@@ -41,7 +40,6 @@ impl<'a> Lexer<'a> {
             diagnostics: Vec::new(),
             tokens: Vec::new(),
             at_line_start: true,
-            indent_stack: vec![0],
             delim_depth: 0,
             delim_stack: Vec::new(),
             last_sig_kind: None,
@@ -56,9 +54,6 @@ impl<'a> Lexer<'a> {
         while self.i < self.bytes.len() {
             let start = self.i;
             if self.at_line_start {
-                if self.delim_depth == 0 {
-                    self.handle_indent();
-                }
                 self.at_line_start = false;
                 if self.i >= self.bytes.len() {
                     break;
@@ -225,7 +220,13 @@ impl<'a> Lexer<'a> {
                     self.lex_string();
                 }
                 Some('.') => {
-                    if self.peek_str("..") {
+                    if self.peek_str("...") {
+                        self.i += 3;
+                        self.push(TokenKind::Ellipsis, start, self.i);
+                    } else if self.peek_str("..=") {
+                        self.i += 3;
+                        self.push(TokenKind::DotDotEq, start, self.i);
+                    } else if self.peek_str("..") {
                         self.i += 2;
                         self.push(TokenKind::DotDot, start, self.i);
                     } else {
@@ -346,14 +347,6 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        while self.indent_stack.len() > 1 {
-            self.indent_stack.pop();
-            self.tokens.push(Token {
-                kind: TokenKind::Dedent,
-                span: Span::new(self.i as u32, self.i as u32),
-            });
-        }
-
         self.tokens.push(Token {
             kind: TokenKind::Eof,
             span: Span::new(self.i as u32, self.i as u32),
@@ -373,89 +366,22 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    ///
-    ///
-    fn handle_indent(&mut self) {
-        let line_start = self.i;
-        let mut spaces = 0u32;
-        while self.peek_char() == Some(' ') {
-            self.i += 1;
-            spaces += 1;
-        }
-
-        if spaces % 2 != 0 {
-            self.diagnostics.push(Diagnostic::error_kind(
-                DiagnosticKind::InvalidIndentation,
-                Some(Span::new(line_start as u32, self.i as u32)),
-            ));
-        }
-
-        if matches!(self.peek_char(), Some('\n') | Some('\r')) || self.i >= self.bytes.len() {
-            self.i = line_start;
-            return;
-        }
-
-        if self.peek_str("//") {
-            self.i = line_start;
-            return;
-        }
-
-        if self.peek_str("/*") {
-            self.i = line_start;
-            return;
-        }
-
-        let new_indent = spaces;
-        let cur_indent = *self.indent_stack.last().unwrap_or(&0);
-        if new_indent == cur_indent {
-            return;
-        }
-
-        if new_indent > cur_indent {
-            self.indent_stack.push(new_indent);
-            self.tokens.push(Token {
-                kind: TokenKind::Indent,
-                span: Span::new(line_start as u32, self.i as u32),
-            });
-            return;
-        }
-
-        if !self.indent_stack.contains(&new_indent) {
-            self.diagnostics.push(Diagnostic::error_kind(
-                DiagnosticKind::InconsistentDedent,
-                Some(Span::new(line_start as u32, self.i as u32)),
-            ));
-        }
-
-        while self.indent_stack.len() > 1 {
-            let top = *self.indent_stack.last().unwrap();
-            if top <= new_indent {
-                break;
-            }
-            self.indent_stack.pop();
-            self.tokens.push(Token {
-                kind: TokenKind::Dedent,
-                span: Span::new(line_start as u32, self.i as u32),
-            });
-        }
-    }
-
     fn push(&mut self, kind: TokenKind, start: usize, end: usize) {
         self.tokens.push(Token {
             kind,
             span: Span::new(start as u32, end as u32),
         });
-        if !matches!(
-            kind,
-            TokenKind::Newline | TokenKind::Indent | TokenKind::Dedent
-        ) {
+        if !matches!(kind, TokenKind::Newline) {
             self.last_sig_kind = Some(kind);
         }
     }
 
     fn should_emit_newline(&self) -> bool {
         if self.delim_depth > 0 {
-            return false;
+            match self.delim_stack.last() {
+                Some('{') => {}
+                _ => return false,
+            }
         }
         if self.last_sig_kind.is_some_and(|k| {
             matches!(

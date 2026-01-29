@@ -1,0 +1,39 @@
+{
+  "name": "xuscript",
+  "publisher": "xuscript",
+  "displayName": "Xu Language",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hencoo/xuscript"
+  },
+  "description": "Language support for Xu Script",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "xu",
+        "aliases": [
+          "Xu",
+          "xu"
+        ],
+        "extensions": [
+          ".xu"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "xu",
+        "scopeName": "source.xu",
+        "path": "./syntaxes/xu.tmLanguage.json"
+      }
+    ]
+  }
+}

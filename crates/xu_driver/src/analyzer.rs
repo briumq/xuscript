@@ -75,6 +75,36 @@ impl<'a> Finder<'a> {
     }
 }
 
+fn report_shadowing(name: &str, finder: &mut Finder<'_>, out: &mut Vec<Diagnostic>) {
+    out.push(Diagnostic::error_kind(
+        DiagnosticKind::Raw(format!("shadowing: {name}")),
+        finder.find_name_or_next(name),
+    ));
+}
+
+#[allow(dead_code)]
+fn collect_pattern_binds(pat: &xu_parser::Pattern, out: &mut Vec<String>) {
+    match pat {
+        xu_parser::Pattern::Wildcard
+        | xu_parser::Pattern::Int(_)
+        | xu_parser::Pattern::Float(_)
+        | xu_parser::Pattern::Str(_)
+        | xu_parser::Pattern::Bool(_)
+        | xu_parser::Pattern::Null => {}
+        xu_parser::Pattern::Bind(name) => out.push(name.clone()),
+        xu_parser::Pattern::Tuple(items) => {
+            for p in items.iter() {
+                collect_pattern_binds(p, out);
+            }
+        }
+        xu_parser::Pattern::EnumVariant { args, .. } => {
+            for p in args.iter() {
+                collect_pattern_binds(p, out);
+            }
+        }
+    }
+}
+
 type StructMap = HashMap<String, HashMap<String, String>>;
 
 #[derive(Clone, Default, Debug)]
@@ -95,6 +125,7 @@ pub(crate) fn analyze_module(
     strict: bool,
     cache: Arc<RwLock<ImportCache>>,
     import_stack: &mut Vec<PathBuf>,
+    extra_predefs: &[&str],
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
 
@@ -134,16 +165,20 @@ pub(crate) fn analyze_module(
     let mut scope: Vec<HashMap<String, usize>> = vec![HashMap::new()];
     let mut def_spans: Vec<HashMap<String, xu_syntax::Span>> = vec![HashMap::new()];
     for builtin in BUILTIN_NAMES {
-        let idx = scope.last().unwrap().len();
-        scope.last_mut().unwrap().insert(builtin.to_string(), idx);
+        let idx = scope.last().expect("Scope stack underflow").len();
+        scope.last_mut().expect("Scope stack underflow").insert(builtin.to_string(), idx);
+    }
+    for name in extra_predefs {
+        let idx = scope.last().expect("Scope stack underflow").len();
+        scope.last_mut().expect("Scope stack underflow").insert((*name).to_string(), idx);
     }
     for name in funcs.keys() {
-        let idx = scope.last().unwrap().len();
-        scope.last_mut().unwrap().insert(name.clone(), idx);
+        let idx = scope.last().expect("Scope stack underflow").len();
+        scope.last_mut().expect("Scope stack underflow").insert(name.clone(), idx);
     }
     for name in structs.keys() {
-        let idx = scope.last().unwrap().len();
-        scope.last_mut().unwrap().insert(name.clone(), idx);
+        let idx = scope.last().expect("Scope stack underflow").len();
+        scope.last_mut().expect("Scope stack underflow").insert(name.clone(), idx);
     }
 
     let mut sem_finder = Finder::new(source, tokens);
@@ -198,15 +233,21 @@ fn analyze_stmts(
             xu_parser::Stmt::StructDef(_) => {}
             xu_parser::Stmt::EnumDef(_) => {}
             xu_parser::Stmt::FuncDef(def) => {
-                let idx = scope.last().unwrap().len();
-                scope.last_mut().unwrap().insert(def.name.clone(), idx);
+                let idx = scope.last().expect("Scope stack underflow").len();
+                scope.last_mut().expect("Scope stack underflow").insert(def.name.clone(), idx);
                 scope.push(HashMap::new());
                 def_spans.push(HashMap::new());
                 for p in &mut def.params {
-                    let idx = scope.last().unwrap().len();
-                    scope.last_mut().unwrap().insert(p.name.clone(), idx);
+                    if scope[..scope.len() - 1]
+                        .iter()
+                        .any(|s| s.contains_key(p.name.as_str()))
+                    {
+                        report_shadowing(&p.name, finder, out);
+                    }
+                    let idx = scope.last().expect("Scope stack underflow").len();
+                    scope.last_mut().expect("Scope stack underflow").insert(p.name.clone(), idx);
                     if let Some(sp) = finder.find_name_or_next(&p.name) {
-                        def_spans.last_mut().unwrap().insert(p.name.clone(), sp);
+                        def_spans.last_mut().expect("Def spans stack underflow").insert(p.name.clone(), sp);
                     }
                     if let Some(d) = &mut p.default {
                         analyze_expr(d, funcs, scope, finder, out);
@@ -235,6 +276,12 @@ fn analyze_stmts(
                     scope.push(HashMap::new());
                     def_spans.push(HashMap::new());
                     for p in &mut def.params {
+                        if scope[..scope.len() - 1]
+                            .iter()
+                            .any(|s| s.contains_key(p.name.as_str()))
+                        {
+                            report_shadowing(&p.name, finder, out);
+                        }
                         let idx = scope.last().unwrap().len();
                         scope.last_mut().unwrap().insert(p.name.clone(), idx);
                         if let Some(sp) = finder.find_name_or_next(&p.name) {
@@ -259,6 +306,40 @@ fn analyze_stmts(
                     );
                     scope.pop();
                     def_spans.pop();
+                }
+            }
+            xu_parser::Stmt::Use(u) => {
+                let (new_funcs, new_structs) = process_import(
+                    &u.path,
+                    base_dir,
+                    cache.clone(),
+                    out,
+                    finder.find_name_or_next("use"),
+                    import_stack,
+                );
+                for name in new_funcs {
+                    let idx = scope.last().unwrap().len();
+                    scope.last_mut().unwrap().insert(name, idx);
+                }
+                for (k, v) in new_structs {
+                    let idx = scope.last().unwrap().len();
+                    scope.last_mut().unwrap().insert(k.clone(), idx);
+                    structs.insert(k, v);
+                }
+                let alias = u
+                    .alias
+                    .clone()
+                    .unwrap_or_else(|| infer_module_alias(&u.path));
+                if scope[..scope.len() - 1]
+                    .iter()
+                    .any(|s| s.contains_key(alias.as_str()))
+                {
+                    report_shadowing(&alias, finder, out);
+                }
+                let idx = scope.last().expect("Scope stack underflow").len();
+                scope.last_mut().expect("Scope stack underflow").insert(alias.clone(), idx);
+                if let Some(sp) = finder.find_name_or_next(&alias) {
+                    def_spans.last_mut().expect("Def spans stack underflow").insert(alias, sp);
                 }
             }
             xu_parser::Stmt::If(s) => {
@@ -307,7 +388,18 @@ fn analyze_stmts(
             xu_parser::Stmt::When(s) => {
                 analyze_expr(&mut s.expr, funcs, scope, finder, out);
                 let mut all_arms_terminate = !s.arms.is_empty();
-                for (_, body) in &mut s.arms {
+                for (pat, body) in &mut s.arms {
+                    scope.push(HashMap::new());
+                    def_spans.push(HashMap::new());
+                    let mut binds: Vec<String> = Vec::new();
+                    collect_pattern_binds(pat, &mut binds);
+                    for name in binds {
+                        let idx = scope.last().unwrap().len();
+                        scope.last_mut().unwrap().insert(name.clone(), idx);
+                        if let Some(sp) = finder.find_name_or_next(&name) {
+                            def_spans.last_mut().unwrap().insert(name.clone(), sp);
+                        }
+                    }
                     if !analyze_stmts(
                         body,
                         funcs,
@@ -323,6 +415,8 @@ fn analyze_stmts(
                     ) {
                         all_arms_terminate = false;
                     }
+                    scope.pop();
+                    def_spans.pop();
                 }
                 if let Some(body) = &mut s.else_branch {
                     if !analyze_stmts(
@@ -365,10 +459,13 @@ fn analyze_stmts(
             }
             xu_parser::Stmt::ForEach(s) => {
                 analyze_expr(&mut s.iter, funcs, scope, finder, out);
-                let idx = scope.last().unwrap().len();
-                scope.last_mut().unwrap().insert(s.var.clone(), idx);
+                if scope.iter().any(|sc| sc.contains_key(s.var.as_str())) {
+                    report_shadowing(&s.var, finder, out);
+                }
+                let idx = scope.last().expect("Scope stack underflow").len();
+                scope.last_mut().expect("Scope stack underflow").insert(s.var.clone(), idx);
                 if let Some(sp) = finder.find_name_or_next(&s.var) {
-                    def_spans.last_mut().unwrap().insert(s.var.clone(), sp);
+                    def_spans.last_mut().expect("Def spans stack underflow").insert(s.var.clone(), sp);
                 }
                 analyze_stmts(
                     &mut s.body,
@@ -403,10 +500,16 @@ fn analyze_stmts(
                     scope.push(HashMap::new());
                     def_spans.push(HashMap::new());
                     if let Some(v) = &c.var {
+                        if scope[..scope.len() - 1]
+                            .iter()
+                            .any(|sc| sc.contains_key(v.as_str()))
+                        {
+                            report_shadowing(v, finder, out);
+                        }
                         let idx = scope.last().unwrap().len();
                         scope.last_mut().unwrap().insert(v.clone(), idx);
                         if let Some(sp) = finder.find_name_or_next(v) {
-                            def_spans.last_mut().unwrap().insert(v.clone(), sp);
+                            def_spans.last_mut().expect("Def spans stack underflow").insert(v.clone(), sp);
                         }
                     }
                     if !analyze_stmts(
@@ -468,6 +571,21 @@ fn analyze_stmts(
                 analyze_expr(&mut s.value, funcs, scope, finder, out);
                 match &mut s.target {
                     xu_parser::Expr::Ident(name, slot) => {
+                        if s.decl.is_some() && s.ty.is_none() {
+                            let needs_annot = match &s.value {
+                                xu_parser::Expr::List(items) => items.is_empty(),
+                                xu_parser::Expr::Dict(items) => items.is_empty(),
+                                xu_parser::Expr::Set(items) => items.is_empty(),
+                                _ => false,
+                            };
+                            if needs_annot {
+                                out.push(Diagnostic::error(
+                                    "Type annotation required for empty container literal",
+                                    finder.find_name_or_next(name),
+                                ));
+                            }
+                        }
+
                         let mut resolved = None;
                         for (depth, f) in scope.iter().rev().enumerate() {
                             if let Some(&idx) = f.get(name) {
@@ -475,8 +593,11 @@ fn analyze_stmts(
                                 break;
                             }
                         }
+                        if s.decl.is_some() && resolved.is_some() {
+                            report_shadowing(name, finder, out);
+                        }
 
-                        if strict && s.ty.is_none() {
+                        if strict && s.ty.is_none() && s.decl.is_none() {
                             if resolved.is_none() {
                                 let mut diag = Diagnostic::error_kind(
                                     DiagnosticKind::UndefinedIdentifier(name.clone()),
@@ -500,13 +621,13 @@ fn analyze_stmts(
                             slot.set(Some(r));
                             s.slot = Some(r);
                         } else {
-                            let idx = scope.last().unwrap().len();
-                            scope.last_mut().unwrap().insert(name.clone(), idx);
+                            let idx = scope.last().expect("Scope stack underflow").len();
+                            scope.last_mut().expect("Scope stack underflow").insert(name.clone(), idx);
                             let r = (0, idx as u32);
                             slot.set(Some(r));
                             s.slot = Some(r);
                             if let Some(sp) = finder.find_name_or_next(&name) {
-                                def_spans.last_mut().unwrap().insert(name.clone(), sp);
+                                def_spans.last_mut().expect("Def spans stack underflow").insert(name.clone(), sp);
                             }
                         }
                     }
@@ -514,31 +635,6 @@ fn analyze_stmts(
                 }
             }
             xu_parser::Stmt::Expr(e) => {
-                if let xu_parser::Expr::Call(c) = e {
-                    if let xu_parser::Expr::Ident(name, _) = c.callee.as_ref() {
-                        if name == "import" {
-                            if let Some(xu_parser::Expr::Str(path)) = c.args.first() {
-                                let (new_funcs, new_structs) = process_import(
-                                    path,
-                                    base_dir,
-                                    cache.clone(),
-                                    out,
-                                    finder.find_name_or_next(&name),
-                                    import_stack,
-                                );
-                                for name in new_funcs {
-                                    let idx = scope.last().unwrap().len();
-                                    scope.last_mut().unwrap().insert(name, idx);
-                                }
-                                for (k, v) in new_structs {
-                                    let idx = scope.last().unwrap().len();
-                                    scope.last_mut().unwrap().insert(k.clone(), idx);
-                                    structs.insert(k, v);
-                                }
-                            }
-                        }
-                    }
-                }
                 analyze_expr(e, funcs, scope, finder, out)
             }
             xu_parser::Stmt::Error(_) => {}
@@ -595,6 +691,7 @@ fn process_import(
                 false, // not strict for imports for now
                 cache.clone(),
                 import_stack,
+                &[],
             );
 
             out.extend(lex.diagnostics);
@@ -625,6 +722,18 @@ fn process_import(
         }
     }
     (Vec::new(), HashMap::new())
+}
+
+fn infer_module_alias(path: &str) -> String {
+    let mut last = path;
+    if let Some((_, tail)) = path.rsplit_once('/') {
+        last = tail;
+    } else if let Some((_, tail)) = path.rsplit_once('\\') {
+        last = tail;
+    }
+    let last = last.trim_end_matches('/');
+    let last = last.trim_end_matches('\\');
+    last.strip_suffix(".xu").unwrap_or(last).to_string()
 }
 
 fn resolve_import_path(base_dir: &Path, path: &str) -> Result<PathBuf, ()> {
@@ -703,9 +812,162 @@ fn analyze_expr(
                 analyze_expr(e, funcs, scope, finder, out);
             }
         }
-        xu_parser::Expr::Range(a, b) => {
-            analyze_expr(a, funcs, scope, finder, out);
-            analyze_expr(b, funcs, scope, finder, out);
+        xu_parser::Expr::Tuple(items) | xu_parser::Expr::Set(items) => {
+            for e in items.iter_mut() {
+                analyze_expr(e, funcs, scope, finder, out);
+            }
+        }
+        xu_parser::Expr::Range(r) => {
+            analyze_expr(r.start.as_mut(), funcs, scope, finder, out);
+            analyze_expr(r.end.as_mut(), funcs, scope, finder, out);
+        }
+        xu_parser::Expr::IfExpr(e) => {
+            analyze_expr(e.cond.as_mut(), funcs, scope, finder, out);
+            analyze_expr(e.then_expr.as_mut(), funcs, scope, finder, out);
+            analyze_expr(e.else_expr.as_mut(), funcs, scope, finder, out);
+        }
+        xu_parser::Expr::Match(m) => {
+            analyze_expr(m.expr.as_mut(), funcs, scope, finder, out);
+            for (pat, e) in m.arms.iter_mut() {
+                scope.push(HashMap::new());
+                let mut binds: Vec<String> = Vec::new();
+                collect_pattern_binds(pat, &mut binds);
+                for name in binds {
+                    let idx = scope.last().unwrap().len();
+                    scope.last_mut().unwrap().insert(name, idx);
+                }
+                analyze_expr(e, funcs, scope, finder, out);
+                scope.pop();
+            }
+            if let Some(e) = m.else_expr.as_mut() {
+                analyze_expr(e.as_mut(), funcs, scope, finder, out);
+            }
+        }
+        xu_parser::Expr::FuncLit(def) => {
+            fn analyze_local_stmts(
+                stmts: &mut [xu_parser::Stmt],
+                funcs: &HashMap<String, (usize, usize)>,
+                scope: &mut Vec<HashMap<String, usize>>,
+                finder: &mut Finder<'_>,
+                out: &mut Vec<Diagnostic>,
+            ) {
+                for s in stmts {
+                    match s {
+                        xu_parser::Stmt::If(s) => {
+                            for (cond, body) in s.branches.iter_mut() {
+                                analyze_expr(cond, funcs, scope, finder, out);
+                                analyze_local_stmts(body, funcs, scope, finder, out);
+                            }
+                            if let Some(b) = &mut s.else_branch {
+                                analyze_local_stmts(b, funcs, scope, finder, out);
+                            }
+                        }
+                        xu_parser::Stmt::When(s) => {
+                            analyze_expr(&mut s.expr, funcs, scope, finder, out);
+                            for (pat, body) in s.arms.iter_mut() {
+                                scope.push(HashMap::new());
+                                let mut binds: Vec<String> = Vec::new();
+                                collect_pattern_binds(pat, &mut binds);
+                                for name in binds {
+                                    let idx = scope.last().unwrap().len();
+                                    scope.last_mut().unwrap().insert(name, idx);
+                                }
+                                analyze_local_stmts(body, funcs, scope, finder, out);
+                                scope.pop();
+                            }
+                            if let Some(b) = &mut s.else_branch {
+                                analyze_local_stmts(b, funcs, scope, finder, out);
+                            }
+                        }
+                        xu_parser::Stmt::While(s) => {
+                            analyze_expr(&mut s.cond, funcs, scope, finder, out);
+                            analyze_local_stmts(&mut s.body, funcs, scope, finder, out);
+                        }
+                        xu_parser::Stmt::ForEach(s) => {
+                            analyze_expr(&mut s.iter, funcs, scope, finder, out);
+                            let idx = scope.last().unwrap().len();
+                            scope.last_mut().unwrap().insert(s.var.clone(), idx);
+                            analyze_local_stmts(&mut s.body, funcs, scope, finder, out);
+                        }
+                        xu_parser::Stmt::Try(s) => {
+                            analyze_local_stmts(&mut s.body, funcs, scope, finder, out);
+                            if let Some(c) = &mut s.catch {
+                                scope.push(HashMap::new());
+                                if let Some(v) = &c.var {
+                                    let idx = scope.last().unwrap().len();
+                                    scope.last_mut().unwrap().insert(v.clone(), idx);
+                                }
+                                analyze_local_stmts(&mut c.body, funcs, scope, finder, out);
+                                scope.pop();
+                            }
+                            if let Some(f) = &mut s.finally {
+                                analyze_local_stmts(f, funcs, scope, finder, out);
+                            }
+                        }
+                        xu_parser::Stmt::Return(Some(e)) => {
+                            analyze_expr(e, funcs, scope, finder, out);
+                        }
+                        xu_parser::Stmt::Return(None) => {}
+                        xu_parser::Stmt::Throw(e) => {
+                            analyze_expr(e, funcs, scope, finder, out);
+                        }
+                        xu_parser::Stmt::Assign(a) => {
+                            analyze_expr(&mut a.value, funcs, scope, finder, out);
+                            if let xu_parser::Expr::Ident(name, slot) = &mut a.target {
+                                let mut resolved = None;
+                                for (depth, f) in scope.iter().rev().enumerate() {
+                                    if let Some(&idx) = f.get(name) {
+                                        resolved = Some((depth as u32, idx as u32));
+                                        break;
+                                    }
+                                }
+                                if a.decl.is_some() || resolved.is_none() {
+                                    let idx = scope.last().expect("Scope stack underflow").len();
+                                    scope
+                                        .last_mut()
+                                        .expect("Scope stack underflow")
+                                        .insert(name.clone(), idx);
+                                    let r = (0, idx as u32);
+                                    slot.set(Some(r));
+                                    a.slot = Some(r);
+                                } else if let Some(r) = resolved {
+                                    slot.set(Some(r));
+                                    a.slot = Some(r);
+                                } else {
+                                    out.push(
+                                        Diagnostic::error_kind(
+                                            DiagnosticKind::UndefinedIdentifier(name.clone()),
+                                            finder.find_name_or_next(name),
+                                        )
+                                        .with_code(codes::UNDEFINED_IDENTIFIER),
+                                    );
+                                }
+                            } else {
+                                analyze_expr(&mut a.target, funcs, scope, finder, out);
+                            }
+                        }
+                        xu_parser::Stmt::Expr(e) => analyze_expr(e, funcs, scope, finder, out),
+                        xu_parser::Stmt::Break | xu_parser::Stmt::Continue => {}
+                        xu_parser::Stmt::FuncDef(_) => {}
+                        xu_parser::Stmt::StructDef(_) => {}
+                        xu_parser::Stmt::EnumDef(_) => {}
+                        xu_parser::Stmt::DoesBlock(_) => {}
+                        xu_parser::Stmt::Use(_) => {}
+                        xu_parser::Stmt::Error(_) => {}
+                    }
+                }
+            }
+
+            scope.push(HashMap::new());
+            for p in def.params.iter_mut() {
+                let idx = scope.last().unwrap().len();
+                scope.last_mut().unwrap().insert(p.name.clone(), idx);
+                if let Some(d) = &mut p.default {
+                    analyze_expr(d, funcs, scope, finder, out);
+                }
+            }
+            analyze_local_stmts(&mut def.body, funcs, scope, finder, out);
+            scope.pop();
         }
         xu_parser::Expr::Dict(entries) => {
             for (_, v) in entries.iter_mut() {
@@ -713,8 +975,15 @@ fn analyze_expr(
             }
         }
         xu_parser::Expr::StructInit(s) => {
-            for (_, v) in s.fields.iter_mut() {
-                analyze_expr(v, funcs, scope, finder, out);
+            for item in s.items.iter_mut() {
+                match item {
+                    xu_parser::StructInitItem::Spread(e) => {
+                        analyze_expr(e, funcs, scope, finder, out);
+                    }
+                    xu_parser::StructInitItem::Field(_, v) => {
+                        analyze_expr(v, funcs, scope, finder, out);
+                    }
+                }
             }
         }
         xu_parser::Expr::Member(m) => analyze_expr(&mut m.object, funcs, scope, finder, out),
@@ -845,7 +1114,9 @@ fn analyze_type_stmts(
                                 infer_type(d, func_sigs, structs, type_env, interner)
                             {
                                 let expected_id = tid;
-                                if type_mismatch_id(interner, expected_id, actual_id) {
+                                if type_mismatch_id(interner, expected_id, actual_id)
+                                    && !empty_container_literal_ok(interner, expected_id, d)
+                                {
                                     let en = interner.name(expected_id);
                                     let an = interner.name(actual_id);
                                     let primary = finder.find_name_or_next(&p.name);
@@ -893,6 +1164,12 @@ fn analyze_type_stmts(
                         interner,
                         out,
                     );
+                }
+            }
+            xu_parser::Stmt::Use(u) => {
+                if let Some(alias) = &u.alias {
+                    let any = interner.builtin_by_name("any").unwrap();
+                    type_env.last_mut().unwrap().insert(alias.clone(), any);
                 }
             }
             xu_parser::Stmt::If(s) => {
@@ -1032,7 +1309,9 @@ fn analyze_type_stmts(
             xu_parser::Stmt::Return(e) => {
                 if let (Some(expected), Some(e)) = (expected_return, e) {
                     if let Some(actual) = infer_type(e, func_sigs, structs, type_env, interner) {
-                        if type_mismatch_id(interner, expected, actual) {
+                        if type_mismatch_id(interner, expected, actual)
+                            && !empty_container_literal_ok(interner, expected, e)
+                        {
                             let en = interner.name(expected);
                             let an = interner.name(actual);
                             let d = Diagnostic::error_kind(
@@ -1058,7 +1337,9 @@ fn analyze_type_stmts(
                     if let Some(actual) =
                         infer_type(&s.value, func_sigs, structs, type_env, interner)
                     {
-                        if type_mismatch_id(interner, expected_id, actual) {
+                        if type_mismatch_id(interner, expected_id, actual)
+                            && !empty_container_literal_ok(interner, expected_id, &s.value)
+                        {
                             let en = interner.name(expected_id);
                             let an = interner.name(actual);
                             let primary = match &s.target {
@@ -1087,6 +1368,12 @@ fn analyze_type_stmts(
                             .last_mut()
                             .unwrap()
                             .insert(name.clone(), expected_id);
+                    }
+                } else if s.decl.is_some() {
+                    if let xu_parser::Expr::Ident(name, _) = &s.target {
+                        let actual = infer_type(&s.value, func_sigs, structs, type_env, interner)
+                            .unwrap_or(interner.intern(Type::Any));
+                        type_env.last_mut().unwrap().insert(name.clone(), actual);
                     }
                 } else if let xu_parser::Expr::Ident(name, _) = &s.target {
                     if let Some(expected) = type_env.iter().rev().find_map(|m| m.get(name).cloned())
@@ -1152,7 +1439,42 @@ fn infer_type(
                 Some(interner.list(ty))
             }
         }
+        xu_parser::Expr::Tuple(_) => Some(interner.intern(Type::Any)),
+        xu_parser::Expr::Set(_) => Some(interner.intern(Type::Any)),
         xu_parser::Expr::InterpolatedString(_) => Some(interner.intern(Type::Text)),
+        xu_parser::Expr::IfExpr(e) => {
+            let tt = infer_type(&e.then_expr, func_sigs, structs, type_env, interner);
+            let et = infer_type(&e.else_expr, func_sigs, structs, type_env, interner);
+            match (tt, et) {
+                (Some(t), Some(e)) => Some(unify_types_id(interner, t, e)),
+                (Some(t), None) => Some(t),
+                (None, Some(e)) => Some(e),
+                (None, None) => None,
+            }
+        }
+        xu_parser::Expr::Match(m) => {
+            let mut out: Option<TypeId> = None;
+            for (_, e) in m.arms.iter() {
+                if let Some(t) = infer_type(e, func_sigs, structs, type_env, interner) {
+                    out = Some(if let Some(cur) = out {
+                        unify_types_id(interner, cur, t)
+                    } else {
+                        t
+                    });
+                }
+            }
+            if let Some(e) = m.else_expr.as_ref() {
+                if let Some(t) = infer_type(e, func_sigs, structs, type_env, interner) {
+                    out = Some(if let Some(cur) = out {
+                        unify_types_id(interner, cur, t)
+                    } else {
+                        t
+                    });
+                }
+            }
+            out
+        }
+        xu_parser::Expr::FuncLit(_) => Some(interner.intern(Type::Function)),
         xu_parser::Expr::Dict(entries) => {
             if entries.is_empty() {
                 let text = interner.intern(Type::Text);
@@ -1170,7 +1492,7 @@ fn infer_type(
                 Some(interner.dict(text, ty))
             }
         }
-        xu_parser::Expr::Range(_, _) => Some(interner.intern(Type::Range)),
+        xu_parser::Expr::Range(_) => Some(interner.intern(Type::Range)),
         xu_parser::Expr::StructInit(s) => Some(interner.parse_type_str(&s.ty)),
         xu_parser::Expr::EnumCtor { ty, .. } => Some(interner.parse_type_str(ty)),
         xu_parser::Expr::Error(_) => None,
@@ -1303,6 +1625,10 @@ fn infer_type(
                 (Some(Type::Struct(s)), "close") if s == "file" => {
                     Some(interner.intern(Type::Null))
                 }
+                (Some(Type::Text), "split") => {
+                    let text = interner.intern(Type::Text);
+                    Some(interner.list(text))
+                }
                 _ => None,
             }
         }
@@ -1321,13 +1647,20 @@ fn unify_types_id(interner: &mut TypeInterner, a: TypeId, b: TypeId) -> TypeId {
     interner.intern(Type::Any)
 }
 
+fn empty_container_literal_ok(interner: &TypeInterner, expected: TypeId, expr: &xu_parser::Expr) -> bool {
+    match interner.get(expected) {
+        Type::List(_) => matches!(expr, xu_parser::Expr::List(items) if items.is_empty()),
+        Type::Dict(_, _) => matches!(expr, xu_parser::Expr::Dict(entries) if entries.is_empty()),
+        _ => false,
+    }
+}
+
 fn type_mismatch_id(interner: &TypeInterner, expected: TypeId, actual: TypeId) -> bool {
     !type_compatible_id(interner, expected, actual)
 }
 
 fn type_compatible_id(interner: &TypeInterner, expected: TypeId, actual: TypeId) -> bool {
     match (interner.get(expected), interner.get(actual)) {
-        (_, Type::Null) => true,
         (Type::Any, _) => true,
         (Type::Float, Type::Int) => true,
         (Type::List(e), Type::List(a)) => type_compatible_id(interner, *e, *a),
@@ -1349,6 +1682,8 @@ fn typeref_to_typeid(interner: &mut TypeInterner, t: &xu_parser::TypeRef) -> Typ
             let text = interner.builtin_by_name("text").unwrap();
             let any = interner.builtin_by_name("any").unwrap();
             interner.dict(text, any)
+        } else if t.name == "set" || t.name == "tuple" {
+            interner.intern(Type::Any)
         } else {
             interner.intern(Type::Struct(t.name.clone()))
         }
@@ -1359,6 +1694,8 @@ fn typeref_to_typeid(interner: &mut TypeInterner, t: &xu_parser::TypeRef) -> Typ
         let k = typeref_to_typeid(interner, &t.params[0]);
         let v = typeref_to_typeid(interner, &t.params[1]);
         interner.dict(k, v)
+    } else if t.name == "set" || t.name == "tuple" {
+        interner.intern(Type::Any)
     } else {
         interner.intern(Type::Struct(t.name.clone()))
     }

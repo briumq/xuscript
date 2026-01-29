@@ -1,0 +1,87 @@
+// CSV 导入与数据处理示例
+// 展示特性：结构体、列表操作、类型转换、Result 错误处理
+
+UserRecord has {
+    id: int
+    name: string
+    score: float
+    active: bool
+}
+
+// 解析单行 CSV: "id,name,score,active"
+func parse_record(line: string) -> Result[UserRecord, string] {
+    let parts = line.split(",")
+    if parts.length() < 4 {
+        return Result#err("Not enough columns")
+    }
+    
+    // 提取并清理空白
+    let id_str = parts[0].trim()
+    let name = parts[1].trim()
+    let score_str = parts[2].trim()
+    let active_str = parts[3].trim()
+    
+    // 简单的类型转换验证
+    // 注意：实际项目中 parse_int/parse_float 可能会失败（如果在 std 中返回 Result）
+    // 这里假设它们在格式错误时返回 0 或 panic，为了演示我们手动检查一些简单的条件
+    if id_str.length() is 0 { return Result#err("Empty ID") }
+    
+    let id = id_str.to_int()
+    let score = score_str.to_float()
+    let active = active_str is "true"
+    
+    return Result#ok(UserRecord{
+        id: id,
+        name: name,
+        score: score,
+        active: active
+    })
+}
+
+func process_data(csv_data: string) {
+    let lines = csv_data.split("\n")
+    var valid_count = 0
+    var total_score = 0.0
+    var active_users = 0
+    
+    println("Processing {lines.length()} lines...")
+    
+    for line in lines {
+        if line.trim().length() is 0 { continue }
+        
+        match parse_record(line) {
+            Result#ok(record) {
+                valid_count += 1
+                total_score += record.score
+                if record.active {
+                    active_users += 1
+                }
+                println("  Row OK: {record.name} (ID:{record.id})")
+            }
+            Result#err(msg) {
+                println("  Row Error: {msg} [Line: {line}]")
+            }
+        }
+    }
+    
+    println("\nSummary:")
+    println("- Valid Records: {valid_count}")
+    
+    if valid_count > 0 {
+        let avg = total_score / (valid_count.to_float())
+        println("- Average Score: {avg}")
+        println("- Active Users : {active_users}")
+    }
+}
+
+func main() {
+    let csv_content = """
+    1, Alice, 85.5, true
+    2, Bob,   90.0, false
+    3, Charlie, invalid, true
+    4, , 70.0, true
+    5, Dave,  88.2, true
+    """
+    
+    process_data(csv_content)
+}

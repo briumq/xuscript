@@ -1,0 +1,55 @@
+var BENCH_SCALE = "1000000"
+
+func now_us() -> int { return mono_micros() }
+
+func run_min_ms(repeat: int, logic) -> float {
+  var min = 999999999999.0
+  for _ in [1..repeat] {
+    var s = now_us()
+    logic()
+    var e = now_us()
+    gc()
+    var cost = e - s
+    if cost < min { min = cost }
+  }
+  return min / 1000.0
+}
+
+func out_json(case: string, N: int, ms: float) {
+  let b = builder_new()
+  builder_push(b, "\{")
+  builder_push(b, "\"case\":\"")
+  builder_push(b, case)
+  builder_push(b, "\",\"scale\":")
+  builder_push(b, N)
+  builder_push(b, ",\"duration_ms\":")
+  builder_push(b, ms)
+  builder_push(b, ",\"rss_bytes\":")
+  builder_push(b, process_rss())
+  builder_push(b, "\}")
+  let s = builder_finalize(b)
+  print(s)
+}
+
+func bench_dict(N: int) -> float {
+  func logic() {
+    let d = {}
+    for i in [0..N-1] { d.insert("k" + to_text(i), i) }
+    var s = 0
+    for i in [0..N-1] { s += d.get("k" + to_text(i)) }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_string(N: int) -> float {
+  func logic() {
+    var s = ""
+    for i in [0..N-1] { s += i; s += "," }
+  }
+  return run_min_ms(7, logic)
+}
+
+let N = parse_int(BENCH_SCALE)
+out_json("dict", N, bench_dict(N))
+out_json("string", N, bench_string(N))
+

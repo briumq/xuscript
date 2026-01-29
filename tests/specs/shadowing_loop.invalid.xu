@@ -1,0 +1,5 @@
+// test: shadowing_for_error [expect_error: "shadowing"]
+let i = 0
+for i in 0..5 {
+    print(i)
+}

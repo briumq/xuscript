@@ -32,7 +32,7 @@ impl Appendable for String {
         self.push_str(if b { "true" } else { "false" });
     }
     fn append_null(&mut self) {
-        self.push_str("null");
+        self.push_str("()");
     }
     fn append_value(&mut self, v: &Value, heap: &Heap) {
         if v.is_int() {
@@ -72,7 +72,7 @@ impl Appendable for Text {
         self.push_str(if b { "true" } else { "false" });
     }
     fn append_null(&mut self) {
-        self.push_str("null");
+        self.push_str("()");
     }
     fn append_value(&mut self, v: &Value, heap: &Heap) {
         if v.is_int() {

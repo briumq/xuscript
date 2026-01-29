@@ -1,0 +1,3 @@
+let t = (1, "hi");
+print(t.0);
+print(t.1);

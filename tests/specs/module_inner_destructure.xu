@@ -1,0 +1,5 @@
+func assert(x) { __builtin_assert(x) }
+
+use "module_inner_destructure_mod.xu" as m
+
+assert(m.get_a() is 1)

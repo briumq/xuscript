@@ -1,0 +1,57 @@
+State with [
+    created |
+    paid(ts: int) |
+    shipped(ts: int, code: string) |
+    delivered(ts: int) |
+    canceled(reason: string)
+]
+
+Order has {
+    id: string
+    state: State
+}
+
+Order does {
+    func can_ship() -> bool {
+        match self.state {
+            State#paid(_) { return true }
+            _ { return false }
+        }
+    }
+    func can_deliver() -> bool {
+        match self.state {
+            State#shipped(_, _) { return true }
+            _ { return false }
+        }
+    }
+}
+
+func next(o: Order, action: string) -> Order {
+    match (o.state, action) {
+        (State#created, "pay") {
+            return Order{ id: o.id, state: State#paid(1) }
+        }
+        (State#paid(_), "ship") {
+            return Order{ id: o.id, state: State#shipped(2, "X") }
+        }
+        (State#shipped(_, _), "deliver") {
+            return Order{ id: o.id, state: State#delivered(3) }
+        }
+        (_, "cancel") {
+            return Order{ id: o.id, state: State#canceled("user") }
+        }
+        _ { return o }
+    }
+}
+
+func main() {
+    var o = Order{ id: "A1", state: State#created }
+    o = next(o, "pay")
+    o = next(o, "ship")
+    println("can_deliver={o.can_deliver()}")
+    o = next(o, "deliver")
+    match o.state {
+        State#delivered(ts) { println("delivered_ts={ts}") }
+        _ { println("state_other") }
+    }
+}

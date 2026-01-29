@@ -1,0 +1,15 @@
+Row has { id: int, name: string }
+
+Op with [ select_all | filter_name(s: string) ]
+
+func exec(op: Op, rows: [Row]) -> [Row] {
+    match op {
+        Op#select_all { return rows }
+        Op#filter_name(s) {
+            let out = []
+            for r in rows { if r.name.contains(s) { out.add(r) } }
+            return out
+        }
+        _ { return rows }
+    }
+}

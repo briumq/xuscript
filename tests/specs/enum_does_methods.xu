@@ -1,0 +1,12 @@
+func assert(x) { __builtin_assert(x) }
+
+Color with [ red | blue ]
+
+Color does {
+    func is_red() {
+        return self is Color#red
+    }
+}
+
+let c = Color#red
+assert(c.is_red())

@@ -1,0 +1,15 @@
+func assert(x) { __builtin_assert(x) }
+
+func ok_or_err(ok: bool) {
+    if ok { return Result#ok(3) }
+    return Result#err("boom")
+}
+
+let r1 = ok_or_err(true).map(func(x: int) -> x + 1)
+assert(match r1 { Result#ok(v) { v } _ { 0 } } is 4)
+
+let r2 = ok_or_err(false).map_err(func(e: string) -> "E:{e}")
+assert(match r2 { Result#err(msg) { msg } _ { "" } } is "E:boom")
+
+let r3 = ok_or_err(true).then(func(x: int) -> Result#ok(x * 2))
+assert(match r3 { Result#ok(v) { v } _ { 0 } } is 6)

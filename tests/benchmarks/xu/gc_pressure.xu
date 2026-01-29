@@ -1,0 +1,36 @@
+// Large dataset GC pressure test
+var SCALE = "200000"  // 200k items
+
+func test_pressure() {
+    var N = parse_int(SCALE)
+    print("Testing with " + to_text(N) + " items")
+    
+    // Multiple rounds to test GC behavior
+    var round = 1
+    while round <= 3 {
+        print("Round " + to_text(round) + " RSS: " + to_text(process_rss()))
+        
+        // Create large data structure
+        let data = []
+        var i = 0
+        while i < N {
+            data.add(i)
+            i = i + 1
+        }
+        
+        print("After creation: " + to_text(process_rss()))
+        
+        // Clear reference
+        let _ = data
+        
+        // Force GC
+        gc()
+        print("After GC: " + to_text(process_rss()))
+        
+        round = round + 1
+    }
+}
+
+func main() {
+    test_pressure()
+}

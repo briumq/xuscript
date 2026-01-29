@@ -20,10 +20,15 @@ mod capabilities;
 mod diag;
 mod env;
 mod executor;
+mod stmt_exec;
+mod args_eval;
 mod ir;
+mod ir_throw;
+mod pattern;
 mod methods;
 mod module_loader;
 mod modules;
+mod op_dispatch;
 mod slot_allocator;
 mod util;
 
@@ -49,7 +54,7 @@ pub struct RuntimeConfig {
 
 impl Default for RuntimeConfig {
     fn default() -> Self {
-        Self { strict_vars: false }
+        Self { strict_vars: true }
     }
 }
 
@@ -134,7 +139,7 @@ pub struct ICSlot {
     pub field_offset: Option<usize>,
 }
 
-enum Flow {
+pub(crate) enum Flow {
     None,
     Return(Value),
     Break,
@@ -210,6 +215,22 @@ impl Runtime {
         let rc = Rc::new(s.to_string());
         self.string_pool.insert(s.to_string(), rc.clone());
         Text::Heap(rc)
+    }
+
+    pub(crate) fn option_none(&mut self) -> Value {
+        Value::enum_obj(self.heap.alloc(crate::gc::ManagedObject::Enum(
+            "Option".to_string().into(),
+            "none".to_string().into(),
+            Box::new([]),
+        )))
+    }
+
+    pub(crate) fn option_some(&mut self, v: Value) -> Value {
+        Value::enum_obj(self.heap.alloc(crate::gc::ManagedObject::Enum(
+            "Option".to_string().into(),
+            "some".to_string().into(),
+            vec![v].into_boxed_slice(),
+        )))
     }
 
     pub fn define_global_constant(&mut self, name: &str, value: &str) {
@@ -421,6 +442,10 @@ impl Runtime {
         self.locals.get_by_index(idx)
     }
 
+    fn get_local_by_depth_index(&self, depth_from_top: usize, idx: usize) -> Option<Value> {
+        self.locals.get_by_depth_index(depth_from_top, idx)
+    }
+
     fn set_local(&mut self, name: &str, value: Value) -> bool {
         let value_for_env = value.clone();
         if self.locals.set(name, value) {
@@ -439,6 +464,11 @@ impl Runtime {
             return true;
         }
         false
+    }
+
+    #[allow(dead_code)]
+    fn set_local_by_depth_index(&mut self, depth_from_top: usize, idx: usize, value: Value) -> bool {
+        self.locals.set_by_depth_index(depth_from_top, idx, value)
     }
 
     fn define_local(&mut self, name: String, value: Value) {
@@ -527,10 +557,11 @@ impl Runtime {
             }
         }
         Self::precompile_module(&program.module)?;
-        let Some(bc) = program.bytecode.as_ref() else {
-            return Err("Missing bytecode".into());
+        let flow = if let Some(bc) = program.bytecode.as_ref() {
+            ir::run_bytecode(self, bc)?
+        } else {
+            self.exec_stmts(&program.module.stmts)
         };
-        let flow = ir::run_bytecode(self, bc)?;
         match flow {
             Flow::None => {
                 self.invoke_main_if_present()?;
@@ -771,6 +802,32 @@ impl Runtime {
                                 return self.call_function(slot.cached_func, &all_args);
                             }
                         }
+                    } else if tag == crate::value::TAG_ENUM {
+                        let id = recv.as_obj_id();
+                        if let crate::gc::ManagedObject::Enum(ty, _variant, _payload) =
+                            self.heap.get(id)
+                        {
+                            let ty_hash = xu_ir::stable_hash64(ty.as_str());
+                            if slot.struct_ty_hash == ty_hash {
+                                if let Some(f) = slot.cached_bytecode.as_ref() {
+                                    if args.is_empty() {
+                                        return self.call_bytecode_function(f.clone(), &[recv]);
+                                    }
+                                    if args.len() == 1 {
+                                        let all = [recv, args[0]];
+                                        return self.call_bytecode_function(f.clone(), &all);
+                                    }
+                                }
+                                let mut all_args: SmallVec<[Value; 4]> =
+                                    SmallVec::with_capacity(args.len() + 1);
+                                all_args.push(recv);
+                                all_args.extend(args.iter().cloned());
+                                if let Some(f) = slot.cached_user.as_ref() {
+                                    return self.call_user_function(f.clone(), &all_args);
+                                }
+                                return self.call_function(slot.cached_func, &all_args);
+                            }
+                        }
                     } else if slot.kind != MethodKind::Unknown {
                         return methods::dispatch_builtin_method(
                             self, recv, slot.kind, args, method,
@@ -889,6 +946,100 @@ impl Runtime {
                 };
             }
 
+            let mut all_args: SmallVec<[Value; 4]> = SmallVec::with_capacity(args.len() + 1);
+            all_args.push(recv);
+            all_args.extend(args.iter().cloned());
+            self.call_function(callee, &all_args)
+        } else if tag == crate::value::TAG_ENUM {
+            let id = recv.as_obj_id();
+            let (callee, ty_hash) =
+                match if let crate::gc::ManagedObject::Enum(ty, _variant, _payload) =
+                    self.heap.get(id)
+                {
+                    let ty_str = ty.as_str();
+                    let hash = {
+                        let mut h = self.method_cache.hasher().build_hasher();
+                        ty_str.hash(&mut h);
+                        method.hash(&mut h);
+                        h.finish()
+                    };
+                    match self
+                        .method_cache
+                        .raw_entry_mut()
+                        .from_hash(hash, |(t, m)| t == ty_str && m == method)
+                    {
+                        RawEntryMut::Occupied(o) => Ok((o.get().clone(), xu_ir::stable_hash64(ty_str))),
+                        RawEntryMut::Vacant(vac) => {
+                            let name = format!("__method__{}__{}", ty_str, method);
+                            if let Some(v) = self.env.get_cached(&name) {
+                                vac.insert((ty.to_string(), method.to_string()), v.clone());
+                                Ok((v, xu_ir::stable_hash64(ty_str)))
+                            } else {
+                                Err(())
+                            }
+                        }
+                    }
+                } else {
+                    return Err(self.error(xu_syntax::DiagnosticKind::Raw("Non-enum object".into())));
+                } {
+                    Ok(v) => v,
+                    Err(()) => {
+                        let kind = MethodKind::from_str(method);
+                        if kind == MethodKind::Unknown {
+                            return Err(self.error(xu_syntax::DiagnosticKind::UnknownMember(
+                                method.to_string(),
+                            )));
+                        }
+                        if let Some(idx) = slot_idx {
+                            while self.ic_method_slots.len() <= idx {
+                                self.ic_method_slots.push(MethodICSlot::default());
+                            }
+                            self.ic_method_slots[idx] = MethodICSlot {
+                                tag,
+                                method_hash,
+                                struct_ty_hash: 0,
+                                kind,
+                                cached_func: Value::NULL,
+                                cached_user: None,
+                                cached_bytecode: None,
+                            };
+                        }
+                        return methods::dispatch_builtin_method(self, recv, kind, args, method);
+                    }
+                };
+
+            if let Some(idx) = slot_idx {
+                while self.ic_method_slots.len() <= idx {
+                    self.ic_method_slots.push(MethodICSlot::default());
+                }
+                self.ic_method_slots[idx] = MethodICSlot {
+                    tag,
+                    method_hash,
+                    struct_ty_hash: ty_hash,
+                    kind: MethodKind::Unknown,
+                    cached_func: callee,
+                    cached_user: if let crate::gc::ManagedObject::Function(crate::value::Function::User(
+                        f,
+                    )) = self.heap.get(callee.as_obj_id())
+                    {
+                        Some(f.clone())
+                    } else {
+                        None
+                    },
+                    cached_bytecode: if let crate::gc::ManagedObject::Function(
+                        crate::value::Function::Bytecode(f),
+                    ) = self.heap.get(callee.as_obj_id())
+                    {
+                        Some(f.clone())
+                    } else {
+                        None
+                    },
+                };
+            }
+
+            if callee.get_tag() != crate::value::TAG_FUNC {
+                return Err(self.error(xu_syntax::DiagnosticKind::NotCallable(method.to_string())));
+            }
             let mut all_args: SmallVec<[Value; 4]> = SmallVec::with_capacity(args.len() + 1);
             all_args.push(recv);
             all_args.extend(args.iter().cloned());
@@ -1049,9 +1200,9 @@ impl Runtime {
                     true
                 }
                 (
-                    crate::gc::ManagedObject::Range(a1, a2),
-                    crate::gc::ManagedObject::Range(b1, b2),
-                ) => a1 == b1 && a2 == b2,
+                    crate::gc::ManagedObject::Range(a1, a2, ai),
+                    crate::gc::ManagedObject::Range(b1, b2, bi),
+                ) => a1 == b1 && a2 == b2 && ai == bi,
                 (
                     crate::gc::ManagedObject::Enum(ta, va, pa),
                     crate::gc::ManagedObject::Enum(tb, vb, pb),
@@ -1129,6 +1280,7 @@ impl Runtime {
                         }
                     }
                 }
+                Stmt::Use(_) => {}
                 Stmt::If(s) => {
                     for (cond, body) in &s.branches {
                         Self::precompile_expr(cond)?;
@@ -1201,9 +1353,14 @@ impl Runtime {
                 }
                 Ok(())
             }
-            Expr::Range(a, b) => {
-                Self::precompile_expr(a)?;
-                Self::precompile_expr(b)
+            Expr::Range(r) => {
+                Self::precompile_expr(&r.start)?;
+                Self::precompile_expr(&r.end)
+            }
+            Expr::IfExpr(e) => {
+                Self::precompile_expr(&e.cond)?;
+                Self::precompile_expr(&e.then_expr)?;
+                Self::precompile_expr(&e.else_expr)
             }
             Expr::Dict(entries) => {
                 for (_, v) in entries {
@@ -1212,8 +1369,11 @@ impl Runtime {
                 Ok(())
             }
             Expr::StructInit(s) => {
-                for (_, v) in s.fields.iter() {
-                    Self::precompile_expr(v)?;
+                for item in s.items.iter() {
+                    match item {
+                        xu_ir::StructInitItem::Spread(e) => Self::precompile_expr(e)?,
+                        xu_ir::StructInitItem::Field(_, v) => Self::precompile_expr(v)?,
+                    }
                 }
                 Ok(())
             }
@@ -1246,21 +1406,79 @@ impl Runtime {
             _ => Ok(()),
         }
     }
-    pub fn gc(&mut self) {
-        let mut roots: Vec<Value> = Vec::new();
-        for m in self.loaded_modules.values() {
-            roots.push(m.clone());
+    pub fn gc(&mut self, extra_roots: &[Value]) {
+        // Clear all caches and pools before marking to ensure no references are held
+        // This is critical for GC correctness - cached objects may hold
+        // references to objects that should be collected
+        self.method_cache.clear();
+        self.dict_cache.clear();
+        self.dict_cache_int.clear();
+        self.dict_cache_last = None;
+        self.dict_cache_int_last = None;
+        self.dict_version_last = None;
+        self.ic_slots.clear();
+        self.ic_method_slots.clear();
+
+        // Clear pools to release references
+        self.env_pool.clear();
+        self.vm_stack_pool.clear();
+        self.vm_iters_pool.clear();
+        self.vm_handlers_pool.clear();
+        self.locals.clear_pools();
+
+        // Clear other caches
+        self.loaded_modules.clear();
+        self.string_pool.clear();
+        self.structs.clear();
+        self.struct_layouts.clear();
+        self.enums.clear();
+        self.import_parse_cache.clear();
+        self.compiled_locals.clear();
+        self.compiled_locals_idx.clear();
+        self.import_stack.clear();
+        self.current_func = None;
+        self.current_param_bindings = None;
+        self.predefined_constants.clear();
+        self.entry_path = None;
+
+        // Clear environment stack and keep only global frame
+        self.env.stack.clear();
+        if self.env.frames.len() > 1 {
+            let global_frame = self.env.frames.first().cloned();
+            self.env.frames.clear();
+            if let Some(frame) = global_frame {
+                self.env.frames.push(frame);
+            }
         }
 
+        // Create roots vector
+        let mut roots: Vec<Value> = Vec::new();
+        roots.extend_from_slice(extra_roots);
+
+        // Mark all reachable objects
         self.heap.mark_all(&roots, &[&self.env], &[&self.locals]);
 
         // Sweep phase
         self.heap.sweep();
+
+        // Force memory release
+        #[cfg(target_os = "linux")]
+        unsafe {
+            libc::malloc_trim(0);
+        }
+        // Force thread yield to allow OS to reclaim memory
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 
     pub(crate) fn maybe_gc(&mut self) {
         if self.heap.should_gc() {
-            self.gc();
+            self.gc(&[]);
+        }
+    }
+
+    pub(crate) fn maybe_gc_with_roots(&mut self, roots: &[Value]) {
+        if self.heap.should_gc() {
+            self.gc(roots);
         }
     }
 }

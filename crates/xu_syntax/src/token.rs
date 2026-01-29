@@ -31,8 +31,6 @@ pub enum TokenKind {
     True,
     /// `false`
     False,
-    /// `null`
-    Null,
 
     /// `(`
     LParen,
@@ -48,6 +46,8 @@ pub enum TokenKind {
     RBrace,
 
     DotDot,
+    DotDotEq,
+    Ellipsis,
 
     /// `+`
     Plus,
@@ -82,12 +82,14 @@ pub enum TokenKind {
 
     /// `let`
     KwLet,
+    KwVar,
     /// `is`
     KwIs,
     /// `isnt`
     KwIsnt,
     /// `with`
     KwWith,
+    KwHas,
     /// `if`
     KwIf,
     /// `else`
@@ -96,38 +98,36 @@ pub enum TokenKind {
     KwWhile,
     /// `for`
     KwFor,
+    KwIn,
     /// `.`
     Dot,
     /// `func`
     KwFunc,
-    /// `struct`
-    KwStruct,
-    /// `enum`
-    KwEnum,
     /// `return`
     KwReturn,
     /// `break`
     KwBreak,
     /// `continue`
     KwContinue,
-    /// `throw`
-    KwThrow,
-    /// `try`
-    KwTry,
-    /// `catch`
-    KwCatch,
-    /// `finally`
-    KwFinally,
     /// `not`
     KwNot,
     /// `and`
     KwAnd,
     /// `or`
     KwOr,
-    /// `import` / `use`
-    KwImport,
+    KwDoes,
+    KwInner,
+    KwStatic,
+    KwSelf,
+    KwUse,
+    KwAs,
     /// `match`
     KwMatch,
+    /// `when`
+    KwWhen,
+    KwCan,
+    KwAsync,
+    KwAwait,
 
     /// `==`
     EqEq,

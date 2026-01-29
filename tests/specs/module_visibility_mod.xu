@@ -1,0 +1,9 @@
+inner var counter = 0
+
+func public() {
+    __builtin_assert(true)
+}
+
+inner func internal() {
+    __builtin_assert(true)
+}

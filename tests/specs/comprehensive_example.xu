@@ -1,0 +1,83 @@
+// test: comprehensive_example
+func assert(x) { __builtin_assert(x) }
+
+Status with [ pending | approved | rejected ]
+
+User has {
+    id: int
+    name: string
+    email: string
+    status: Status = Status#pending
+
+    func is_active() -> bool {
+        return self.status is Status#approved
+    }
+
+    static func create(id: int, name: string, email: string) -> User {
+        return User{ id: id, name: name, email: email }
+    }
+}
+
+User does {
+    func to_string() -> string {
+        return "User({self.id}, {self.name})"
+    }
+}
+
+func find_user(users: [User], id: int) -> Option[User] {
+    for user in users {
+        if user.id is id {
+            return Option#some(user)
+        }
+    }
+    return Option#none
+}
+
+func approve_user(user: User) -> User {
+    return User{ ...user, status: Status#approved }
+}
+
+// 主测试
+let users = [
+    User.create(1, "Alice", "alice@example.com"),
+    User.create(2, "Bob", "bob@example.com"),
+    User.create(3, "Charlie", "charlie@example.com")
+]
+
+// 查找并处理
+when user = find_user(users, 2) {
+    let approved = approve_user(user)
+    assert(approved.is_active())
+    assert(approved.name is "Bob")
+} else {
+    assert(false)
+}
+
+// 链式过滤
+let pending_users = users.filter(func(u) -> u.status is Status#pending)
+assert(pending_users.length is 3)
+
+// match 表达式
+let first_status = match users.first {
+    Option#some(u) {
+        match u.status {
+            Status#pending  { "待处理" }
+            Status#approved { "已通过" }
+            Status#rejected { "已拒绝" }
+            _ { "未知" }
+        }
+    }
+    Option#none() { "无用户" }
+    _ { "未知" }
+}
+assert(first_status is "待处理")
+
+// Option 组合子
+let first_name = users.first.map(func(u) -> u.name).or("匿名")
+assert(first_name is "Alice")
+
+// 不存在的用户
+let missing = find_user(users, 999).map(func(u) -> u.name).or("未找到")
+assert(missing is "未找到")
+
+print("OK")

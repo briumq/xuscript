@@ -46,7 +46,7 @@ fn check_valid_example_succeeds() {
         "check_valid_example_succeeds",
         r#"
 println("hello");
-a = 1 + 2;
+let a = 1 + 2;
 println("a={a}");
 "#
         .trim_start(),

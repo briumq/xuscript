@@ -1,0 +1,2 @@
+// expect_error:"Reserved keyword cannot be used as identifier"
+let await = 1

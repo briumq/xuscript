@@ -11,6 +11,7 @@ hashbrown = "0.14"
 ahash = "0.8"
 smallvec = "1"
 itoa = "1"
+libc = "0.2"
 
 [dev-dependencies]
 xu_lexer = { path = "../xu_lexer" }
@@ -18,3 +19,4 @@ xu_parser = { path = "../xu_parser" }
 xu_driver = { path = "../xu_driver" }
 proptest = { version = "1", default-features = false, features = ["std"] }
 bumpalo = "3.19.1"
+serde_json = "1"

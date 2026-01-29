@@ -1,0 +1,2 @@
+// test: when_not_expression [expect_error: "Expected expression"]
+let x = when a = Option#some(1) { a } else { 0 }

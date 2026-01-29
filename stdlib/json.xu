@@ -1,7 +1,7 @@
 func parse_json(strings: string) -> Result {
   let s = strings.trim();
   if s is "null" {
-    return Result#ok(null);
+    return Result#ok(());
   }
   if s is "true" {
     return Result#ok(true);
@@ -15,7 +15,7 @@ func parse_json(strings: string) -> Result {
   if s.length > 0 {
     let c = s[0];
     if (c >= "0" and c <= "9") or c is "-" {
-      return float(s);
+      return Result#ok(float(s));
     }
     if c is "\{" or c is "[" {
       return Result#err("JSON parse not implemented: only null/true/false/number/string supported");
@@ -25,7 +25,7 @@ func parse_json(strings: string) -> Result {
 }
 
 func generate_json(data: any) -> string {
-  if data is null {
+  if data is () {
     return "null";
   }
   if data is true {

@@ -5,6 +5,7 @@ pub(crate) mod ast;
 pub(crate) mod check;
 pub(crate) mod run;
 pub(crate) mod tokens;
+pub(crate) mod common;
 
 pub(crate) fn emit_diagnostics(
     source: &SourceFile,

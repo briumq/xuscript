@@ -9,6 +9,7 @@ match s {
     Status#pending  { result = "pending" }
     Status#approved { result = "approved" }
     Status#rejected { result = "rejected" }
+    _ { assert(false) }
 }
 assert(result is "approved")
 
@@ -19,19 +20,20 @@ Response with [
 ]
 
 let r = Response#error(404, "not found")
-let text = ""
+var text = ""
 match r {
     Response#success(data) { text = "OK: {data}" }
     Response#error(code, msg) { text = "Error {code}: {msg}" }
+    _ { assert(false) }
 }
 assert(text is "Error 404: not found")
 
 // match with else branch (non-exhaustive)
 let x = 42
-let res2 = ""
+var res2 = ""
 match x {
     0 { res2 = "zero" }
     1 { res2 = "one" }
-    else { res2 = "other" }
+    _ { res2 = "other" }
 }
 assert(res2 is "other")

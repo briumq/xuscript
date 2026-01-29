@@ -26,7 +26,7 @@ fn run_xu(args: &[&str]) -> std::process::Output {
 }
 
 #[test]
-fn strict_mode_rejects_untyped_new_assignment() {
+fn default_strict_rejects_untyped_new_assignment() {
     let path = write_temp_xu(
         "strict_rejects_untyped_new_assignment",
         r#"
@@ -34,11 +34,29 @@ x = 1;
 "#
         .trim_start(),
     );
-    let out = run_xu(&["check", "--strict", path.to_string_lossy().as_ref()]);
+    let out = run_xu(&["check", path.to_string_lossy().as_ref()]);
     let _ = fs::remove_file(&path);
     assert_eq!(out.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("Undefined identifier: x"), "{stderr}");
+}
+
+#[test]
+fn nonstrict_allows_untyped_new_assignment() {
+    let path = write_temp_xu(
+        "nonstrict_allows_untyped_new_assignment",
+        r#"
+x = 1;
+"#
+        .trim_start(),
+    );
+    let out = run_xu(&["check", "--nonstrict", path.to_string_lossy().as_ref()]);
+    let _ = fs::remove_file(&path);
+    assert!(
+        out.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 #[test]

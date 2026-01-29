@@ -1,0 +1,3 @@
+// test: dict_key_not_found [expect_panic: "Key not found"]
+let dict = {"a": 1}
+let x = dict["b"]

@@ -1,0 +1,184 @@
+// Xu full benchmark suite with JSON output (safe subset)
+var BENCH_SCALE = "5000"
+
+Foo has {
+  x: int
+  func method(n: int) -> int { return self.x + n }
+}
+
+func now_us() -> int { return mono_micros() }
+
+func run_min_ms(repeat: int, logic) -> float {
+  var min = 999999999999.0
+  for _ in [1..repeat] {
+    var s = now_us()
+    logic()
+    var e = now_us()
+    var cost = e - s
+    if cost < min { min = cost }
+  }
+  return min / 1000.0
+}
+
+func out_json(case: string, N: int, ms: float) {
+  let b = builder_new()
+  builder_push(b, "\{")
+  builder_push(b, "\"case\":\"")
+  builder_push(b, case)
+  builder_push(b, "\",\"scale\":")
+  builder_push(b, N)
+  builder_push(b, ",\"duration_ms\":")
+  builder_push(b, ms)
+  builder_push(b, ",\"rss_bytes\":")
+  builder_push(b, process_rss())
+  builder_push(b, "\}")
+  let s = builder_finalize(b)
+  print(s)
+}
+
+func bench_loop(N: int) -> float {
+  func logic() {
+    var c = 0
+    for _ in [1..N] { c += 1 }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_dict(N: int) -> float {
+  func logic() {
+    let d = {}
+    for i in [0..N-1] { d.insert("k" + to_text(i), i) }
+    var s = 0
+    for i in [0..N-1] { s += d.get("k" + to_text(i)) }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_dict_intkey(N: int) -> float {
+  func logic() {
+    let d = {}
+    for i in [0..N-1] { d.insert_int(i, i) }
+    var s = 0
+    for i in [0..N-1] { s += d.get_int(i) }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_dict_hot(N: int) -> float {
+  func logic() {
+    let d = {}
+    for i in [0..N-1] { d.insert(to_text(i), i) }
+    for _ in [0..N-1] { let _v = d.get("0") }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_string(N: int) -> float {
+  func logic() {
+    var s = ""
+    for i in [0..N-1] { s += i; s += "," }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_string_builder(N: int) -> float {
+  func logic() {
+    let b = builder_new()
+    for i in [0..N-1] { builder_push(b, i); builder_push(b, ",") }
+    let _s = builder_finalize(b)
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_struct_method(N: int) -> float {
+  func logic() {
+    let f = Foo{ x: 1 }
+    for i in [0..N-1] { let _v = f.method(i) }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_func_call(N: int) -> float {
+  func add1(x: int) -> int { return x + 1 }
+  func logic() {
+    var s = 0
+    for i in [0..N-1] { s += add1(i) }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_branch_heavy(N: int) -> float {
+  func logic() {
+    var s = 0
+    for i in [0..N-1] { if (i % 2) is 0 { s += 1 } else { s -= 1 } }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_list_push_pop(N: int) -> float {
+  func logic() {
+    let l = []
+    for i in [0..N-1] { l.add(i) }
+    for i in [0..N-1] { let _ = l.pop() }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_dict_miss(N: int) -> float {
+  func logic() {
+    let d = {}
+    for i in [0..N-1] { d.insert("k" + to_text(i), i) }
+    var miss = 0
+    for i in [0..N-1] { if d.contains("x" + to_text(i)) { miss += 1 } }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_dict_update_hot(N: int) -> float {
+  func logic() {
+    let d = {}
+    d.insert("hot", 0)
+    for i in [0..N-1] { d.insert("hot", i) }
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_string_unicode(N: int) -> float {
+  func logic() {
+    let parts = ["こんにちは", "世界🌏", "Xu", "脚本"]
+    let b = builder_new()
+    for i in [0..N-1] { builder_push(b, parts[i % 4]); builder_push(b, ",") }
+    let _s = builder_finalize(b)
+  }
+  return run_min_ms(7, logic)
+}
+
+func bench_string_scan(N: int) -> float {
+  func logic() {
+    var s = ""
+    for i in [0..N-1] { s += i; s += "," }
+    let _c1 = contains(s, "999")
+    let _c2 = starts_with(s, "0,1")
+    let _c3 = ends_with(s, to_text(N - 1))
+  }
+  return run_min_ms(7, logic)
+}
+
+func main() {
+  var N = parse_int(BENCH_SCALE)
+  out_json("loop", N, bench_loop(N))
+  out_json("dict", N, bench_dict(N))
+  out_json("dict-intkey", N, bench_dict_intkey(N))
+  out_json("dict-hot", N, bench_dict_hot(N))
+  out_json("string", N, bench_string(N))
+  out_json("string-builder", N, bench_string_builder(N))
+  out_json("struct-method", N, bench_struct_method(N))
+  out_json("func-call", N, bench_func_call(N))
+  out_json("branch-heavy", N, bench_branch_heavy(N))
+  out_json("list-push-pop", N, bench_list_push_pop(N))
+  out_json("dict-miss", N, bench_dict_miss(N))
+  out_json("dict-update-hot", N, bench_dict_update_hot(N))
+  out_json("string-unicode", N, bench_string_unicode(N))
+  out_json("string-scan", N, bench_string_scan(N))
+}
+BENCH_SCALE="10000"; BENCH_SMOKE="0"; main()

@@ -1,0 +1,13 @@
+func render(tpl: string, data: {string: string}) -> string {
+    var out: string = tpl
+    for k in data.keys() {
+        out = out.replace("\{"+k+"\}", data[k])
+    }
+    return out
+}
+
+func main() {
+    let tpl = "Hello \{name\}, today is \{day\}"
+    let s = render(tpl, { "name": "Xu", "day": "Wed" })
+    println(s)
+}

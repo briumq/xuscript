@@ -5,7 +5,8 @@ use xu_driver::Driver;
 use xu_runtime::Runtime;
 use xu_syntax::{TokenKind, render_diagnostic};
 
-const USAGE: &str = "Usage: xu <tokens|check|ast|run> [--strict] [--timing] [--no-diags] <args>";
+const USAGE: &str =
+    "Usage: xu <tokens|check|ast|run> [--nonstrict] [--timing] [--no-diags] <args>";
 
 fn main() {
     let mut argv: Vec<String> = std::env::args().skip(1).collect();
@@ -14,7 +15,7 @@ fn main() {
         std::process::exit(2);
     };
     argv.remove(0);
-    let mut strict = false;
+    let mut strict = true;
     let mut timing = false;
     let mut no_diags = false;
     let mut positional: Vec<String> = Vec::new();
@@ -24,6 +25,8 @@ fn main() {
         let a = &argv[i];
         if a == "--strict" {
             strict = true;
+        } else if a == "--nonstrict" {
+            strict = false;
         } else if a == "--timing" {
             timing = true;
         } else if a == "--no-diags" {

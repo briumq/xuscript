@@ -1,0 +1,14 @@
+inner func not_found() { println("404") }
+
+func public_handle(path: string) {
+    match path {
+        "/health" { println("200 ok") }
+        "/users"  { println("200 users") }
+        _         { not_found() }
+    }
+}
+
+func main() {
+    public_handle("/health")
+    public_handle("/x")
+}

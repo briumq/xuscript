@@ -1,0 +1,1 @@
+ok=2 warn=1 fail=1

@@ -1,0 +1,91 @@
+// 模拟 JWT 令牌验证流程
+// 展示特性：枚举、Result 组合子、错误处理、结构体
+
+// 1. 定义角色枚举
+Role with [
+    Admin |
+    User(id: int) |
+    Guest
+]
+
+// 2. 定义令牌结构
+Token has {
+    role: Role
+    exp: int
+    sign: string
+}
+
+// 3. 模拟解码函数 (格式: "role_type:id:exp:sign")
+// 例如: "admin:0:1700000000:secret" 或 "user:101:1700000000:secret"
+func decode_token(raw: string) -> Result[Token, string] {
+    let parts = raw.split(":")
+    if parts.length() < 4 {
+        return Result#err("Invalid format")
+    }
+    
+    let type_str = parts[0]
+    let id_str = parts[1]
+    let exp_str = parts[2]
+    let sign = parts[3]
+    
+    let exp = parse_int(exp_str)
+    
+    let role = match type_str {
+        "admin" { let r = Role#Admin; r }
+        "user"  { Role#User(parse_int(id_str)) }
+        "guest" { let r = Role#Guest; r }
+        _       { return Result#err("Unknown role: {type_str}") }
+    }
+    
+    return Result#ok(Token{ role: role, exp: exp, sign: sign })
+}
+
+// 4. 验证逻辑
+func verify_token(raw: string, now: int) -> Result[Role, string] {
+    return decode_token(raw)
+        .and_then(func(t: Token) -> Result[Token, string] {
+            // 模拟验签
+            if t.sign isnt "secret" {
+                return Result#err("Invalid signature")
+            }
+            return Result#ok(t)
+        })
+        .and_then(func(t: Token) -> Result[Token, string] {
+            // 检查过期
+            if t.exp < now {
+                return Result#err("Token expired")
+            }
+            return Result#ok(t)
+        })
+        .map(func(t: Token) -> t.role)
+}
+
+func main() {
+    let now = 1000
+    
+    // 测试用例列表
+    let cases = [
+        "admin:0:2000:secret",       // 有效 Admin
+        "user:42:2000:secret",       // 有效 User
+        "guest:0:2000:wrong",        // 签名错误
+        "admin:0:500:secret",        // 已过期
+        "hacker:0:2000:secret",      // 未知角色
+        "invalid"                    // 格式错误
+    ]
+    
+    for token_str in cases {
+        print("Verifying: {token_str} ... ")
+        match verify_token(token_str, now) {
+            Result#ok(role) {
+                match role {
+                    Role#Admin { println("✅ Access Granted (Admin)") }
+                    Role#User(id) { println("✅ Access Granted (User {id})") }
+                    Role#Guest { println("⚠️ Guest Access") }
+                }
+            }
+            Result#err(e) {
+                println("❌ Denied: {e}")
+            }
+        }
+    }
+}

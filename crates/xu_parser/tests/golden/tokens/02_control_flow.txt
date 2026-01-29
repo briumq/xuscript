@@ -23,7 +23,7 @@ Int	Span { start: ByteIndex(58), end: ByteIndex(59) }	0
 StmtEnd	Span { start: ByteIndex(59), end: ByteIndex(60) }	;
 KwFor	Span { start: ByteIndex(61), end: ByteIndex(64) }	for
 Ident	Span { start: ByteIndex(65), end: ByteIndex(66) }	i
-Ident	Span { start: ByteIndex(67), end: ByteIndex(69) }	in
+KwIn	Span { start: ByteIndex(67), end: ByteIndex(69) }	in
 LBracket	Span { start: ByteIndex(70), end: ByteIndex(71) }	[
 Int	Span { start: ByteIndex(71), end: ByteIndex(72) }	0
 DotDot	Span { start: ByteIndex(72), end: ByteIndex(74) }	..

@@ -1,0 +1,15 @@
+func test_gc_basic() {
+    print("Testing GC...");
+    
+    // Create some objects
+    let list = [1, 2, 3, 4, 5];
+    print("Created list");
+    
+    // Run GC
+    gc();
+    print("Ran GC");
+    
+    print("Test completed");
+}
+
+test_gc_basic();

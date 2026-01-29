@@ -1,0 +1,21 @@
+func assert(x) { __builtin_assert(x) }
+
+var c = 0
+if true {
+    c += 1
+} else {
+    c += 100
+}
+assert(c is 1)
+
+var w = 0
+while w < 3 {
+    w += 1
+}
+assert(w is 3)
+
+var sum = 0
+for i in 1..4 {
+    sum += i
+}
+assert(sum is 6)

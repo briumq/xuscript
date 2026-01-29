@@ -2,6 +2,7 @@ Module {
     stmts: [
         Assign(
             AssignStmt {
+                vis: Public,
                 target: Ident(
                     "x",
                     None,
@@ -25,6 +26,7 @@ Module {
                         [
                             Assign(
                                 AssignStmt {
+                                    vis: Public,
                                     target: Ident(
                                         "x",
                                         None,
@@ -45,6 +47,7 @@ Module {
                     [
                         Assign(
                             AssignStmt {
+                                vis: Public,
                                 target: Ident(
                                     "x",
                                     None,
@@ -64,6 +67,7 @@ Module {
         ),
         Assign(
             AssignStmt {
+                vis: Public,
                 target: Ident(
                     "sum",
                     None,
@@ -80,17 +84,21 @@ Module {
         ForEach(
             ForEachStmt {
                 iter: Range(
-                    Int(
-                        0,
-                    ),
-                    Int(
-                        5,
-                    ),
+                    RangeExpr {
+                        start: Int(
+                            0,
+                        ),
+                        end: Int(
+                            5,
+                        ),
+                        inclusive: true,
+                    },
                 ),
                 var: "i",
                 body: [
                     Assign(
                         AssignStmt {
+                            vis: Public,
                             target: Ident(
                                 "sum",
                                 None,

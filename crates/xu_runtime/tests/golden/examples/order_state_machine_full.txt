@@ -1,0 +1,2 @@
+can_deliver=true
+delivered_ts=3

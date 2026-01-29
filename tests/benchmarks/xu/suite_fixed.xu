@@ -15,6 +15,7 @@ func run(name: string, repeat: int, logic) -> int {
     var start = mono_micros()
     logic()
     var end = mono_micros()
+    gc()
     var cost = end - start
     if cost < min {
       min = cost
@@ -38,12 +39,12 @@ func bench_dict(N: int) -> int {
     let d = {}
     for i in [0..N-1] {
       let k = "k" + to_text(i)
-      d insert(k, i)
+      d.insert(k, i)
     }
     var sum = 0
     for i in [0..N-1] {
       let k = "k" + to_text(i)
-      sum += d get(k)
+      sum += d.get(k)
     }
   }
   return run("dict_" + to_text(N), 7, logic)
@@ -53,10 +54,10 @@ func bench_dict_hot(N: int) -> int {
   func logic() {
     let d = {}
     for i in [0..N-1] {
-      d insert(to_text(i), i)
+      d.insert(to_text(i), i)
     }
     for _ in [0..N-1] {
-      let _v = d get("0")
+      let _v = d.get("0")
     }
   }
   return run("dict_hot_" + to_text(N), 7, logic)
@@ -66,11 +67,11 @@ func bench_dict_intkey(N: int) -> int {
   func logic() {
     let d = {}
     for i in [0..N-1] {
-      d insert_int(i, i)
+      d.insert_int(i, i)
     }
     var sum = 0
     for i in [0..N-1] {
-      sum += d get_int(i)
+      sum += d.get_int(i)
     }
   }
   return run("dict_intkey_" + to_text(N), 7, logic)
@@ -103,7 +104,7 @@ func bench_struct_method(N: int) -> int {
   func logic() {
     let f = Foo{ x: 1 }
     for i in [0..N-1] {
-      let _v = f add(i)
+      let _v = f.add(i)
     }
   }
   return run("struct_method_" + to_text(N), 7, logic)
@@ -171,31 +172,31 @@ func main() {
   
   for N in Sizes {
     let v = bench_loop(N)
-    print("loop_" + to_text(N) + "=" + to_text(v))
+    print("{\"case\":\"loop\",\"scale\":" + to_text(N) + ",\"duration_ms\":" + to_text(v) + "}")
     
     v = bench_dict(N)
-    print("dict_" + to_text(N) + "=" + to_text(v))
+    print("{\"case\":\"dict\",\"scale\":" + to_text(N) + ",\"duration_ms\":" + to_text(v) + "}")
     
     v = bench_dict_hot(N)
-    print("dict_hot_" + to_text(N) + "=" + to_text(v))
+    print("{\"case\":\"dict-hot\",\"scale\":" + to_text(N) + ",\"duration_ms\":" + to_text(v) + "}")
     
     v = bench_dict_intkey(N)
-    print("dict_intkey_" + to_text(N) + "=" + to_text(v))
+    print("{\"case\":\"dict-intkey\",\"scale\":" + to_text(N) + ",\"duration_ms\":" + to_text(v) + "}")
     
     v = bench_string(N)
-    print("string_" + to_text(N) + "=" + to_text(v))
+    print("{\"case\":\"string\",\"scale\":" + to_text(N) + ",\"duration_ms\":" + to_text(v) + "}")
     
     v = bench_string_builder(N)
-    print("string_builder_" + to_text(N) + "=" + to_text(v))
+    print("{\"case\":\"string-builder\",\"scale\":" + to_text(N) + ",\"duration_ms\":" + to_text(v) + "}")
     
     v = bench_struct_method(N)
-    print("struct_method_" + to_text(N) + "=" + to_text(v))
+    print("{\"case\":\"struct-method\",\"scale\":" + to_text(N) + ",\"duration_ms\":" + to_text(v) + "}")
     
     v = bench_try_catch(N)
-    print("try_catch_" + to_text(N) + "=" + to_text(v))
+    print("{\"case\":\"try-catch\",\"scale\":" + to_text(N) + ",\"duration_ms\":" + to_text(v) + "}")
     
     // v = bench_json(N)
-    // print("json_" + to_text(N) + "=" + to_text(v))
+    // print("{\"case\":\"json\",\"scale\":" + to_text(N) + ",\"duration_ms\":" + to_text(v) + "}")
   }
 }
 

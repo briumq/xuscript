@@ -1,0 +1,113 @@
+// 模拟配置加载与分层合并
+// 展示特性：嵌套结构体、字典操作、Result、分层策略
+
+DatabaseConfig has {
+    host: string
+    port: int
+    pool_size: int
+}
+
+AppConfig has {
+    env: string
+    debug: bool
+    db: DatabaseConfig
+}
+
+// 基础合并：override 覆盖 base
+func merge_dict(base: {string: any}, override: {string: any}) -> {string: any} {
+    let out: {string: any} = {}
+    for k in base.keys() { out[k] = base[k] }
+    for k in override.keys() { out[k] = override[k] }
+    return out
+}
+
+// 模拟加载默认配置
+func load_defaults() -> {string: any} {
+    return {
+        "env": "development",
+        "debug": true,
+        "db_host": "localhost",
+        "db_port": 5432,
+        "db_pool": 10
+    }
+}
+
+// 模拟加载文件配置 (JSON)
+func load_file_config() -> {string: any} {
+    // 假设从 config.json 读取，部分覆盖
+    return {
+        "db_pool": 20
+    }
+}
+
+// 模拟加载环境变量
+func load_env_vars() -> {string: any} {
+    // 模拟 ENV: APP_ENV=production, DB_HOST=192.168.1.10
+    // 环境变量通常读取为字符串
+    return {
+        "env": "production",
+        "debug": false,
+        "db_host": "192.168.1.10",
+        "db_port": "5432" 
+    }
+}
+
+// 映射到结构体
+func map_to_config(raw: {string: any}) -> Result[AppConfig, string] {
+    // 辅助：从 any 转换为特定类型，带默认值或错误处理
+    // 由于没有 typeof，我们通过 to_text + parse 确保类型安全
+    
+    if !raw.contains("env") { return Result#err("Missing env") }
+    let env = to_text(raw["env"])
+    
+    // 处理 bool: 这里演示简单的 true/false 判断
+    // 注意：any 类型的 raw["debug"] 可以直接比较
+    let debug = raw["debug"] is true
+    
+    // 处理 DB
+    let db_host = to_text(raw["db_host"])
+    
+    // 宽容处理：可能是 int 也可能是 string，统一转 string 再 parse
+    let db_port = parse_int(to_text(raw["db_port"]))
+    let db_pool = parse_int(to_text(raw["db_pool"]))
+    
+    let db = DatabaseConfig{
+        host: db_host,
+        port: db_port,
+        pool_size: db_pool
+    }
+    
+    return Result#ok(AppConfig{
+        env: env,
+        debug: debug,
+        db: db
+    })
+}
+
+func main() {
+    println("Loading configurations...")
+    
+    // 1. 加载各层
+    let defaults = load_defaults()
+    let file_cfg = load_file_config()
+    let env_vars = load_env_vars()
+    
+    // 2. 合并: Default -> File -> Env
+    // 后面的覆盖前面的
+    let merged = merge_dict(defaults, file_cfg)
+    let final_cfg = merge_dict(merged, env_vars)
+    
+    // 3. 转换为强类型配置
+    match map_to_config(final_cfg) {
+        Result#ok(cfg) {
+            println("Configuration Loaded:")
+            println("  Env  : {cfg.env}")
+            println("  Debug: {cfg.debug}")
+            println("  DB   : {cfg.db.host}:{cfg.db.port} (Pool: {cfg.db.pool_size})")
+        }
+        Result#err(e) {
+            println("Config Error: {e}")
+        }
+        _ {}
+    }
+}

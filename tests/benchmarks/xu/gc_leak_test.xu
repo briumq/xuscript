@@ -1,0 +1,29 @@
+// Simple GC leak test
+func test_gc_leak() {
+    print("Initial RSS: " + to_text(process_rss()));
+
+    // Round 1: Create and discard large dict
+    var round = 1;
+    while round <= 5 {
+        print("=== Round " + to_text(round) + " ===");
+        print("Before creation RSS: " + to_text(process_rss()));
+
+        let d: {string: int} = {};
+        var i = 0;
+        while i < 100000 {
+            d.insert("key" + to_text(i), i);
+            i = i + 1;
+        }
+        print("After creation RSS: " + to_text(process_rss()));
+
+        // d goes out of scope here
+        gc();
+        print("After GC RSS: " + to_text(process_rss()));
+
+        round = round + 1;
+    }
+
+    print("Final RSS: " + to_text(process_rss()));
+}
+
+test_gc_leak();

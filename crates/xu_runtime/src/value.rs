@@ -2,8 +2,8 @@
 //!
 //! Defines the runtime value representation, including primitives and heap-managed objects.
 
-use crate::Text;
 use crate::gc::{Heap, ObjectId};
+use crate::Text;
 use ahash::RandomState;
 use hashbrown::HashMap;
 use std::fmt;
@@ -147,6 +147,7 @@ impl Clone for DictInstance {
     }
 }
 
+#[derive(Clone)]
 pub struct Shape {
     pub parent: Option<ObjectId>,
     pub prop_map: FastHashMap<String, usize>,
@@ -201,6 +202,19 @@ pub fn dict_str_new() -> DictStr {
     })
 }
 
+#[derive(Clone)]
+pub struct SetInstance {
+    pub map: FastHashMap<DictKey, ()>,
+}
+
+pub type Set = Box<SetInstance>;
+
+pub fn set_with_capacity(cap: usize) -> Set {
+    Box::new(SetInstance {
+        map: fast_map_with_capacity(cap),
+    })
+}
+
 // NaN-Boxing constants
 pub const QNAN: u64 = 0x7ff8000000000000;
 pub const TAG_BASE: u64 = 0xfff0000000000000;
@@ -209,7 +223,8 @@ pub const PAYLOAD_MASK: u64 = 0x0000ffffffffffff;
 
 pub const TAG_INT: u64 = 0x0001;
 pub const TAG_BOOL: u64 = 0x0002;
-pub const TAG_NULL: u64 = 0x0003;
+pub const TAG_UNIT: u64 = 0x0003;
+pub const TAG_NULL: u64 = TAG_UNIT;
 pub const TAG_LIST: u64 = 0x0004;
 pub const TAG_DICT: u64 = 0x0005;
 pub const TAG_STR: u64 = 0x0006;
@@ -220,18 +235,21 @@ pub const TAG_FILE: u64 = 0x000a;
 pub const TAG_RANGE: u64 = 0x000b;
 pub const TAG_ENUM: u64 = 0x000c;
 pub const TAG_BUILDER: u64 = 0x000d;
+pub const TAG_TUPLE: u64 = 0x000e;
+pub const TAG_SET: u64 = 0x000f;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Value(u64);
 
 impl Default for Value {
     fn default() -> Self {
-        Self::NULL
+        Self::UNIT
     }
 }
 
 impl Value {
-    pub const NULL: Value = Value(TAG_BASE | (TAG_NULL << 48));
+    pub const UNIT: Value = Value(TAG_BASE | (TAG_UNIT << 48));
+    pub const NULL: Value = Self::UNIT;
 
     #[inline(always)]
     pub fn from_f64(f: f64) -> Self {
@@ -268,6 +286,12 @@ impl Value {
     pub fn str(id: ObjectId) -> Self {
         Self::from_obj(TAG_STR, id)
     }
+    pub fn tuple(id: ObjectId) -> Self {
+        Self::from_obj(TAG_TUPLE, id)
+    }
+    pub fn set(id: ObjectId) -> Self {
+        Self::from_obj(TAG_SET, id)
+    }
     pub fn struct_obj(id: ObjectId) -> Self {
         Self::from_obj(TAG_STRUCT, id)
     }
@@ -303,12 +327,16 @@ impl Value {
         !self.is_f64() && self.get_tag() == TAG_BOOL
     }
     #[inline(always)]
+    pub fn is_unit(&self) -> bool {
+        !self.is_f64() && self.get_tag() == TAG_UNIT
+    }
+    #[inline(always)]
     pub fn is_null(&self) -> bool {
-        !self.is_f64() && self.get_tag() == TAG_NULL
+        self.is_unit()
     }
     #[inline(always)]
     pub fn is_obj(&self) -> bool {
-        !self.is_f64() && self.get_tag() > TAG_NULL
+        !self.is_f64() && self.get_tag() > TAG_UNIT
     }
 
     #[inline(always)]
@@ -414,7 +442,7 @@ impl fmt::Debug for Value {
         } else if self.is_bool() {
             write!(f, "Bool({})", self.as_bool())
         } else if self.is_null() {
-            write!(f, "Null")
+            write!(f, "Unit")
         } else {
             let tag = self.get_tag();
             let id = self.as_obj_id();
@@ -442,9 +470,9 @@ impl Value {
         } else if self.is_int() {
             "int"
         } else if self.is_bool() {
-            "?"
-        } else if self.is_null() {
-            "null"
+            "bool"
+        } else if self.is_unit() {
+            "unit"
         } else {
             let tag = self.get_tag();
             match tag {
@@ -458,6 +486,8 @@ impl Value {
                 TAG_RANGE => "range",
                 TAG_ENUM => "enum",
                 TAG_BUILDER => "builder",
+                TAG_TUPLE => "tuple",
+                TAG_SET => "set",
                 _ => "unknown",
             }
         }
@@ -671,8 +701,8 @@ impl Value {
     }
 
     pub fn to_string_lossy(&self, heap: &Heap) -> String {
-        if self.is_null() {
-            "null".to_string()
+        if self.is_unit() {
+            "()".to_string()
         } else if self.is_bool() {
             if self.as_bool() {
                 "true".to_string()

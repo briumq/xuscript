@@ -28,6 +28,12 @@ impl LocalSlots {
         self.free_values.clear();
     }
 
+    /// Clear only the free pools to release references for GC
+    pub fn clear_pools(&mut self) {
+        self.free_maps.clear();
+        self.free_values.clear();
+    }
+
     pub fn is_active(&self) -> bool {
         !self.maps.is_empty()
     }
@@ -55,10 +61,10 @@ impl LocalSlots {
     }
 
     pub fn get(&self, name: &str) -> Option<Value> {
-        if let Some(map) = self.maps.last() {
-            if let Some(values) = self.values.last() {
-                if let Some(&idx) = map.get(name) {
-                    return values.get(idx).cloned();
+        for (map, values) in self.maps.iter().zip(self.values.iter()).rev() {
+            if let Some(&idx) = map.get(name) {
+                if let Some(v) = values.get(idx).cloned() {
+                    return Some(v);
                 }
             }
         }
@@ -71,18 +77,26 @@ impl LocalSlots {
             .and_then(|values| values.get(idx).cloned())
     }
 
+    pub fn get_by_depth_index(&self, depth_from_top: usize, idx: usize) -> Option<Value> {
+        if depth_from_top >= self.values.len() {
+            return None;
+        }
+        let frame_idx = self.values.len() - 1 - depth_from_top;
+        self.values
+            .get(frame_idx)
+            .and_then(|values| values.get(idx).cloned())
+    }
+
     pub fn get_index(&self, name: &str) -> Option<usize> {
         self.maps.last().and_then(|map| map.get(name).cloned())
     }
 
     pub fn set(&mut self, name: &str, value: Value) -> bool {
-        if let Some(map) = self.maps.last() {
-            if let Some(values) = self.values.last_mut() {
-                if let Some(&idx) = map.get(name) {
-                    if idx < values.len() {
-                        values[idx] = value;
-                        return true;
-                    }
+        for (map, values) in self.maps.iter().zip(self.values.iter_mut()).rev() {
+            if let Some(&idx) = map.get(name) {
+                if idx < values.len() {
+                    values[idx] = value;
+                    return true;
                 }
             }
         }
@@ -90,7 +104,7 @@ impl LocalSlots {
     }
 
     pub fn is_immutable(&self, name: &str) -> bool {
-        if let Some(flags) = self.mut_flags.last() {
+        for flags in self.mut_flags.iter().rev() {
             if let Some(&flag) = flags.get(name) {
                 return flag;
             }
@@ -108,12 +122,27 @@ impl LocalSlots {
         false
     }
 
+    #[allow(dead_code)]
+    pub fn set_by_depth_index(&mut self, depth_from_top: usize, idx: usize, value: Value) -> bool {
+        if depth_from_top >= self.values.len() {
+            return false;
+        }
+        let frame_idx = self.values.len() - 1 - depth_from_top;
+        if let Some(values) = self.values.get_mut(frame_idx) {
+            if idx < values.len() {
+                values[idx] = value;
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn take_local_by_index(&mut self, idx: usize) -> Option<Value> {
         let values = self.values.last_mut()?;
         if idx >= values.len() {
             return None;
         }
-        Some(std::mem::replace(&mut values[idx], Value::NULL))
+        Some(std::mem::replace(&mut values[idx], Value::UNIT))
     }
 
     pub fn define(&mut self, name: String, value: Value) -> Option<usize> {
@@ -171,7 +200,7 @@ impl LocalSlots {
             if let Some(values) = self.values.last_mut() {
                 if let Some(max) = idxmap.values().copied().max() {
                     if values.len() <= max {
-                        values.resize(max + 1, Value::NULL);
+                        values.resize(max + 1, Value::UNIT);
                     }
                 }
                 for (name, idx) in idxmap {

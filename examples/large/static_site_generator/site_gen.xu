@@ -1,0 +1,16 @@
+func render_page(title: string, content: string) -> string {
+    return "<h1>{title}</h1>\n<p>{content}</p>"
+}
+
+func build() -> [string] {
+    let pages: [string] = []
+    pages.add(render_page("Home", "Welcome"))
+    pages.add(render_page("About", "Xu language"))
+    return pages
+}
+
+func main() {
+    let pages = build()
+    println("pages={pages.length}")
+    println("last_title=About")
+}

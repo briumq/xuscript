@@ -1,5 +1,5 @@
 use xu_lexer::{Lexer, normalize_source};
-use xu_parser::{Expr, Parser, Stmt};
+use xu_parser::{Parser, Stmt, UseStmt};
 
 #[test]
 fn parse_import_sugar_lowering() {
@@ -23,9 +23,14 @@ fn parse_import_sugar_lowering() {
 
     assert_eq!(parse.module.stmts.len(), 1);
     match &parse.module.stmts[0] {
-        Stmt::Expr(Expr::Call(c)) => {
-            assert!(matches!(c.callee.as_ref(), Expr::Ident(name, _) if name == "import"));
-            assert!(matches!(c.args.as_ref(), [Expr::Str(p)] if p == "./a.xu"));
+        Stmt::Use(u) => {
+            assert_eq!(
+                u.as_ref(),
+                &UseStmt {
+                    path: "./a.xu".to_string(),
+                    alias: None
+                }
+            );
         }
         other => panic!("unexpected stmt: {other:?}"),
     }

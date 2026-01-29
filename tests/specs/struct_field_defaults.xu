@@ -1,0 +1,12 @@
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+User has {
+    name: string
+    age: int = 0
+}
+
+let u = User{ name: "Bob" }
+assert(u.age is 0, "default_age")
+
+let u2 = User{ name: "Ann", age: 5 }
+assert(u2.age is 5, "override_age")

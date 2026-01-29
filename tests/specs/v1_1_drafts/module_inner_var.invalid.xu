@@ -1,0 +1,4 @@
+// expect_panic:"Unknown member: counter"
+use "module_visibility_mod.xu" as m
+
+let x = m.counter

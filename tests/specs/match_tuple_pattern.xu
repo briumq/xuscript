@@ -1,0 +1,16 @@
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+let t = (1, 2)
+var out = ""
+
+match t {
+    (a, b) { out = "{a},{b}" }
+    _ { out = "no" }
+}
+assert(out is "1,2", "match_stmt_tuple")
+
+let sum = match (3, 4) {
+    (a, b) { a + b }
+    _ { 0 }
+}
+assert(sum is 7, "match_expr_tuple")

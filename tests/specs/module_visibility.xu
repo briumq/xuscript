@@ -1,0 +1,6 @@
+func assert(x) { __builtin_assert(x) }
+
+use "module_visibility_mod.xu" as m
+
+m.public()
+assert(true)

@@ -10,54 +10,19 @@ fn lex_smoke_chinese_punct() {
 }
 
 #[test]
-fn lex_emits_indent_dedent() {
+fn lex_does_not_emit_indent_dedent() {
     let src = "if true:\n  println(\"ok\");\nprintln(\"done\");\n";
     let normalized = normalize_source(src);
     let result = Lexer::new(&normalized.text).lex();
     let kinds: Vec<_> = result.tokens.iter().map(|t| t.kind).collect();
-    assert!(kinds.contains(&xu_syntax::TokenKind::Indent));
-    assert!(kinds.contains(&xu_syntax::TokenKind::Dedent));
+    assert!(!kinds.contains(&xu_syntax::TokenKind::Indent));
+    assert!(!kinds.contains(&xu_syntax::TokenKind::Dedent));
 }
 
 #[test]
-fn odd_indent_is_error() {
+fn indentation_is_just_whitespace() {
     let src = "if true:\n   println(\"bad\");\n";
     let normalized = normalize_source(src);
     let result = Lexer::new(&normalized.text).lex();
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("Indentation must be multiples of 2"))
-    );
-}
-
-#[test]
-fn indent_four_spaces_is_ok() {
-    let src = "if true:\n    println(\"ok\");\nprintln(\"done\");\n";
-    let normalized = normalize_source(src);
-    let result = Lexer::new(&normalized.text).lex();
-    assert!(
-        result.diagnostics.is_empty(),
-        "diagnostics={:?}",
-        result.diagnostics
-    );
-    let kinds: Vec<_> = result.tokens.iter().map(|t| t.kind).collect();
-    assert!(kinds.contains(&xu_syntax::TokenKind::Indent));
-    assert!(kinds.contains(&xu_syntax::TokenKind::Dedent));
-}
-
-#[test]
-fn inconsistent_dedent_is_error() {
-    let src = "if true:\n    println(\"a\");\n  println(\"b\");\n";
-    let normalized = normalize_source(src);
-    let result = Lexer::new(&normalized.text).lex();
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("Inconsistent dedent")),
-        "diagnostics={:?}",
-        result.diagnostics
-    );
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
 }

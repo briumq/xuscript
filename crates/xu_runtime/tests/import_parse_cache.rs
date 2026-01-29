@@ -23,8 +23,8 @@ fn import_parse_cache_invalidates_on_file_change() {
     let dep_path = dep.to_string_lossy();
     let main_src = format!(
         r#"
-use "{dep_path}";
-println(value);
+use "{dep_path}" as dep;
+println(dep.value);
 "#
     );
     let module = parse_source(&main_src);

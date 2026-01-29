@@ -89,8 +89,8 @@ fn circular_import_is_reported_with_chain() {
     let a_path = a.to_string_lossy().to_string();
     let b_path = b.to_string_lossy().to_string();
 
-    fs::write(&a, format!("use(\"{b_path}\");")).unwrap();
-    fs::write(&b, format!("use(\"{a_path}\");")).unwrap();
+    fs::write(&a, format!("use \"{b_path}\";")).unwrap();
+    fs::write(&b, format!("use \"{a_path}\";")).unwrap();
 
     let a_key = std::fs::canonicalize(&a)
         .unwrap()
@@ -101,7 +101,7 @@ fn circular_import_is_reported_with_chain() {
         .to_string_lossy()
         .to_string();
 
-    let main_src = format!("use(\"{a_path}\");");
+    let main_src = format!("use \"{a_path}\";");
     let module = parse_source(&main_src);
     let mut rt = Runtime::new();
     rt.set_frontend(Box::new(xu_driver::Driver::new()));
@@ -114,7 +114,7 @@ fn circular_import_is_reported_with_chain() {
 }
 
 #[test]
-fn import_merges_exports_into_env_and_returns_dict() {
+fn import_does_not_merge_exports_into_env_and_returns_dict() {
     let dir = std::env::temp_dir().join("xu_runtime_import_merge_tests");
     let _ = fs::create_dir_all(&dir);
     let imported = dir.join("lib.xu");
@@ -132,16 +132,15 @@ func add_one(n) {
     let main_src = format!(
         r#"
 use "{path}" as m;
-println(value);
 println(m.value);
-println(add_one(1));
+println(m.add_one(1));
 "#,
     );
     let module = parse_source(&main_src);
     let mut rt = Runtime::new();
     rt.set_frontend(Box::new(xu_driver::Driver::new()));
     let res = rt.exec_module(&module).unwrap();
-    assert_eq!(res.output.trim_end(), "7\n7\n2");
+    assert_eq!(res.output.trim_end(), "7\n2");
 }
 
 #[test]
@@ -190,8 +189,8 @@ fn relative_import_resolves_against_entry_file_dir() {
     fs::write(&dep, "value = 1;").unwrap();
 
     let main_src = r#"
-use "dep.xu";
-println(value);
+use "dep.xu" as dep;
+println(dep.value);
 "#;
     let module = parse_source(main_src);
     let mut rt = Runtime::new();
@@ -216,8 +215,8 @@ fn relative_import_resolves_against_importer_module_dir() {
     fs::write(
         &mod_file,
         r#"
-use "inner.xu";
-println(sub_value);
+use "inner.xu" as inn;
+println(inn.sub_value);
 "#,
     )
     .unwrap();

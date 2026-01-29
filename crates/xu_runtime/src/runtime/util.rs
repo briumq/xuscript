@@ -11,7 +11,7 @@ pub(super) fn value_to_string(v: &Value, heap: &Heap) -> String {
 
 fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) -> String {
     if v.is_null() {
-        "null".to_string()
+        "()".to_string()
     } else if v.is_bool() {
         if v.as_bool() {
             "true".to_string()
@@ -53,6 +53,21 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                     "[]".into()
                 }
             }
+            crate::value::TAG_TUPLE => {
+                if visited.contains(&id.0) {
+                    return "(...)".to_string();
+                }
+                visited.insert(id.0);
+                if let crate::gc::ManagedObject::Tuple(items) = heap.get(id) {
+                    let strs: Vec<_> = items
+                        .iter()
+                        .map(|item| value_to_string_impl(item, heap, visited))
+                        .collect();
+                    format!("({})", strs.join(","))
+                } else {
+                    "()".into()
+                }
+            }
             crate::value::TAG_DICT => {
                 if visited.contains(&id.0) {
                     return "{...}".to_string();
@@ -73,6 +88,20 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                     format!("{{{}}}", strs.join(","))
                 } else {
                     "{}".into()
+                }
+            }
+            crate::value::TAG_SET => {
+                if let crate::gc::ManagedObject::Set(items) = heap.get(id) {
+                    let mut strs: Vec<String> = Vec::with_capacity(items.map.len());
+                    for k in items.map.keys() {
+                        match k {
+                            DictKey::Str(s) => strs.push(format!("\"{}\"", s)),
+                            DictKey::Int(i) => strs.push(i.to_string()),
+                        }
+                    }
+                    format!("set{{{}}}", strs.join(","))
+                } else {
+                    "set{}".into()
                 }
             }
             crate::value::TAG_MODULE => "module".to_string(),
@@ -109,8 +138,12 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                 }
             }
             crate::value::TAG_RANGE => {
-                if let crate::gc::ManagedObject::Range(start, end) = heap.get(id) {
-                    format!("[{start}..{end}]")
+                if let crate::gc::ManagedObject::Range(start, end, inclusive) = heap.get(id) {
+                    if *inclusive {
+                        format!("[{start}..={end}]")
+                    } else {
+                        format!("[{start}..{end}]")
+                    }
                 } else {
                     "range".into()
                 }
@@ -133,13 +166,15 @@ pub(super) fn type_matches(ty: &str, v: &Value, heap: &Heap) -> bool {
         "int" => v.is_int(),
         "float" => v.is_f64() || v.is_int(),
         "string" => v.get_tag() == crate::value::TAG_STR,
-        "?" => v.is_bool(),
+        "bool" | "?" => v.is_bool(),
         "list" => v.get_tag() == crate::value::TAG_LIST,
         "dict" => v.get_tag() == crate::value::TAG_DICT,
+        "tuple" => v.get_tag() == crate::value::TAG_TUPLE,
+        "set" => v.get_tag() == crate::value::TAG_SET,
         "module" => v.get_tag() == crate::value::TAG_MODULE,
         "range" => v.get_tag() == crate::value::TAG_RANGE,
         "file" => v.get_tag() == crate::value::TAG_FILE,
-        "null" => v.is_null(),
+        "unit" => v.is_null(),
         _ => {
             let tag = v.get_tag();
             if tag == crate::value::TAG_STRUCT {

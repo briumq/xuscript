@@ -159,6 +159,16 @@ impl Driver {
     ///
     ///
     pub fn parse_text(&self, path: &str, input: &str, strict: bool) -> Result<ParsedFile, String> {
+        self.parse_text_with_predefs(path, input, strict, &[])
+    }
+
+    pub fn parse_text_with_predefs(
+        &self,
+        path: &str,
+        input: &str,
+        strict: bool,
+        extra_predefs: &[&str],
+    ) -> Result<ParsedFile, String> {
         let (source, tokens, mut module, mut diagnostics, _tm) =
             self.lex_parse_inner(path, input)?;
         let mut import_stack = Vec::new();
@@ -169,6 +179,7 @@ impl Driver {
             strict,
             self.cache.clone(),
             &mut import_stack,
+            extra_predefs,
         ));
 
         Ok(ParsedFile {
@@ -197,6 +208,7 @@ impl Driver {
             strict,
             self.cache.clone(),
             &mut import_stack,
+            &[],
         );
         let t5 = std::time::Instant::now();
         diagnostics.extend(analysis);

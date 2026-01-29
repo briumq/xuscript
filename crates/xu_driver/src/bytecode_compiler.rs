@@ -17,6 +17,18 @@ pub fn compile_module(module: &Module) -> Option<Bytecode> {
     Some(c.bc)
 }
 
+fn infer_module_alias(path: &str) -> String {
+    let mut last = path;
+    if let Some((_, tail)) = path.rsplit_once('/') {
+        last = tail;
+    } else if let Some((_, tail)) = path.rsplit_once('\\') {
+        last = tail;
+    }
+    let last = last.trim_end_matches('/');
+    let last = last.trim_end_matches('\\');
+    last.strip_suffix(".xu").unwrap_or(last).to_string()
+}
+
 struct LoopCtx {
     break_ops: Vec<usize>,
     continue_ops: Vec<usize>,
@@ -131,6 +143,16 @@ impl Compiler {
             Stmt::If(s) => self.compile_if(s),
             Stmt::While(s) => self.compile_while(s),
             Stmt::ForEach(s) => self.compile_foreach(s),
+            Stmt::Use(u) => {
+                let path_idx = self.add_constant(xu_ir::Constant::Str(u.path.clone()));
+                let alias = u
+                    .alias
+                    .clone()
+                    .unwrap_or_else(|| infer_module_alias(&u.path));
+                let alias_idx = self.add_constant(xu_ir::Constant::Str(alias));
+                self.bc.ops.push(Op::Use(path_idx, alias_idx));
+                Some(())
+            }
             Stmt::When(_) => None,
             Stmt::Try(s) => self.compile_try(s),
             Stmt::Return(v) => self.compile_return(v.as_ref()),
@@ -634,7 +656,7 @@ impl Compiler {
                 fn const_part_text(e: &Expr) -> Option<String> {
                     match e {
                         Expr::Str(s) => Some(s.clone()),
-                        Expr::Null => Some("null".to_string()),
+                        Expr::Null => Some("()".to_string()),
                         Expr::Bool(b) => Some(if *b {
                             "true".to_string()
                         } else {
@@ -757,6 +779,20 @@ impl Compiler {
                 self.bc.ops.push(Op::ListNew(items.len()));
                 Some(())
             }
+            Expr::Tuple(items) => {
+                for e in items {
+                    self.compile_expr(e)?;
+                }
+                self.bc.ops.push(Op::TupleNew(items.len()));
+                Some(())
+            }
+            Expr::Set(items) => {
+                for e in items {
+                    self.compile_expr(e)?;
+                }
+                self.bc.ops.push(Op::SetNew(items.len()));
+                Some(())
+            }
             Expr::Dict(entries) => {
                 for (k, v) in entries {
                     let k_idx = self.add_constant(xu_ir::Constant::Str(k.clone()));
@@ -766,17 +802,65 @@ impl Compiler {
                 self.bc.ops.push(Op::DictNew(entries.len()));
                 Some(())
             }
-            Expr::Range(a, b) => {
-                self.compile_expr(a)?;
-                self.compile_expr(b)?;
-                self.bc.ops.push(Op::MakeRange);
+            Expr::Range(r) => {
+                self.compile_expr(&r.start)?;
+                self.compile_expr(&r.end)?;
+                self.bc.ops.push(Op::MakeRange(r.inclusive));
+                Some(())
+            }
+            Expr::IfExpr(e) => {
+                self.compile_expr(&e.cond)?;
+                let j_if = self.bc.ops.len();
+                self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
+                self.compile_expr(&e.then_expr)?;
+                let j_end = self.bc.ops.len();
+                self.bc.ops.push(Op::Jump(usize::MAX));
+                let else_ip = self.bc.ops.len();
+                match self.bc.ops[j_if] {
+                    Op::JumpIfFalse(ref mut to) => *to = else_ip,
+                    _ => return None,
+                }
+                self.compile_expr(&e.else_expr)?;
+                let end_ip = self.bc.ops.len();
+                match self.bc.ops[j_end] {
+                    Op::Jump(ref mut to) => *to = end_ip,
+                    _ => return None,
+                }
+                Some(())
+            }
+            Expr::Match(_) => None,
+            Expr::FuncLit(def) => {
+                let mut inner = Compiler::new();
+                inner.push_scope();
+                for p in &def.params {
+                    inner.define_local(&p.name);
+                }
+                for s in &def.body {
+                    inner.compile_stmt(s)?;
+                }
+                inner.bc.ops.push(Op::ConstNull);
+                inner.bc.ops.push(Op::Return);
+                let locals_count = inner.scopes.iter().map(|s| s.locals.len()).sum();
+                let fun = BytecodeFunction {
+                    def: (**def).clone(),
+                    bytecode: Box::new(inner.bc),
+                    locals_count,
+                };
+                let f_idx = self.add_constant(xu_ir::Constant::Func(fun));
+                self.bc.ops.push(Op::MakeFunction(f_idx));
                 Some(())
             }
             Expr::StructInit(s) => {
-                let mut names: Vec<String> = Vec::with_capacity(s.fields.len());
-                for (k, v) in s.fields.iter() {
-                    names.push(k.clone());
-                    self.compile_expr(v)?;
+                let mut names: Vec<String> =
+                    Vec::with_capacity(s.items.iter().filter(|x| matches!(x, xu_ir::StructInitItem::Field(_, _))).count());
+                for item in s.items.iter() {
+                    match item {
+                        xu_ir::StructInitItem::Field(k, v) => {
+                            names.push(k.clone());
+                            self.compile_expr(v)?;
+                        }
+                        xu_ir::StructInitItem::Spread(_) => return None,
+                    }
                 }
                 let t_idx = self.add_constant(xu_ir::Constant::Str(s.ty.clone()));
                 let n_idx = self.add_constant(xu_ir::Constant::Names(names));

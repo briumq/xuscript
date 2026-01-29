@@ -1,0 +1,3 @@
+// expect_panic:"Cannot reassign immutable variable"
+let name = "Tom"
+name = "Bob"

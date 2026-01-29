@@ -1,0 +1,8 @@
+func assert(x) { __builtin_assert(x) }
+
+let R = 0..5
+var sum = 0
+for i in R {
+    sum += i
+}
+assert(sum is 10)

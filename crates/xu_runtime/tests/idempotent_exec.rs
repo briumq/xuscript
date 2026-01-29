@@ -47,11 +47,11 @@ func clear() {
     .unwrap();
 
     let main_src = r#"
-use "lib.xu";
+use "lib.xu" as lib;
 
 func main() {
-  println(get());
-  clear();
+  println(lib.get());
+  lib.clear();
 }
 "#;
     fs::write(&main_file, main_src.trim_start()).unwrap();

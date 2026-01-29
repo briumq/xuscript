@@ -27,7 +27,7 @@ Xu 是一门**强类型脚本语言**，设计目标：
 | 逻辑  | `not` `and` `or` `is` `isnt`                                     |
 | 模块  | `use` `as`                                                       |
 
-> 预留关键字：`can` `async` `await`
+> 预留关键字：`can` `async` `await`（不可作为标识符使用）
 
 ---
 
@@ -41,7 +41,8 @@ Xu 是一门**强类型脚本语言**，设计目标：
 |比较|`>` `<` `>=` `<=` `==` `!=`|
 |算术|`+` `-` `*` `/` `%`|
 
-> `is` / `isnt` 与 `==` / `!=` 语义相同，推荐使用前者。
+> - `is` / `isnt` 与 `==` / `!=` 语义相同，推荐使用前者。
+> - `!` 是 `not` 的别名，如 `!expr` 等价于 `not expr`。
 
 ### 3.2 结构符号
 
@@ -55,7 +56,7 @@ Xu 是一门**强类型脚本语言**，设计目标：
 |`..` `..=`|范围|整数范围（不含/含结束值）|
 |`->`|指向|函数返回类型、匿名函数体|
 |`...`|展开|结构体字段展开|
-|`:`|标注|类型标注、键值对|
+|`:`|标注|类型标注、键值对、单语句块引导|
 |`_`|通配|模式匹配占位符|
 
 ### 3.3 注释
@@ -88,6 +89,15 @@ xu
 |---|---|---|
 |`let`|不可重新赋值|`let name = "Tom"`|
 |`var`|可重新赋值|`var count = 0`|
+
+**元组解构与通配符**：
+
+xu
+
+```
+let (x, y) = (1, 2)
+let (a, _) = (10, 20)  // 使用 _ 忽略不需要的值
+```
 
 xu
 
@@ -312,6 +322,10 @@ func greet(name: string, msg = "Hello") {
 func div(a: int, b: int) -> (int, int) {
     return (a / b, a % b)
 }
+
+// 调用多返回值函数
+let (q, r) = div(10, 3)
+let (only_q, _) = div(10, 3) // 忽略第二个返回值
 ```
 
 ### 6.2 匿名函数
@@ -363,6 +377,16 @@ if x > 0 {
 }
 ```
 
+**单语句简写**（使用 `:` 引导一条语句作为分支体）：
+
+xu
+
+```
+if x > 0: println("positive")
+if x < 0:
+    println("negative")
+```
+
 **表达式形式**（必须有 else，类型一致）：
 
 xu
@@ -392,6 +416,15 @@ for (key, value) in map {
 }
 ```
 
+**单语句简写**：
+
+xu
+
+```
+while i < 10: i += 1
+for i in 0..5: println(i)
+```
+
 ### 7.3 match 模式匹配
 
 用于穷尽所有情况的模式匹配。
@@ -405,6 +438,7 @@ match status {
     Status#pending  { println("待处理") }
     Status#approved { println("已通过") }
     Status#rejected { println("已拒绝") }
+    _ { println("未知状态") }
 }
 ```
 
@@ -417,6 +451,7 @@ let text = match status {
     Status#pending  { "待处理" }
     Status#approved { "已通过" }
     Status#rejected { "已拒绝" }
+    _ { "未知" }
 }
 ```
 
@@ -432,10 +467,11 @@ match fetch_users("/api/users") {
     Result#err(e) {
         println("错误: {e}")
     }
+    _ { println("未知结果") }
 }
 ```
 
-> 若未覆盖所有变体，必须提供 `else` 分支。
+> `match` 语句必须提供一个最终的 `_ { ... }` 默认分支（用于兜底/非穷尽匹配）。
 
 ---
 
@@ -518,9 +554,11 @@ func load_config() -> Result[Config, string] {
             match parse(content) {
                 Result#ok(config) { return Result#ok(config) }
                 Result#err(e) { return Result#err("解析失败: {e}") }
+                _ { return Result#err("未知解析结果") }
             }
         }
         Result#err(e) { return Result#err("读取失败: {e}") }
+        _ { return Result#err("未知读取结果") }
     }
 }
 ```
@@ -628,22 +666,34 @@ use "utils" as u
 
 - 每个文件是一个模块
 - `use` 时执行模块顶层一次并缓存
+- `use "path"` 会将模块绑定到一个默认别名（由路径末尾推断，例如 `utils`），不会把导出成员注入当前作用域
+- 访问导出成员使用 `alias.member`；`as` 可显式指定别名
 
 ### 12.2 可见性
 
-|修饰符|说明|
-|---|---|
-|（默认）|公开|
-|`inner`|仅本文件可见|
+默认情况下，所有顶层定义（函数、变量、结构体、枚举）和扩展方法都是**公开**的（模块外可见）。
+使用 `inner` 关键字可将其限制为**仅本文件可见**（模块私有）。
+
+|修饰符|说明|适用范围|
+|---|---|---|
+|（默认）|公开|顶层定义、方法|
+|`inner`|仅本文件可见|顶层定义、方法|
 
 xu
 
 ```
+// 仅本模块可见的变量
 inner var counter = 0
 
+// 仅本模块可见的结构体
+inner Foo has { x: int }
+
 User does {
-    inner func internal() {}
-    func public() {}
+    // 仅本模块可见的方法（即私有辅助方法）
+    inner func internal_helper() {}
+    
+    // 公开方法
+    func public_api() {}
 }
 ```
 
@@ -654,7 +704,7 @@ User does {
 xu
 
 ```
-use "http"
+use "http" as http
 
 // 枚举定义
 Status with [ pending | approved | rejected ]
@@ -728,6 +778,7 @@ func main() {
         Status#pending  { "待审核" }
         Status#approved { "已通过" }
         Status#rejected { "已拒绝" }
+        _ { "未知" }
     }
     println("状态: {status_text}")
 
@@ -741,6 +792,7 @@ func main() {
         Result#err(msg) {
             println("错误: {msg}")
         }
+        _ { println("未知结果") }
     }
 }
 ```

@@ -1,0 +1,20 @@
+// test: nested_control_flow
+func assert(x) { __builtin_assert(x) }
+
+var result = 0
+for i in 0..3 {
+    for j in 0..3 {
+        if i is j {
+            continue
+        }
+        if i + j > 3 {
+            break
+        }
+        result += 1
+    }
+}
+// i=0: j=0(cont), j=1(inc), j=2(inc) -> 2
+// i=1: j=0(inc), j=1(cont), j=2(inc, sum=3 not >3) -> 2
+// i=2: j=0(inc), j=1(inc), j=2(cont) -> 2
+// Total 6
+assert(result is 6)

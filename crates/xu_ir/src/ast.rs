@@ -15,6 +15,7 @@ pub enum Stmt {
     EnumDef(Box<EnumDef>),
     FuncDef(Box<FuncDef>),
     DoesBlock(Box<DoesBlock>),
+    Use(Box<UseStmt>),
     If(Box<IfStmt>),
     While(Box<WhileStmt>),
     ForEach(Box<ForEachStmt>),
@@ -53,6 +54,7 @@ pub struct EnumDef {
 pub struct StructField {
     pub name: String,
     pub ty: TypeRef,
+    pub default: Option<Expr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -69,6 +71,12 @@ pub struct DoesBlock {
     pub vis: Visibility,
     pub target: String,
     pub funcs: Box<[FuncDef]>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct UseStmt {
+    pub path: String,
+    pub alias: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -107,6 +115,7 @@ pub struct ForEachStmt {
 pub enum Pattern {
     Wildcard,
     Bind(String),
+    Tuple(Box<[Pattern]>),
     Int(i64),
     Float(f64),
     Str(String),
@@ -141,6 +150,7 @@ pub struct CatchClause {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AssignStmt {
+    pub vis: Visibility,
     pub target: Expr,
     pub op: AssignOp,
     pub value: Expr,
@@ -175,7 +185,12 @@ pub enum Expr {
     Bool(bool),
     Null,
     List(Box<[Expr]>),
-    Range(Box<Expr>, Box<Expr>),
+    Tuple(Box<[Expr]>),
+    Set(Box<[Expr]>),
+    Range(Box<RangeExpr>),
+    IfExpr(Box<IfExpr>),
+    Match(Box<MatchExpr>),
+    FuncLit(Box<FuncDef>),
     Dict(Box<[(String, Expr)]>),
     StructInit(Box<StructInitExpr>),
     EnumCtor {
@@ -201,9 +216,36 @@ pub enum Expr {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct IfExpr {
+    pub cond: Box<Expr>,
+    pub then_expr: Box<Expr>,
+    pub else_expr: Box<Expr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MatchExpr {
+    pub expr: Box<Expr>,
+    pub arms: Box<[(Pattern, Expr)]>,
+    pub else_expr: Option<Box<Expr>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RangeExpr {
+    pub start: Box<Expr>,
+    pub end: Box<Expr>,
+    pub inclusive: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum StructInitItem {
+    Spread(Expr),
+    Field(String, Expr),
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct StructInitExpr {
     pub ty: String,
-    pub fields: Box<[(String, Expr)]>,
+    pub items: Box<[StructInitItem]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

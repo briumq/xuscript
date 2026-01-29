@@ -1,0 +1,5 @@
+// expect_error:"cannot extend builtin"
+int does {
+    func bad() -> int { return 1 }
+}
+

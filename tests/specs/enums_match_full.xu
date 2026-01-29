@@ -1,0 +1,23 @@
+func assert(x) { __builtin_assert(x) }
+
+Status with [ pending | approved | rejected ]
+let s = Status#pending
+
+let t = match s {
+    Status#pending  { "P" }
+    Status#approved { "A" }
+    _               { "R" }
+}
+assert(t is "P")
+
+func ok_or_err(ok: bool) {
+    if ok { return Result#ok(5) }
+    return Result#err("bad")
+}
+
+let v = match ok_or_err(true) {
+    Result#ok(x)  { x * 2 }
+    Result#err(e) { 0 }
+    _ { 0 }
+}
+assert(v is 10)

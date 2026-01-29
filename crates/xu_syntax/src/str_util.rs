@@ -56,7 +56,7 @@ impl<'a> InterpolationParser<'a> {
         let mut i = 0;
         let bytes = self.input.as_bytes();
 
-        while i < bytes.len() {
+        'outer: while i < bytes.len() {
             let c = self.input[i..].chars().next().unwrap();
             i += c.len_utf8();
 
@@ -81,6 +81,19 @@ impl<'a> InterpolationParser<'a> {
                     buffer.push('\\');
                 }
             } else if c == '{' {
+                let mut j = i;
+                while j < bytes.len() {
+                    let n = self.input[j..].chars().next().unwrap();
+                    if n.is_whitespace() {
+                        j += n.len_utf8();
+                        continue;
+                    }
+                    if n == '"' {
+                        buffer.push('{');
+                        continue 'outer;
+                    }
+                    break;
+                }
                 if !buffer.is_empty() {
                     on_piece(InterpolationPiece::Str(std::mem::take(&mut buffer)));
                 }

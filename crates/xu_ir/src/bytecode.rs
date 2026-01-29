@@ -59,6 +59,7 @@ pub enum Op {
     LoadLocal(usize),
     StoreName(u32), // Index into constant pool (String)
     StoreLocal(usize),
+    Use(u32, u32), // (path_str_idx, alias_str_idx)
     AssertType(u32),            // Index into constant pool (String)
     DefineStruct(u32),          // Index into constant pool (StructDef)
     DefineEnum(u32),            // Index into constant pool (EnumDef)
@@ -70,7 +71,7 @@ pub enum Op {
     CallMethod(u32, u64, usize, Option<usize>), // Index to String (Method name), hash, args_count, slot
     Inc,
     IncLocal(usize),
-    MakeRange,
+    MakeRange(bool),
     GetMember(u32, Option<usize>), // Index to String (Member name), slot
     GetIndex(Option<usize>),
     AssignMember(u32, AssignOp), // Index to String (Member name), op
@@ -101,7 +102,9 @@ pub enum Op {
     Return,
     Throw,
     ListNew(usize),
+    TupleNew(usize),
     DictNew(usize),
+    SetNew(usize),
     DictInsert,
     DictMerge,
     ListAppend(usize),

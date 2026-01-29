@@ -1,0 +1,10 @@
+let a = {};
+a.insert("k", 1);
+let b = {};
+b.insert("k", 2);
+a.merge(b);
+let v = a.get("k");
+match v {
+    Option#some(x) { print(x); }
+    _ { print(0); }
+}

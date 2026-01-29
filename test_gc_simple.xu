@@ -1,0 +1,21 @@
+func test_gc_simple() {
+    print("Starting GC test...");
+    
+    // Create a large list
+    let list = [];
+    var i = 0;
+    while i < 10000 {
+        list.push(i);
+        i = i + 1;
+    }
+    
+    print("Created list with 10000 items");
+    
+    // Run GC
+    gc();
+    
+    print("Ran GC");
+    print("Test completed successfully");
+}
+
+test_gc_simple();

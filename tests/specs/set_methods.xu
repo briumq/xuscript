@@ -1,0 +1,9 @@
+func assert(x) { __builtin_assert(x) }
+
+let s = set{1, 2, 3, 2}
+assert(s.length is 3)
+assert(s.contains(1))
+assert(s.remove(2))
+assert(s.length is 2)
+s.clear()
+assert(s.length is 0)

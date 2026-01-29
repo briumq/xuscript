@@ -25,12 +25,12 @@ fn parse_source(src: &str) -> xu_parser::Module {
 #[test]
 fn text_indexing_and_slicing_work() {
     let src = r#"
-s = "你好世界";
+let s = "你好世界";
 println(s[0]);
 println(s[1]);
 println(s[1..2]);
 
-t = "中a文";
+let t = "中a文";
 println(t[0]);
 println(t[1]);
 "#;
@@ -49,7 +49,7 @@ println(t[1]);
 #[test]
 fn text_indexing_out_of_range_errors() {
     let src = r#"
-s = "你好";
+let s = "你好";
 println(s[2]);
 "#;
     let module = parse_source(src);
@@ -61,7 +61,7 @@ println(s[2]);
 #[test]
 fn text_slicing_invalid_range_errors() {
     let src = r#"
-s = "你好世界";
+let s = "你好世界";
 println(s[2..1]);
 "#;
     let module = parse_source(src);

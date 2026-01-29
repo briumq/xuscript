@@ -1,0 +1,21 @@
+func assert(x) { __builtin_assert(x) }
+
+let d = { a: 1 }
+
+let v_missing = d.get("b")
+var ok = false
+match v_missing {
+    Option#some(_) { ok = false }
+    Option#none()  { ok = true }
+    _ { ok = false }
+}
+assert(ok)
+
+let v_present = d.get("a")
+var value = 0
+match v_present {
+    Option#some(x) { value = x }
+    Option#none()  { value = -1 }
+    _ { value = -1 }
+}
+assert(value is 1)

@@ -1,0 +1,17 @@
+func assert(x) { __builtin_assert(x) }
+
+let a = [1, 2, 3][0]
+assert(a is 1)
+
+let l = [1, 2, 3]
+assert(l.contains(2))
+assert(l.length() is 3)
+
+let d = {"a": 1}
+let got = d.get("a")
+match got {
+    Option#some(x) { assert(x is 1) }
+    Option#none    { assert(false) }
+    _ { assert(false) }
+}
+assert(d.length() is 1)

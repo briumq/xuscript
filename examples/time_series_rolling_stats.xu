@@ -1,0 +1,25 @@
+Point has { ts: int, v: int }
+
+func rolling_sum(xs: [Point], win: int) -> [int] {
+    let out: [int] = []
+    var s = 0
+    var i = 0
+    while i < xs.length {
+        s = s + xs[i].v
+        if i >= win { s = s - xs[i - win].v }
+        if i >= win - 1 { out.add(s) }
+        i += 1
+    }
+    return out
+}
+
+func main() {
+    let xs = [
+        Point{ ts: 0, v: 1 },
+        Point{ ts: 1, v: 2 },
+        Point{ ts: 2, v: 3 },
+        Point{ ts: 3, v: 4 }
+    ]
+    let s = rolling_sum(xs, 3)
+    println("len={s.length} last={s[s.length - 1]}")
+}

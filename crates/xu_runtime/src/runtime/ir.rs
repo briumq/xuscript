@@ -1,7 +1,3 @@
-//!
-//!
-//!
-
 use crate::value::TAG_BUILDER;
 
 use smallvec::SmallVec;
@@ -10,12 +6,16 @@ use xu_ir::{Bytecode, Op};
 use super::appendable::Appendable;
 use crate::Value;
 use crate::gc::ManagedObject;
-use crate::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_STR};
+use crate::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_STR, set_with_capacity};
 
 use super::util::{to_i64, type_matches, value_to_string};
 use super::{Flow, Runtime};
+use super::ir_throw::{dispatch_throw, throw_value, unwind_to_finally};
 
 mod dict_ops;
+mod fast;
+
+pub(super) use fast::{run_bytecode_fast, run_bytecode_fast_params_only};
 
 pub(super) enum IterState {
     List {
@@ -27,18 +27,19 @@ pub(super) enum IterState {
         cur: i64,
         end: i64,
         step: i64,
+        inclusive: bool,
     },
 }
 
 pub(super) struct Handler {
-    catch_ip: Option<usize>,
-    finally_ip: Option<usize>,
-    stack_len: usize,
-    iter_len: usize,
-    env_depth: usize,
+    pub(super) catch_ip: Option<usize>,
+    pub(super) finally_ip: Option<usize>,
+    pub(super) stack_len: usize,
+    pub(super) iter_len: usize,
+    pub(super) env_depth: usize,
 }
 
-enum Pending {
+pub(super) enum Pending {
     Jump(usize),
     Return(Value),
     Throw(Value),
@@ -72,630 +73,6 @@ fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Value, String> 
 fn stack_underflow(ip: usize, op: &Op) -> String {
     format!("Stack underflow at ip={ip} op={op:?}")
 }
-
-///
-///
-///
-///
-///
-///
-///
-///
-pub(super) fn run_bytecode_fast(rt: &mut Runtime, bc: &Bytecode) -> Option<Result<Flow, String>> {
-    if bc.ops.len() > 16 {
-        return None;
-    }
-    for op in bc.ops.iter() {
-        match op {
-            Op::ConstInt(_)
-            | Op::ConstFloat(_)
-            | Op::Const(_)
-            | Op::ConstBool(_)
-            | Op::ConstNull
-            | Op::Add
-            | Op::AddAssignName(_)
-            | Op::AddAssignLocal(_)
-            | Op::Sub
-            | Op::Mul
-            | Op::Div
-            | Op::Inc
-            | Op::IncLocal(_)
-            | Op::LoadName(_)
-            | Op::LoadLocal(_)
-            | Op::StoreName(_)
-            | Op::StoreLocal(_)
-            | Op::GetMember(_, _)
-            | Op::Return
-            | Op::Pop => {}
-            _ => return None,
-        }
-    }
-
-    fn load_name(rt: &mut Runtime, name: &str) -> Result<Value, String> {
-        if rt.locals.is_active() {
-            if let Some(func_name) = &rt.current_func {
-                if let Some(idxmap) = rt.compiled_locals_idx.get(func_name) {
-                    if let Some(idx) = idxmap.get(name) {
-                        if let Some(v) = rt.get_local_by_index(*idx) {
-                            return Ok(v);
-                        }
-                    }
-                }
-            }
-            if let Some(v) = rt.get_local(name) {
-                return Ok(v);
-            }
-        }
-        rt.env.get_cached(name).ok_or_else(|| {
-            rt.error(xu_syntax::DiagnosticKind::UndefinedIdentifier(
-                name.to_string(),
-            ))
-        })
-    }
-
-    fn store_name(rt: &mut Runtime, name: &str, v: Value) {
-        if rt.locals.is_active() {
-            let mut stored = false;
-            if let Some(func_name) = &rt.current_func {
-                if let Some(idxmap) = rt.compiled_locals_idx.get(func_name) {
-                    if let Some(idx) = idxmap.get(name) {
-                        if rt.set_local_by_index(*idx, v) {
-                            stored = true;
-                        }
-                    }
-                }
-            }
-            if !stored {
-                if !rt.set_local(name, v) {
-                    rt.define_local(name.to_string(), v);
-                }
-            }
-        } else {
-            let assigned = rt.env.assign(name, v);
-            if !assigned {
-                rt.env.define(name.to_string(), v);
-            }
-        }
-    }
-
-    let mut stack: [Value; 8] = [Value::NULL; 8];
-    let mut sp: usize = 0;
-    for op in bc.ops.iter() {
-        match op {
-            Op::ConstInt(i) => {
-                stack[sp] = Value::from_i64(*i);
-                sp += 1;
-            }
-            Op::ConstFloat(f) => {
-                stack[sp] = Value::from_f64(*f);
-                sp += 1;
-            }
-            Op::Const(idx) => {
-                let c = &bc.constants[*idx as usize];
-                match c {
-                    xu_ir::Constant::Str(s) => {
-                        let text = rt.intern_string(s);
-                        stack[sp] = Value::str(rt.heap.alloc(ManagedObject::Str(text)));
-                    }
-                    xu_ir::Constant::Int(i) => stack[sp] = Value::from_i64(*i),
-                    xu_ir::Constant::Float(f) => stack[sp] = Value::from_f64(*f),
-                    _ => return Some(Err("Unexpected constant type in fast path".into())),
-                }
-                sp += 1;
-            }
-            Op::ConstBool(b) => {
-                stack[sp] = Value::from_bool(*b);
-                sp += 1;
-            }
-            Op::ConstNull => {
-                stack[sp] = Value::NULL;
-                sp += 1;
-            }
-            Op::Pop => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                sp -= 1;
-            }
-            Op::LoadName(idx) => {
-                let name = rt.get_const_str(*idx, &bc.constants);
-                stack[sp] = match load_name(rt, name) {
-                    Ok(v) => v,
-                    Err(e) => return Some(Err(e)),
-                };
-                sp += 1;
-            }
-            Op::LoadLocal(idx) => {
-                stack[sp] = match rt.get_local_by_index(*idx) {
-                    Some(v) => v,
-                    None => return Some(Err(format!("Undefined local variable index: {}", idx))),
-                };
-                sp += 1;
-            }
-            Op::StoreName(idx) => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                sp -= 1;
-                let name = rt.get_const_str(*idx, &bc.constants);
-                store_name(rt, name, stack[sp]);
-            }
-            Op::StoreLocal(idx) => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                sp -= 1;
-                let val = stack[sp];
-                if !rt.set_local_by_index(*idx, val) {
-                    while rt.get_local_by_index(*idx).is_none() {
-                        rt.define_local(format!("_tmp_{}", idx), Value::NULL);
-                    }
-                    rt.set_local_by_index(*idx, val);
-                }
-            }
-            Op::AddAssignName(idx) => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                sp -= 1;
-                let rhs = stack[sp];
-                let name = rt.get_const_str(*idx, &bc.constants);
-                let mut cur = match load_name(rt, name) {
-                    Ok(v) => v,
-                    Err(e) => return Some(Err(e)),
-                };
-                if cur.is_int() && rhs.is_int() {
-                    cur = Value::from_i64(cur.as_i64().wrapping_add(rhs.as_i64()));
-                } else {
-                    cur = match cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
-                        Ok(_) => cur,
-                        Err(e) => return Some(Err(e)),
-                    };
-                }
-                store_name(rt, name, cur);
-            }
-            Op::AddAssignLocal(idx) => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                sp -= 1;
-                let rhs = stack[sp];
-                let mut cur = match rt.get_local_by_index(*idx) {
-                    Some(v) => v,
-                    None => return Some(Err(format!("Undefined local variable index: {}", idx))),
-                };
-                if cur.is_int() && rhs.is_int() {
-                    cur = Value::from_i64(cur.as_i64().wrapping_add(rhs.as_i64()));
-                } else {
-                    cur = match cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
-                        Ok(_) => cur,
-                        Err(e) => return Some(Err(e)),
-                    };
-                }
-                rt.set_local_by_index(*idx, cur);
-            }
-            Op::IncLocal(idx) => {
-                let mut cur = match rt.get_local_by_index(*idx) {
-                    Some(v) => v,
-                    None => return Some(Err(format!("Undefined local variable index: {}", idx))),
-                };
-                if cur.is_int() {
-                    cur = Value::from_i64(cur.as_i64().wrapping_add(1));
-                } else {
-                    cur = match cur.bin_op_assign(
-                        xu_ir::BinaryOp::Add,
-                        Value::from_i64(1),
-                        &mut rt.heap,
-                    ) {
-                        Ok(_) => cur,
-                        Err(e) => return Some(Err(e)),
-                    };
-                }
-                rt.set_local_by_index(*idx, cur);
-            }
-            Op::Add => {
-                if sp < 2 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let b = stack[sp - 1];
-                let a = stack[sp - 2];
-                sp -= 2;
-                if a.is_int() && b.is_int() {
-                    stack[sp] = Value::from_i64(a.as_i64().wrapping_add(b.as_i64()));
-                } else {
-                    stack[sp] = match add_with_heap(rt, a, b) {
-                        Ok(v) => v,
-                        Err(e) => return Some(Err(e)),
-                    };
-                }
-                sp += 1;
-            }
-            Op::Sub | Op::Mul | Op::Div => return None,
-            Op::Inc => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let a = &mut stack[sp - 1];
-                if a.is_int() {
-                    *a = Value::from_i64(a.as_i64().saturating_add(1));
-                } else if a.is_f64() {
-                    *a = Value::from_f64(a.as_f64() + 1.0);
-                } else {
-                    return Some(Err(rt.error(
-                        xu_syntax::DiagnosticKind::InvalidUnaryOperand {
-                            op: '+',
-                            expected: "number".to_string(),
-                        },
-                    )));
-                }
-            }
-            Op::GetMember(idx, slot) => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                sp -= 1;
-                let obj = stack[sp];
-                let field = rt.get_const_str(*idx, &bc.constants);
-                let v = match rt.get_member_with_ic_raw(obj, field, *slot) {
-                    Ok(v) => v,
-                    Err(e) => return Some(Err(e)),
-                };
-                stack[sp] = v;
-                sp += 1;
-            }
-            Op::Return => {
-                let v = if sp == 0 { Value::NULL } else { stack[sp - 1] };
-                return Some(Ok(Flow::Return(v)));
-            }
-            _ => return None,
-        }
-    }
-    Some(Ok(Flow::None))
-}
-
-pub(super) fn run_bytecode_fast_params_only(
-    rt: &mut Runtime,
-    bc: &Bytecode,
-    params: &[xu_ir::Param],
-    args: &[Value],
-) -> Option<Result<Value, String>> {
-    if params.len() != args.len() {
-        return None;
-    }
-    if bc.ops.len() > 32 {
-        return None;
-    }
-    for op in bc.ops.iter() {
-        match op {
-            Op::LoadName(idx) => {
-                let name = rt.get_const_str(*idx, &bc.constants);
-                if !params.iter().any(|p| p.name.as_str() == name) {
-                    return None;
-                }
-            }
-            Op::LoadLocal(idx) => {
-                if *idx >= args.len() {
-                    return None;
-                }
-            }
-            Op::DictGetStrConst(_, _, _)
-            | Op::DictGetIntConst(_, _)
-            | Op::ConstInt(_)
-            | Op::ConstFloat(_)
-            | Op::Const(_)
-            | Op::ConstBool(_)
-            | Op::ConstNull
-            | Op::Add
-            | Op::Sub
-            | Op::Mul
-            | Op::Div
-            | Op::Gt
-            | Op::Lt
-            | Op::Ge
-            | Op::Le
-            | Op::Eq
-            | Op::Ne
-            | Op::GetMember(_, _)
-            | Op::Return
-            | Op::Pop => {}
-            _ => return None,
-        }
-    }
-
-    let mut stack: [Value; 16] = [Value::NULL; 16];
-    let mut sp: usize = 0;
-    for op in bc.ops.iter() {
-        match op {
-            Op::ConstInt(i) => {
-                stack[sp] = Value::from_i64(*i);
-                sp += 1;
-            }
-            Op::ConstFloat(f) => {
-                stack[sp] = Value::from_f64(*f);
-                sp += 1;
-            }
-            Op::Const(idx) => {
-                let c = &bc.constants[*idx as usize];
-                match c {
-                    xu_ir::Constant::Str(s) => {
-                        let text = rt.intern_string(s);
-                        stack[sp] = Value::str(rt.heap.alloc(ManagedObject::Str(text)));
-                    }
-                    xu_ir::Constant::Int(i) => stack[sp] = Value::from_i64(*i),
-                    xu_ir::Constant::Float(f) => stack[sp] = Value::from_f64(*f),
-                    _ => return Some(Err("Unexpected constant type in fast path".into())),
-                }
-                sp += 1;
-            }
-            Op::ConstBool(b) => {
-                stack[sp] = Value::from_bool(*b);
-                sp += 1;
-            }
-            Op::ConstNull => {
-                stack[sp] = Value::NULL;
-                sp += 1;
-            }
-            Op::Pop => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                sp -= 1;
-            }
-            Op::DictGetStrConst(idx, k_hash, slot) => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let obj = stack[sp - 1];
-                if obj.get_tag() != crate::value::TAG_DICT {
-                    return None;
-                }
-                let id = obj.as_obj_id();
-                if let ManagedObject::Dict(me) = rt.heap.get(id) {
-                    let cur_ver = me.ver;
-                    let mut val = None;
-
-                    if let Some(idx_ic) = slot {
-                        if *idx_ic < rt.ic_slots.len() {
-                            let c = &rt.ic_slots[*idx_ic];
-                            if let Some(off) = c.field_offset {
-                                if let Some(sid) = me.shape {
-                                    if c.id == sid.0 {
-                                        val = Some(me.prop_values[off]);
-                                    }
-                                }
-                            } else {
-                                if c.id == id.0 && c.ver == me.ver && c.key_hash == *k_hash {
-                                    val = Some(c.value);
-                                }
-                            }
-                        }
-                    }
-
-                    if let Some(v) = val {
-                        stack[sp - 1] = v;
-                    } else {
-                        // Fallback to full runtime call for slow path
-                        let k = rt.get_const_str(*idx, &bc.constants);
-                        let mut out = None;
-                        if let Some(sid) = me.shape {
-                            if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
-                                if let Some(&off) = shape.prop_map.get(k) {
-                                    out = Some(me.prop_values[off]);
-                                }
-                            }
-                        }
-                        if out.is_none() {
-                            let internal_hash = Runtime::hash_bytes(me.map.hasher(), k.as_bytes());
-                            out = Runtime::dict_get_by_str_with_hash(me, k, internal_hash);
-                        }
-
-                        let Some(out_v) = out else {
-                            return None;
-                        };
-                        if let Some(idx_ic) = slot {
-                            while rt.ic_slots.len() <= *idx_ic {
-                                rt.ic_slots.push(super::ICSlot::default());
-                            }
-                            let mut shape_info = (id.0, None);
-                            if let Some(sid) = me.shape {
-                                if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
-                                    if let Some(&off) = shape.prop_map.get(k) {
-                                        shape_info = (sid.0, Some(off));
-                                    }
-                                }
-                            }
-
-                            rt.ic_slots[*idx_ic] = super::ICSlot {
-                                id: shape_info.0,
-                                key_hash: *k_hash,
-                                ver: cur_ver,
-                                value: out_v,
-                                field_offset: shape_info.1,
-                                ..Default::default()
-                            };
-                        }
-                        stack[sp - 1] = out_v;
-                    }
-                }
-            }
-            Op::DictGetIntConst(i, slot) => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let obj = stack[sp - 1];
-                if obj.get_tag() != crate::value::TAG_DICT {
-                    return None;
-                }
-                let id = obj.as_obj_id();
-                let (cur_ver, key_hash) = if let ManagedObject::Dict(me) = rt.heap.get(id) {
-                    (me.ver, Runtime::hash_dict_key_int(me.map.hasher(), *i))
-                } else {
-                    return None;
-                };
-
-                let mut val = None;
-                if let Some(idx_ic) = slot {
-                    if *idx_ic < rt.ic_slots.len() {
-                        let c = &rt.ic_slots[*idx_ic];
-                        if c.id == id.0 && c.ver == cur_ver && c.key_hash == key_hash {
-                            val = Some(c.value);
-                        }
-                    }
-                }
-
-                if let Some(v) = val {
-                    stack[sp - 1] = v;
-                } else {
-                    let out = if let ManagedObject::Dict(me) = rt.heap.get(id) {
-                        me.map.get(&crate::value::DictKey::Int(*i)).cloned()
-                    } else {
-                        None
-                    };
-                    let Some(out) = out else {
-                        return None;
-                    };
-                    if let Some(idx_ic) = slot {
-                        while rt.ic_slots.len() <= *idx_ic {
-                            rt.ic_slots.push(super::ICSlot::default());
-                        }
-                        rt.ic_slots[*idx_ic] = super::ICSlot {
-                            id: id.0,
-                            key_hash,
-                            ver: cur_ver,
-                            value: out,
-                            ..Default::default()
-                        };
-                    }
-                    stack[sp - 1] = out;
-                }
-            }
-            Op::LoadLocal(idx) => {
-                stack[sp] = args[*idx];
-                sp += 1;
-            }
-            Op::LoadName(idx) => {
-                let name = rt.get_const_str(*idx, &bc.constants);
-                let mut found = None;
-                for (i, p) in params.iter().enumerate() {
-                    if p.name.as_str() == name {
-                        found = Some(args[i]);
-                        break;
-                    }
-                }
-                let Some(v) = found else {
-                    return None;
-                };
-                stack[sp] = v;
-                sp += 1;
-            }
-            Op::Add => {
-                if sp < 2 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let b = stack[sp - 1];
-                let a = stack[sp - 2];
-                sp -= 2;
-                stack[sp] = match add_with_heap(rt, a, b) {
-                    Ok(v) => v,
-                    Err(e) => return Some(Err(e)),
-                };
-                sp += 1;
-            }
-            Op::Sub => {
-                if sp < 2 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let b = stack[sp - 1];
-                let a = stack[sp - 2];
-                sp -= 2;
-                stack[sp] = match a.bin_op(xu_ir::BinaryOp::Sub, b) {
-                    Ok(v) => v,
-                    Err(e) => return Some(Err(e)),
-                };
-                sp += 1;
-            }
-            Op::Mul => {
-                if sp < 2 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let b = stack[sp - 1];
-                let a = stack[sp - 2];
-                sp -= 2;
-                stack[sp] = match a.bin_op(xu_ir::BinaryOp::Mul, b) {
-                    Ok(v) => v,
-                    Err(e) => return Some(Err(e)),
-                };
-                sp += 1;
-            }
-            Op::Div => {
-                if sp < 2 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let b = stack[sp - 1];
-                let a = stack[sp - 2];
-                sp -= 2;
-                stack[sp] = match a.bin_op(xu_ir::BinaryOp::Div, b) {
-                    Ok(v) => v,
-                    Err(e) => return Some(Err(e)),
-                };
-                sp += 1;
-            }
-            Op::Gt | Op::Lt | Op::Ge | Op::Le | Op::Eq | Op::Ne => {
-                if sp < 2 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let b = stack[sp - 1];
-                let a = stack[sp - 2];
-                sp -= 2;
-                let bop = match op {
-                    Op::Gt => xu_ir::BinaryOp::Gt,
-                    Op::Lt => xu_ir::BinaryOp::Lt,
-                    Op::Ge => xu_ir::BinaryOp::Ge,
-                    Op::Le => xu_ir::BinaryOp::Le,
-                    Op::Eq => xu_ir::BinaryOp::Eq,
-                    Op::Ne => xu_ir::BinaryOp::Ne,
-                    _ => unreachable!(),
-                };
-                stack[sp] = match a.bin_op(bop, b) {
-                    Ok(v) => v,
-                    Err(e) => return Some(Err(e)),
-                };
-                sp += 1;
-            }
-            Op::GetMember(idx, slot) => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                sp -= 1;
-                let obj = stack[sp];
-                let field = rt.get_const_str(*idx, &bc.constants);
-                let v = match rt.get_member_with_ic_raw(obj, field, *slot) {
-                    Ok(v) => v,
-                    Err(e) => return Some(Err(e)),
-                };
-                stack[sp] = v;
-                sp += 1;
-            }
-            Op::Return => {
-                if sp == 0 {
-                    return Some(Ok(Value::NULL));
-                }
-                return Some(Ok(stack[sp - 1]));
-            }
-            _ => return None,
-        }
-    }
-    Some(Ok(Value::NULL))
-}
-
-///
-///
-///
-///
-///
-///
-///
-///
 pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, String> {
     let mut stack = rt
         .vm_stack_pool
@@ -753,7 +130,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
         let op = unsafe { ops.get_unchecked(ip) };
         rt.stmt_count = rt.stmt_count.wrapping_add(1);
         if rt.stmt_count & 127 == 0 {
-            rt.maybe_gc();
+            rt.maybe_gc_with_roots(&stack);
         }
         match op {
             Op::ConstInt(i) => stack.push(Value::from_i64(*i)),
@@ -771,7 +148,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::ConstBool(b) => stack.push(Value::from_bool(*b)),
-            Op::ConstNull => stack.push(Value::NULL),
+            Op::ConstNull => stack.push(Value::UNIT),
             Op::Pop => {
                 let _ = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
             }
@@ -786,9 +163,35 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 if !rt.set_local_by_index(*idx, val) {
                     // Define up to idx if not exist
                     while rt.get_local_by_index(*idx).is_none() {
-                        rt.define_local(format!("_tmp_{}", idx), Value::NULL);
+                        rt.define_local(format!("_tmp_{}", idx), Value::UNIT);
                     }
                     rt.set_local_by_index(*idx, val);
+                }
+            }
+            Op::Use(path_idx, alias_idx) => {
+                let path = rt.get_const_str(*path_idx, &bc.constants);
+                let alias = rt.get_const_str(*alias_idx, &bc.constants);
+                match super::modules::import_path(rt, path) {
+                    Ok(module_obj) => {
+                        rt.env.define(alias.to_string(), module_obj);
+                    }
+                    Err(e) => {
+                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                        if let Some(flow) = throw_value(
+                            rt,
+                            &mut ip,
+                            &mut handlers,
+                            &mut stack,
+                            &mut iters,
+                            &mut pending,
+                            &mut thrown,
+                            err_val,
+                        ) {
+                            return Ok(flow);
+                        }
+                        ip += 1;
+                        continue;
+                    }
                 }
             }
             Op::Add => {
@@ -1194,7 +597,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     sa.append_null();
                     stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
                 } else {
-                    match add_with_heap(rt, a, Value::NULL) {
+                    match add_with_heap(rt, a, Value::UNIT) {
                         Ok(r) => stack.push(r),
                         Err(e) => {
                             let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
@@ -1669,7 +1072,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     continue;
                 };
 
-                let mut values = vec![Value::NULL; layout.len()];
+                let mut values = vec![Value::UNIT; layout.len()];
                 for k in fields.iter().rev() {
                     let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                     if let Some(pos) = layout.iter().position(|f| f == k) {
@@ -1765,7 +1168,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     return Err(stack_underflow(ip, op));
                 }
                 let args: Vec<Value> = stack.drain(stack.len() - n..).collect();
-                let callee = stack.pop().unwrap();
+                let callee = stack.pop().expect("Stack underflow in Call (callee)");
                 match rt.call_function(callee, &args) {
                     Ok(v) => stack.push(v),
                     Err(e) => {
@@ -1893,12 +1296,12 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     }));
                 }
             }
-            Op::MakeRange => {
+            Op::MakeRange(inclusive) => {
                 let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                 let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                 let start = to_i64(&a)?;
                 let end = to_i64(&b)?;
-                let id = rt.heap.alloc(ManagedObject::Range(start, end));
+                let id = rt.heap.alloc(ManagedObject::Range(start, end, *inclusive));
                 stack.push(Value::range(id));
             }
             Op::GetMember(idx, slot_idx) => {
@@ -2230,7 +1633,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         let ui = *i as usize;
                         if ui < me.elements.len() {
                             let v = me.elements[ui];
-                            if v.get_tag() != crate::value::TAG_NULL {
+                            if v.get_tag() != crate::value::TAG_UNIT {
                                 val = Some(v);
                             }
                         }
@@ -2352,7 +1755,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         continue;
                     }
                     let first = match rt.heap.get(id) {
-                        ManagedObject::List(v) => v.get(0).cloned().unwrap_or(Value::NULL),
+                        ManagedObject::List(v) => v.get(0).cloned().unwrap_or(Value::UNIT),
                         _ => {
                             return Err(
                                 rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into()))
@@ -2363,8 +1766,8 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     first
                 } else if tag == TAG_RANGE {
                     let id = iterable.as_obj_id();
-                    let (start, r_end) = match rt.heap.get(id) {
-                        ManagedObject::Range(s, e) => (*s, *e),
+                    let (start, r_end, inclusive) = match rt.heap.get(id) {
+                        ManagedObject::Range(s, e, inc) => (*s, *e, *inc),
                         _ => {
                             return Err(
                                 rt.error(xu_syntax::DiagnosticKind::Raw("Not a range".into()))
@@ -2372,11 +1775,18 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         }
                     };
                     let step = if start <= r_end { 1 } else { -1 };
+                    if !inclusive {
+                        if (step > 0 && start >= r_end) || (step < 0 && start <= r_end) {
+                            ip = *end;
+                            continue;
+                        }
+                    }
                     let next = start.saturating_add(step);
                     iters.push(IterState::Range {
                         cur: next,
                         end: r_end,
                         step,
+                        inclusive,
                     });
                     Value::from_i64(start)
                 } else {
@@ -2413,7 +1823,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         } else {
                             let item = match rt.heap.get(*id) {
                                 ManagedObject::List(v) => {
-                                    v.get(*idx).cloned().unwrap_or(Value::NULL)
+                                    v.get(*idx).cloned().unwrap_or(Value::UNIT)
                                 }
                                 _ => {
                                     return Err(rt.error(xu_syntax::DiagnosticKind::Raw(
@@ -2429,9 +1839,15 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         cur,
                         end: r_end,
                         step,
+                        inclusive,
                         ..
                     } => {
-                        if (*step > 0 && *cur > *r_end) || (*step < 0 && *cur < *r_end) {
+                        let done = if *inclusive {
+                            (*step > 0 && *cur > *r_end) || (*step < 0 && *cur < *r_end)
+                        } else {
+                            (*step > 0 && *cur >= *r_end) || (*step < 0 && *cur <= *r_end)
+                        };
+                        if done {
                             None
                         } else {
                             let item = Value::from_i64(*cur);
@@ -2484,7 +1900,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                 thrown = Some(v);
             }
-            Op::PushThrown => stack.push(thrown.unwrap_or(Value::NULL)),
+            Op::PushThrown => stack.push(thrown.unwrap_or(Value::UNIT)),
             Op::ClearThrown => thrown = None,
             Op::SetPendingNone => pending = None,
             Op::SetPendingJump(to) => pending = Some(Pending::Jump(*to)),
@@ -2523,7 +1939,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     ip = fin_ip;
                     continue;
                 }
-                let Pending::Return(v) = pending.take().unwrap() else {
+                let Pending::Return(v) = pending.take().expect("Pending return lost") else {
                     unreachable!();
                 };
                 return Ok(Flow::Return(v));
@@ -2543,7 +1959,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     ip = next_ip;
                     continue;
                 }
-                return Ok(Flow::Throw(thrown.take().unwrap()));
+                return Ok(Flow::Throw(thrown.take().expect("Thrown value lost")));
             }
             Op::RunPending => {
                 if pending.is_none() {
@@ -2573,7 +1989,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                             ip = next_ip;
                             continue;
                         }
-                        return Ok(Flow::Throw(thrown.take().unwrap()));
+                        return Ok(Flow::Throw(thrown.take().expect("Thrown value lost")));
                     }
                 }
             }
@@ -2585,6 +2001,20 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 items.reverse();
                 let id = rt.heap.alloc(ManagedObject::List(items));
                 stack.push(Value::list(id));
+            }
+            Op::TupleNew(n) => {
+                if *n == 0 {
+                    stack.push(Value::UNIT);
+                    ip += 1;
+                    continue;
+                }
+                let mut items: Vec<Value> = Vec::with_capacity(*n);
+                for _ in 0..*n {
+                    items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
+                }
+                items.reverse();
+                let id = rt.heap.alloc(ManagedObject::Tuple(items));
+                stack.push(Value::tuple(id));
             }
             Op::DictNew(n) => {
                 let mut map = crate::value::dict_with_capacity(*n);
@@ -2606,6 +2036,30 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
                 let id = rt.heap.alloc(ManagedObject::Dict(map));
                 stack.push(Value::dict(id));
+            }
+            Op::SetNew(n) => {
+                let mut items: Vec<Value> = Vec::with_capacity(*n);
+                for _ in 0..*n {
+                    items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
+                }
+                items.reverse();
+                let mut set = set_with_capacity(*n);
+                for v in items {
+                    let key = if v.get_tag() == TAG_STR {
+                        if let ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
+                            DictKey::Str(s.clone())
+                        } else {
+                            return Err("Not a string".into());
+                        }
+                    } else if v.is_int() {
+                        DictKey::Int(v.as_i64())
+                    } else {
+                        return Err(rt.error(xu_syntax::DiagnosticKind::DictKeyRequired));
+                    };
+                    set.map.insert(key, ());
+                }
+                let id = rt.heap.alloc(ManagedObject::Set(set));
+                stack.push(Value::set(id));
             }
             Op::BuilderNewCap(cap) => {
                 let s = String::with_capacity(*cap);
@@ -2644,9 +2098,9 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
                         s.push_str(piece);
                     }
-                } else if v.is_null() {
+                } else if v.is_unit() {
                     if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
-                        s.push_str("null");
+                        s.push_str("()");
                     }
                 } else if v.get_tag() == TAG_STR {
                     let text = if let ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
@@ -2723,73 +2177,6 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
 
 ///
 ///
-fn unwind_to_finally(
-    rt: &mut Runtime,
-    handlers: &mut Vec<Handler>,
-    stack: &mut Vec<Value>,
-) -> Option<usize> {
-    while let Some(h) = handlers.last() {
-        if let Some(fin) = h.finally_ip {
-            restore_to_handler(rt, h, stack);
-            return Some(fin);
-        }
-        restore_to_handler(rt, h, stack);
-        let _ = handlers.pop();
-    }
-    None
-}
-
-fn restore_to_handler(rt: &mut Runtime, h: &Handler, stack: &mut Vec<Value>) {
-    stack.truncate(h.stack_len);
-    rt.env.pop_to(h.env_depth);
-}
-
-///
-///
-fn dispatch_throw(
-    rt: &mut Runtime,
-    handlers: &mut Vec<Handler>,
-    stack: &mut Vec<Value>,
-    iters: &mut Vec<IterState>,
-    pending: &mut Option<Pending>,
-    thrown: &Option<Value>,
-) -> Option<usize> {
-    let tv = (*thrown)?;
-    while let Some(h) = handlers.last_mut() {
-        stack.truncate(h.stack_len);
-        iters.truncate(h.iter_len);
-        rt.env.pop_to(h.env_depth);
-        if let Some(catch_ip) = h.catch_ip {
-            h.catch_ip = None;
-            return Some(catch_ip);
-        }
-        if let Some(fin) = h.finally_ip {
-            *pending = Some(Pending::Throw(tv));
-            return Some(fin);
-        }
-        let _ = handlers.pop();
-    }
-    None
-}
-
-fn throw_value(
-    rt: &mut Runtime,
-    ip: &mut usize,
-    handlers: &mut Vec<Handler>,
-    stack: &mut Vec<Value>,
-    iters: &mut Vec<IterState>,
-    pending: &mut Option<Pending>,
-    thrown: &mut Option<Value>,
-    v: Value,
-) -> Option<Flow> {
-    *thrown = Some(v);
-    if let Some(next_ip) = dispatch_throw(rt, handlers, stack, iters, pending, thrown) {
-        *ip = next_ip;
-        return None;
-    }
-    Some(Flow::Throw(thrown.take().unwrap()))
-}
-
 pub struct VM {
     pub output: String,
     rt: Runtime,

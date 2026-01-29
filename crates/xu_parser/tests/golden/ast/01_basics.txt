@@ -17,6 +17,7 @@ Module {
         ),
         Assign(
             AssignStmt {
+                vis: Public,
                 target: Ident(
                     "a",
                     None,

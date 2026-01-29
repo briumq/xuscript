@@ -1,0 +1,15 @@
+func run_batch(xs: [int]) -> int {
+    var s: int = 0
+    for x in xs { s = s + x }
+    return s
+}
+
+func run_stream(xs: [int]) -> int {
+    return run_batch(xs)
+}
+
+func main() {
+    let xs = [1, 2, 0]
+    let s = run_stream(xs)
+    println("processed={s}")
+}

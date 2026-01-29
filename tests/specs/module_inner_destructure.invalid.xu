@@ -1,0 +1,4 @@
+// expect_panic:"Unknown member: a"
+use "module_inner_destructure_mod.xu" as m
+
+m.a

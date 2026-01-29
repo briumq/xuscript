@@ -1,0 +1,13 @@
+Event with [ deposit(v: int) | withdraw(v: int) ]
+
+func apply(evts: [Event]) -> int {
+    var bal = 0
+    for e in evts {
+        match e {
+            Event#deposit(v) { bal = bal + v }
+            Event#withdraw(v) { bal = bal - v }
+            _ { }
+        }
+    }
+    return bal
+}

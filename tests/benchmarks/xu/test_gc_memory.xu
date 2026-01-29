@@ -1,0 +1,58 @@
+// Test case to reproduce GC memory issue with large datasets
+var BENCH_SCALE = "500000"
+
+func now_us() -> int { return mono_micros() }
+
+func test_gc_large_dataset(N: int) {
+    print("Starting GC test with " + to_text(N) + " items...")
+    
+    func logic() {
+        // Create large dictionary that should trigger GC issues
+        let d: [text]int = {}
+        print("Creating dictionary with " + to_text(N) + " items...")
+        
+        var i = 0
+        while i < N {
+            d.insert("k" + to_text(i), i)
+            if (i % 100000 == 0) {
+                print("Inserted " + to_text(i) + " items, RSS: " + to_text(process_rss()))
+            }
+            i = i + 1
+        }
+        
+        print("Dictionary created, RSS: " + to_text(process_rss()))
+        
+        // Access all items to ensure they're marked as live
+        var sum = 0
+        var j = 0
+        while j < N {
+            sum += d.get("k" + to_text(j))
+            j = j + 1
+        }
+        print("Sum calculated: " + to_text(sum) + ", RSS: " + to_text(process_rss()))
+        
+        // Clear dictionary reference
+        let _ = d
+        print("Reference cleared, RSS: " + to_text(process_rss()))
+        
+        // Force multiple GC cycles
+        var k = 1
+        while k <= 5 {
+            gc()
+            print("After GC cycle " + to_text(k) + ", RSS: " + to_text(process_rss()))
+            k = k + 1
+        }
+    }
+    
+    var start = now_us()
+    logic()
+    var end = now_us()
+    var duration_ms = (end - start) / 1000
+    
+    print("Test completed in " + to_text(duration_ms) + "ms")
+}
+
+func main() {
+    var N = parse_int(BENCH_SCALE)
+    test_gc_large_dataset(N)
+}

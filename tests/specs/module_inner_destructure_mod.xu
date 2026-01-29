@@ -1,0 +1,5 @@
+inner var (a, b) = (1, 2)
+
+func get_a() {
+    return a
+}

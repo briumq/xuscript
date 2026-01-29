@@ -4,18 +4,31 @@ use super::Runtime;
 use super::util::{to_f64_pair, to_i64, value_to_string};
 use crate::Value;
 use crate::value::{FileHandle, i64_to_text_fast};
+use libc::{getrusage, rusage, RUSAGE_SELF};
 
 pub(super) fn builtin_print(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
     for a in args {
         rt.write_output(&value_to_string(a, &rt.heap));
     }
-    Ok(Value::NULL)
+    Ok(Value::UNIT)
 }
 
 pub(super) fn builtin_gen_id(rt: &mut Runtime, _args: &[Value]) -> Result<Value, String> {
     let id = rt.next_id;
     rt.next_id = rt.next_id.saturating_add(1);
     Ok(Value::from_i64(id as i64))
+}
+
+pub(super) fn builtin_gc(rt: &mut Runtime, _args: &[Value]) -> Result<Value, String> {
+    rt.gc(&[]);
+    // Try to release memory back to OS
+    #[cfg(target_os = "linux")]
+    unsafe {
+        libc::malloc_trim(0);
+    }
+    // Force a thread yield to allow OS to reclaim memory
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    Ok(Value::UNIT)
 }
 
 pub(super) fn builtin_open(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
@@ -200,8 +213,8 @@ pub(super) fn builtin_to_text(rt: &mut Runtime, args: &[Value]) -> Result<Value,
         } else {
             "text".into()
         }
-    } else if v.is_null() {
-        "null".into()
+    } else if v.is_unit() {
+        "()".into()
     } else if v.is_bool() {
         if v.as_bool() {
             "true".into()
@@ -264,9 +277,9 @@ pub(super) fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<V
     };
 
     let v = &args[1];
-    if v.is_null() {
+    if v.is_unit() {
         if let crate::gc::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
-            sb.push_str("null");
+            sb.push_str("()");
         }
     } else if v.is_bool() {
         let s = if v.as_bool() { "true" } else { "false" };
@@ -315,7 +328,7 @@ pub(super) fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<V
         }
     }
 
-    Ok(Value::NULL)
+    Ok(Value::UNIT)
 }
 
 pub(super) fn builtin_builder_finalize(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
@@ -405,6 +418,98 @@ pub(super) fn builtin_pow(_rt: &mut Runtime, args: &[Value]) -> Result<Value, St
     Ok(Value::from_f64(base.powf(exp)))
 }
 
+pub(super) fn builtin_contains(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
+    if args.len() != 2 {
+        return Err("contains expects 2 arguments".into());
+    }
+    let hay = &args[0];
+    let needle = &args[1];
+    if hay.get_tag() != crate::value::TAG_STR || needle.get_tag() != crate::value::TAG_STR {
+        return Err("contains expects (text, text)".into());
+    }
+    let hs = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(hay.as_obj_id()) {
+        s.to_string()
+    } else {
+        return Err("contains expects text".into());
+    };
+    let ns = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(needle.as_obj_id()) {
+        s.to_string()
+    } else {
+        return Err("contains expects text".into());
+    };
+    Ok(Value::from_bool(hs.contains(&ns)))
+}
+
+pub(super) fn builtin_starts_with(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
+    if args.len() != 2 {
+        return Err("starts_with expects 2 arguments".into());
+    }
+    let hay = &args[0];
+    let prefix = &args[1];
+    if hay.get_tag() != crate::value::TAG_STR || prefix.get_tag() != crate::value::TAG_STR {
+        return Err("starts_with expects (text, text)".into());
+    }
+    let hs = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(hay.as_obj_id()) {
+        s.to_string()
+    } else {
+        return Err("starts_with expects text".into());
+    };
+    let ps = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(prefix.as_obj_id()) {
+        s.to_string()
+    } else {
+        return Err("starts_with expects text".into());
+    };
+    Ok(Value::from_bool(hs.starts_with(&ps)))
+}
+
+pub(super) fn builtin_ends_with(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
+    if args.len() != 2 {
+        return Err("ends_with expects 2 arguments".into());
+    }
+    let hay = &args[0];
+    let suffix = &args[1];
+    if hay.get_tag() != crate::value::TAG_STR || suffix.get_tag() != crate::value::TAG_STR {
+        return Err("ends_with expects (text, text)".into());
+    }
+    let hs = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(hay.as_obj_id()) {
+        s.to_string()
+    } else {
+        return Err("ends_with expects text".into());
+    };
+    let ss = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(suffix.as_obj_id()) {
+        s.to_string()
+    } else {
+        return Err("ends_with expects text".into());
+    };
+    Ok(Value::from_bool(hs.ends_with(&ss)))
+}
+
+pub(super) fn builtin_process_rss(_rt: &mut Runtime, _args: &[Value]) -> Result<Value, String> {
+    let mut usage = rusage {
+        ru_utime: libc::timeval { tv_sec: 0, tv_usec: 0 },
+        ru_stime: libc::timeval { tv_sec: 0, tv_usec: 0 },
+        ru_maxrss: 0,
+        ru_ixrss: 0,
+        ru_idrss: 0,
+        ru_isrss: 0,
+        ru_minflt: 0,
+        ru_majflt: 0,
+        ru_nswap: 0,
+        ru_inblock: 0,
+        ru_oublock: 0,
+        ru_msgsnd: 0,
+        ru_msgrcv: 0,
+        ru_nsignals: 0,
+        ru_nvcsw: 0,
+        ru_nivcsw: 0,
+    };
+    unsafe {
+        let _ = getrusage(RUSAGE_SELF, &mut usage);
+    }
+    let rss = usage.ru_maxrss as i64;
+    Ok(Value::from_i64(rss))
+}
+
 pub(super) fn builtin_assert(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
     if args.len() < 1 || args.len() > 2 {
         return Err("__builtin_assert expects 1 or 2 arguments".into());
@@ -421,7 +526,7 @@ pub(super) fn builtin_assert(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
         };
         return Err(msg);
     }
-    Ok(Value::NULL)
+    Ok(Value::UNIT)
 }
 
 pub(super) fn builtin_assert_eq(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
@@ -440,7 +545,7 @@ pub(super) fn builtin_assert_eq(rt: &mut Runtime, args: &[Value]) -> Result<Valu
         };
         return Err(msg);
     }
-    Ok(Value::NULL)
+    Ok(Value::UNIT)
 }
 
 fn to_f64(v: &Value) -> Result<f64, String> {

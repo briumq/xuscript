@@ -1,0 +1,16 @@
+func assert(x) { __builtin_assert(x) }
+
+let lx = 10
+assert(lx is 10)
+
+var vx = 10
+assert(vx is 10)
+vx = 20
+assert(vx is 20)
+vx += 5
+assert(vx is 25)
+
+let list = [1, 2, 3]
+list.add(4)
+assert(list.len() is 4)
+assert(list[3] is 4)

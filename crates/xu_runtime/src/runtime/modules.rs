@@ -2,15 +2,21 @@ use super::module_loader::ImportStamp;
 use super::{Env, Flow, Runtime};
 use crate::Value;
 use crate::value::{DictStr, ModuleInstance};
+use std::collections::HashSet;
 
 #[derive(Clone, Debug)]
 pub(super) struct ImportParseCacheEntry {
     stamp: ImportStamp,
-    result: Result<xu_ir::Executable, String>,
+    result: Result<ImportParseResult, String>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct ImportParseResult {
+    executable: xu_ir::Executable,
 }
 
 impl Runtime {
-    pub(super) fn parse_import_cached(&mut self, key: &str) -> Result<xu_ir::Executable, String> {
+    pub(super) fn parse_import_cached(&mut self, key: &str) -> Result<ImportParseResult, String> {
         let (input, stamp) = self.module_loader.load_text_and_stamp(self, key)?;
         if let Some(e) = self.import_parse_cache.get(key) {
             if e.stamp == stamp {
@@ -34,7 +40,9 @@ impl Runtime {
                 return Err(super::diag::render_parse_error(key, text, err));
             }
 
-            Ok(compiled.executable)
+            Ok(ImportParseResult {
+                executable: compiled.executable,
+            })
         })();
 
         self.import_parse_cache.insert(
@@ -49,30 +57,20 @@ impl Runtime {
     }
 }
 
-pub(super) fn builtin_import(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
-    if args.len() != 1 {
-        return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
-            expected_min: 1,
-            expected_max: 1,
-            actual: args.len(),
-        }));
+pub(super) fn infer_module_alias(path: &str) -> String {
+    let mut last = path;
+    if let Some((_, tail)) = path.rsplit_once('/') {
+        last = tail;
+    } else if let Some((_, tail)) = path.rsplit_once('\\') {
+        last = tail;
     }
-    let path = if args[0].get_tag() == crate::value::TAG_STR {
-        if let crate::gc::ManagedObject::Str(s) = rt.heap.get(args[0].as_obj_id()) {
-            s.clone()
-        } else {
-            return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
-                expected: "string".to_string(),
-                actual: args[0].type_name().to_string(),
-            }));
-        }
-    } else {
-        return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
-            expected: "string".to_string(),
-            actual: args[0].type_name().to_string(),
-        }));
-    };
-    let key = rt.module_loader.resolve_key(rt, &path)?;
+    let last = last.trim_end_matches('/');
+    let last = last.trim_end_matches('\\');
+    last.strip_suffix(".xu").unwrap_or(last).to_string()
+}
+
+pub(super) fn import_path(rt: &mut Runtime, path: &str) -> Result<Value, String> {
+    let key = rt.module_loader.resolve_key(rt, path)?;
     #[cfg(test)]
     let trace_import = std::env::var("XU_TRACE_IMPORT")
         .ok()
@@ -83,7 +81,6 @@ pub(super) fn builtin_import(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
         eprintln!("import: {}", key);
     }
     if let Some(v) = rt.loaded_modules.get(&key).cloned() {
-        merge_exports_into_env(rt, &v);
         if trace_import {
             eprintln!("import_done: {}", key);
         }
@@ -98,8 +95,8 @@ pub(super) fn builtin_import(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
 
     rt.import_stack.push(key.clone());
     let result = (|| {
-        let executable = rt.parse_import_cached(&key)?;
-        let (module, bytecode) = match executable {
+        let parsed = rt.parse_import_cached(&key)?;
+        let (module, bytecode) = match parsed.executable {
             xu_ir::Executable::Ast(m) => (m, None),
             xu_ir::Executable::Bytecode(p) => (p.module, p.bytecode),
         };
@@ -143,6 +140,35 @@ pub(super) fn builtin_import(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
         rt.env = saved_env;
         exec_result?;
 
+        let mut inner_names: HashSet<String> = HashSet::new();
+        for s in module.stmts.iter() {
+            match s {
+                xu_ir::Stmt::FuncDef(def) => {
+                    if def.vis == xu_ir::Visibility::Inner {
+                        inner_names.insert(def.name.clone());
+                    }
+                }
+                xu_ir::Stmt::StructDef(def) => {
+                    if def.vis == xu_ir::Visibility::Inner {
+                        inner_names.insert(def.name.clone());
+                    }
+                }
+                xu_ir::Stmt::EnumDef(def) => {
+                    if def.vis == xu_ir::Visibility::Inner {
+                        inner_names.insert(def.name.clone());
+                    }
+                }
+                xu_ir::Stmt::Assign(a) => {
+                    if a.decl.is_some() && a.vis == xu_ir::Visibility::Inner {
+                        if let xu_ir::Expr::Ident(name, _) = &a.target {
+                            inner_names.insert(name.clone());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
         let mut exports: DictStr = crate::value::dict_str_new();
         let frame_rc = module_env.global_frame();
         let frame0 = frame_rc.borrow();
@@ -151,6 +177,9 @@ pub(super) fn builtin_import(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
                 continue;
             }
             if k.starts_with('_') {
+                continue;
+            }
+            if inner_names.contains(k) {
                 continue;
             }
             if let Some(v) = frame0.values.get(*idx) {
@@ -162,7 +191,6 @@ pub(super) fn builtin_import(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
                 .alloc(crate::gc::ManagedObject::Module(ModuleInstance { exports })),
         );
         rt.loaded_modules.insert(key.clone(), module_obj.clone());
-        merge_exports_into_env(rt, &module_obj);
         if trace_import {
             eprintln!("import_done: {}", key);
         }
@@ -170,21 +198,4 @@ pub(super) fn builtin_import(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
     })();
     rt.import_stack.pop();
     result
-}
-
-fn merge_exports_into_env(rt: &mut Runtime, module_obj: &Value) {
-    let exports = if module_obj.get_tag() == crate::value::TAG_MODULE {
-        let id = module_obj.as_obj_id();
-        if let crate::gc::ManagedObject::Module(m) = rt.heap.get(id) {
-            m.exports.clone()
-        } else {
-            return;
-        }
-    } else {
-        return;
-    };
-    let env = &mut rt.env;
-    for (k, v) in exports.map.iter() {
-        env.define(k.clone(), v.clone());
-    }
 }

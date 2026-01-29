@@ -1,0 +1,47 @@
+Promo with [
+    none |
+    percent(rate: int) |
+    minus(amount: int)
+]
+
+Item has {
+    name: string
+    price: int
+    promo: Promo
+}
+
+func apply_promo(p: Promo, price: int) -> float {
+    let p_val: float = price * 1.0
+    match p {
+        Promo#none          { return p_val }
+        Promo#percent(rate) { 
+            let r: int = rate
+            let rf: float = r * 1.0
+            return (p_val * (100.0 - rf)) / 100.0
+        }
+        Promo#minus(amount) { 
+            let a: int = amount
+            let af: float = a * 1.0
+            return p_val - af 
+        }
+        _ { return p_val }
+    }
+}
+
+func checkout(items: [Item]) -> float {
+    var total: float = 0
+    for it in items {
+        total = total + apply_promo(it.promo, it.price)
+    }
+    return total
+}
+
+func main() {
+    let items = [
+        Item{ name: "A", price: 100, promo: Promo#percent(10) },
+        Item{ name: "B", price: 80, promo: Promo#minus(5) },
+        Item{ name: "C", price: 50, promo: Promo#none }
+    ]
+    let sum = checkout(items)
+    println("total=" + (sum + ""))
+}

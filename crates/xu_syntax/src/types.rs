@@ -64,7 +64,7 @@ impl TypeInterner {
     pub fn name(&self, id: TypeId) -> String {
         match self.get(id) {
             Type::Any => "any".to_string(),
-            Type::Null => "null".to_string(),
+            Type::Null => "()".to_string(),
             Type::Bool => "?".to_string(),
             Type::Int => "int".to_string(),
             Type::Float => "float".to_string(),
@@ -88,7 +88,7 @@ impl TypeInterner {
     pub fn builtin_by_name(&mut self, name: &str) -> Option<TypeId> {
         match name {
             "any" => Some(self.intern(Type::Any)),
-            "null" => Some(self.intern(Type::Null)),
+            "unit" | "()" => Some(self.intern(Type::Null)),
             "?" | "bool" => Some(self.intern(Type::Bool)),
             "int" => Some(self.intern(Type::Int)),
             "float" => Some(self.intern(Type::Float)),

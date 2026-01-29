@@ -78,7 +78,7 @@ fn string_number_casts_and_file_read_trim_work() {
         r#"
 println(" 12 ".to_int());
 println(" 3.5 ".to_float());
-h = open("{path}");
+let h = open("{path}");
 println(h.read());
 "#,
     );

@@ -4,7 +4,6 @@ use crate::value::Function;
 use super::Runtime;
 use super::builtins;
 use super::env::Env;
-use super::modules;
 
 pub type BuiltinFn = fn(&mut Runtime, &[Value]) -> Result<Value, String>;
 
@@ -52,8 +51,8 @@ impl BuiltinProvider for StdBuiltinProvider {
         registry.register("print", builtins::builtin_print);
         registry.register("println", builtins::builtin_print);
         registry.register("gen_id", builtins::builtin_gen_id);
+        registry.register("gc", builtins::builtin_gc);
         registry.register("open", builtins::builtin_open);
-        registry.register("import", modules::builtin_import);
         registry.register("input", builtins::builtin_input);
         registry.register("time_unix", builtins::builtin_time_unix);
         registry.register("time_millis", builtins::builtin_time_millis);
@@ -75,6 +74,11 @@ impl BuiltinProvider for StdBuiltinProvider {
         registry.register("builder_push", builtins::builtin_builder_push);
         registry.register("builder_finalize", builtins::builtin_builder_finalize);
         registry.register("os_args", builtins::builtin_os_args);
+        // string helpers
+        registry.register("contains", builtins::builtin_contains);
+        registry.register("starts_with", builtins::builtin_starts_with);
+        registry.register("ends_with", builtins::builtin_ends_with);
+        registry.register("process_rss", builtins::builtin_process_rss);
         registry.register("sin", builtins::builtin_sin);
         registry.register("cos", builtins::builtin_cos);
         registry.register("tan", builtins::builtin_tan);

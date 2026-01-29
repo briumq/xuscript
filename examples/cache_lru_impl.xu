@@ -1,0 +1,124 @@
+// 简单的 LRU 缓存实现，带 TTL 和统计
+// 展示特性：结构体方法、时间处理、列表操作、Option
+
+Entry has {
+    k: string
+    v: int
+    expire_at: int // 0 表示不过期
+}
+
+Stats has {
+    hits: int = 0
+    misses: int = 0
+}
+
+Lru has {
+    cap: int
+    data: [Entry]
+    stats: Stats
+}
+
+Lru does {
+    // 获取当前时间戳 (毫秒)
+    inner func now() -> int {
+        return time_millis()
+    }
+
+    func put(k: string, v: int, ttl_ms: int = 0) {
+        let exp = if ttl_ms > 0 { self.now() + ttl_ms } else { 0 }
+        
+        // 1. 查找已存在
+        for i in 0..self.data.length() {
+            if self.data[i].k is k {
+                // 更新值和过期时间
+                // 简单的 LRU 移动策略：删除再添加
+                self.data.remove(i)
+                self.data.add(Entry{ k: k, v: v, expire_at: exp })
+                return ()
+            }
+        }
+        
+        // 2. 插入新值
+        self.data.add(Entry{ k: k, v: v, expire_at: exp })
+        
+        // 3. 检查容量
+        if self.data.length() > self.cap {
+            self.data.remove(0) // 移除最旧的（第一个）
+        }
+    }
+
+    func get(k: string) -> Option[int] {
+        for i in 0..self.data.length() {
+            if self.data[i].k is k {
+                let e = self.data[i]
+                
+                // 检查过期
+                if e.expire_at > 0 and e.expire_at < self.now() {
+                    self.data.remove(i) // 惰性删除
+                    self.stats.misses += 1
+                    return Option#none
+                }
+                
+                // 命中：刷新位置 (LRU)
+                // 移除当前位置，添加到末尾
+                self.data.remove(i)
+                self.data.add(e)
+                
+                self.stats.hits += 1
+                return Option#some(e.v)
+            }
+        }
+        self.stats.misses += 1
+        return Option#none
+    }
+    
+    func stats_info() -> string {
+        let total = self.stats.hits + self.stats.misses
+        let ratio = if total > 0 {
+            (self.stats.hits.to_float() / total.to_float()) * 100.0
+        } else {
+            0.0
+        }
+        return "Hits: {self.stats.hits}, Misses: {self.stats.misses}, Ratio: {ratio}%"
+    }
+}
+
+func main() {
+    let cache = Lru{
+        cap: 3,
+        data: [],
+        stats: Stats{}
+    }
+    
+    println("--- Basic Operations ---")
+    cache.put("a", 1)
+    cache.put("b", 2)
+    cache.put("c", 3)
+    
+    println("Get 'a': {match cache.get("a") { Option#some(v){v} _ {-1} }}") // Should be 1
+    
+    println("--- LRU Eviction ---")
+    cache.put("d", 4) // Should evict 'b' (since 'a' was accessed)
+    
+    // a(1) -> b(2) -> c(3)
+    // get(a) -> b(2) -> c(3) -> a(1)
+    // put(d) -> c(3) -> a(1) -> d(4), evict b(2)
+    
+    println("Get 'b': {match cache.get("b") { Option#some(v){v} _ {-1} }}") // Should be -1 (miss)
+    println("Get 'c': {match cache.get("c") { Option#some(v){v} _ {-1} }}") // Should be 3
+    
+    println("--- TTL Expiry ---")
+    cache.put("e", 5, 100) // TTL 100ms
+    println("Get 'e' (immediate): {match cache.get("e") { Option#some(v){v} _ {-1} }}")
+    
+    // 简单的忙等待模拟 sleep
+    let start = time_millis()
+    while (time_millis() - start) < 200 {
+        let _ = 0
+    }
+    
+    println("Get 'e' (after 200ms): {match cache.get("e") { Option#some(v){v} _ {-1} }}")
+    
+    println("--- Stats ---")
+    println(cache.stats_info())
+}

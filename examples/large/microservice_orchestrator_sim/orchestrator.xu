@@ -1,0 +1,16 @@
+Svc with [ ok | fail(msg: string) ]
+
+func run(seq: [string]) -> Svc {
+    for name in seq {
+        if name is "db" { continue }
+        if name is "cache" { continue }
+        if name is "api" { continue }
+    }
+    return Svc#ok
+}
+
+func main() {
+    let seq = ["db", "cache", "api"]
+    let r = run(seq)
+    println("success={r is Svc#ok}")
+}

@@ -508,6 +508,11 @@ if false {
     result = "changed"
 }
 assert(result is "default")
+
+// test: if_single_stmt_colon
+var y = 0
+if true: y = 1
+assert(y is 1)
 ```
 
 ### 7.2 if 表达式
@@ -616,6 +621,7 @@ match s {
     Status#pending  { result = "待处理" }
     Status#approved { result = "已通过" }
     Status#rejected { result = "已拒绝" }
+    _ { assert(false) }
 }
 assert(result is "已通过")
 ```
@@ -633,6 +639,7 @@ let text = match s {
     Status#pending  { "待处理" }
     Status#approved { "已通过" }
     Status#rejected { "已拒绝" }
+    _ { "未知" }
 }
 assert(text is "已拒绝")
 ```
@@ -652,11 +659,12 @@ let r = Response#error(404, "not found")
 let result = match r {
     Response#success(data) { "OK: {data}" }
     Response#error(code, msg) { "Error {code}: {msg}" }
+    _ { "unknown" }
 }
 assert(result is "Error 404: not found")
 ```
 
-### 7.8 match else 分支
+### 7.8 match 默认分支（_）
 
 xu
 
@@ -666,7 +674,7 @@ let x = 42
 let result = match x {
     0 { "zero" }
     1 { "one" }
-    else { "other" }
+    _ { "other" }
 }
 assert(result is "other")
 ```
@@ -681,7 +689,7 @@ let t = (1, 2, 3)
 let result = match t {
     (0, _, _) { "starts with zero" }
     (_, 0, _) { "middle is zero" }
-    (_, _, _) { "none zero" }
+    _ { "none zero" }
 }
 assert(result is "none zero")
 ```
@@ -966,6 +974,7 @@ let r2 = Response#error(404, "not found")
 match r1 {
     Response#success(data) { assert(data is "ok") }
     Response#error(_, _) { assert(false) }
+    _ { assert(false) }
 }
 
 match r2 {
@@ -974,7 +983,26 @@ match r2 {
         assert(code is 404)
         assert(msg is "not found")
     }
+    _ { assert(false) }
 }
+```
+
+### 11.3 枚举扩展方法（does）
+
+xu
+
+```
+// test: enum_does_method
+Color with [ red | blue ]
+
+Color does {
+    func is_red() -> bool {
+        return self is Color#red
+    }
+}
+
+let c = Color#red
+assert(c.is_red())
 ```
 
 ---
@@ -1060,6 +1088,7 @@ let r = Result#ok(42)
 match r {
     Result#ok(v) { assert(v is 42) }
     Result#err(_) { assert(false) }
+    _ { assert(false) }
 }
 
 // test: result_err
@@ -1067,6 +1096,7 @@ let r = Result#err("failed")
 match r {
     Result#ok(_) { assert(false) }
     Result#err(e) { assert(e is "failed") }
+    _ { assert(false) }
 }
 ```
 
@@ -1092,6 +1122,7 @@ let b = a.map_err(func(e) -> "wrapped: {e}")
 match b {
     Result#ok(_) { assert(false) }
     Result#err(e) { assert(e is "wrapped: error") }
+    _ { assert(false) }
 }
 
 // test: result_then
@@ -1228,6 +1259,8 @@ assert(math.add(2, 3) is 5)
 assert(math.multiply(2, 3) is 6)
 ```
 
+> `use "math"` 默认会将模块绑定到同名别名 `math`（由路径推断）；也可用 `as` 显式指定别名。
+
 ### 15.2 模块别名
 
 xu
@@ -1269,7 +1302,7 @@ counter.increment()
 counter.increment()
 assert(counter.get() is 2)
 
-// test: inner_access_error [expect_error: "cannot access inner"]
+// test: inner_access_error [expect_error: "Unknown member: count"]
 use "counter"
 let x = counter.count
 ```
@@ -1471,9 +1504,11 @@ let first_status = match users.first {
             Status#pending  { "待处理" }
             Status#approved { "已通过" }
             Status#rejected { "已拒绝" }
+            _ { "未知" }
         }
     }
     Option#none { "无用户" }
+    _ { "未知" }
 }
 assert(first_status is "待处理")
 

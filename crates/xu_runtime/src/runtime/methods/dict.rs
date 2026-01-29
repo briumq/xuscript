@@ -63,7 +63,7 @@ pub(super) fn dispatch(
                     rt.dict_version_last = Some((id.0, me.ver));
                 }
             }
-            Ok(Value::NULL)
+            Ok(Value::UNIT)
         }
         MethodKind::DictInsert => {
             if args.len() != 2 {
@@ -110,7 +110,7 @@ pub(super) fn dispatch(
                     rt.dict_version_last = Some((id.0, me.ver));
                 }
             }
-            Ok(Value::NULL)
+            Ok(Value::UNIT)
         }
         MethodKind::DictInsertInt => {
             if args.len() != 2 {
@@ -144,7 +144,7 @@ pub(super) fn dispatch(
                     rt.dict_version_last = Some((id.0, me.ver));
                 }
             }
-            Ok(Value::NULL)
+            Ok(Value::UNIT)
         }
         MethodKind::DictGet => {
             if args.len() != 1 {
@@ -175,7 +175,7 @@ pub(super) fn dispatch(
 
             if let Some(c) = rt.dict_cache_last.as_ref() {
                 if c.id == id.0 && c.ver == cur_ver && c.key_hash == key_hash && c.key == key {
-                    return Ok(c.value.clone());
+                    return Ok(rt.option_some(c.value.clone()));
                 }
             }
 
@@ -183,8 +183,10 @@ pub(super) fn dispatch(
                 Runtime::dict_get_by_str_with_hash(me, &key, key_hash)
             } else {
                 None
-            }
-            .ok_or_else(|| rt.error(xu_syntax::DiagnosticKind::KeyNotFound(key.to_string())))?;
+            };
+            let Some(v) = v else {
+                return Ok(rt.option_none());
+            };
 
             rt.dict_cache_last = Some(DictCacheLast {
                 id: id.0,
@@ -193,7 +195,7 @@ pub(super) fn dispatch(
                 key,
                 value: v.clone(),
             });
-            Ok(v)
+            Ok(rt.option_some(v))
         }
         MethodKind::DictGetInt => {
             if args.len() != 1 {
@@ -213,15 +215,17 @@ pub(super) fn dispatch(
 
             if let Some(c) = rt.dict_cache_int_last.as_ref() {
                 if c.id == id.0 && c.ver == cur_ver && c.key == i {
-                    return Ok(c.value.clone());
+                    return Ok(rt.option_some(c.value.clone()));
                 }
             }
             let v = if let crate::gc::ManagedObject::Dict(me) = rt.heap.get(id) {
                 me.map.get(&crate::value::DictKey::Int(i)).cloned()
             } else {
                 None
-            }
-            .ok_or_else(|| rt.error(xu_syntax::DiagnosticKind::KeyNotFound(i.to_string())))?;
+            };
+            let Some(v) = v else {
+                return Ok(rt.option_none());
+            };
 
             rt.dict_cache_int_last = Some(DictCacheIntLast {
                 id: id.0,
@@ -229,7 +233,43 @@ pub(super) fn dispatch(
                 ver: cur_ver,
                 value: v.clone(),
             });
-            Ok(v)
+            Ok(rt.option_some(v))
+        }
+        MethodKind::OptHas => {
+            if args.len() != 1 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 1,
+                    expected_max: 1,
+                    actual: args.len(),
+                }));
+            }
+            if args[0].get_tag() != crate::value::TAG_STR {
+                return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                    expected: "text".to_string(),
+                    actual: args[0].type_name().to_string(),
+                }));
+            }
+            let key = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(args[0].as_obj_id()) {
+                s.clone()
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a text".into())));
+            };
+            if let crate::gc::ManagedObject::Dict(me) = rt.heap.get(id) {
+                if let Some(sid) = me.shape {
+                    if let crate::gc::ManagedObject::Shape(shape) = rt.heap.get(sid) {
+                        if let Some(&off) = shape.prop_map.get(key.as_str()) {
+                            let ok = me
+                                .prop_values
+                                .get(off)
+                                .is_some_and(|v| v.get_tag() != crate::value::TAG_UNIT);
+                            return Ok(Value::from_bool(ok));
+                        }
+                    }
+                }
+                Ok(Value::from_bool(me.map.contains_key(&DictKey::Str(key))))
+            } else {
+                Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())))
+            }
         }
         MethodKind::Contains => {
             if args.len() != 1 {
@@ -284,7 +324,7 @@ pub(super) fn dispatch(
                 None
             };
 
-            let res = removed.clone().unwrap_or(Value::NULL);
+            let res = removed.clone().unwrap_or(Value::UNIT);
             if let Some(_v) = removed {
                 if let crate::gc::ManagedObject::Dict(me) = rt.heap.get(id) {
                     rt.dict_version_last = Some((id.0, me.ver));
@@ -305,7 +345,7 @@ pub(super) fn dispatch(
                 me.ver += 1;
                 rt.dict_version_last = Some((id.0, me.ver));
             }
-            Ok(Value::NULL)
+            Ok(Value::UNIT)
         }
         MethodKind::DictKeys => {
             if !args.is_empty() {
@@ -362,7 +402,7 @@ pub(super) fn dispatch(
                 let mut n = me.map.len();
                 n += me.prop_values.len();
                 for ev in &me.elements {
-                    if ev.get_tag() != crate::value::TAG_NULL {
+                    if ev.get_tag() != crate::value::TAG_UNIT {
                         n += 1;
                     }
                 }

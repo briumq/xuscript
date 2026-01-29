@@ -23,10 +23,19 @@ function ms(fn, arg) {
 
 function main() {
   const scale = parseInt(process.env.BENCH_SCALE || "50000", 10)
-  const [tLoop, rLoop] = ms(loopAccumulate, scale)
-  const [tDict, rDict] = ms(dictBulk, scale)
-  console.log(`JS|perf_runtime_loop_accumulate.exec_ms=${tLoop}|result=${rLoop}`)
-  console.log(`JS|perf_runtime_bulk_dict_ops.exec_ms=${tDict}|result=${rDict}`)
+  const runs = parseInt(process.env.BENCH_RUNS || "1", 10)
+  function aggregate(label, fn, n, runs) {
+    const vals = []
+    for (let i = 0; i < runs; i++) {
+      const [ms] = ms(fn, n)
+      vals.push(ms)
+    }
+    vals.sort((a, b) => a - b)
+    const p95 = vals[Math.max(0, Math.floor(0.95 * (vals.length - 1)))]
+    console.log(`${label}_${n}=min:${vals[0]} median:${vals[Math.floor(vals.length/2)]} p95:${p95} max:${vals[vals.length-1]}`)
+  }
+  aggregate("loop_accumulate", loopAccumulate, scale, runs)
+  aggregate("bulk_dict_ops", dictBulk, scale, runs)
 }
 
 main()

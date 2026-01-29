@@ -1,0 +1,30 @@
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+Status with [ pending | approved | rejected ]
+
+let status = Status#approved
+
+let text = match status {
+    Status#pending  { "待处理" }
+    Status#approved { "已通过" }
+    Status#rejected { "已拒绝" }
+    _ { "?" }
+}
+assert(text is "已通过", "exhaustive_match")
+
+let num = match status {
+    Status#pending { 1 }
+    _ { 0 }
+}
+assert(num is 0, "else_branch")
+
+func ok_or_err(ok: bool) -> Result[int, string] {
+    if ok { return Result#ok(7) }
+    return Result#err("bad")
+}
+
+let v = match ok_or_err(true) {
+    Result#ok(x) { x }
+    _ { 0 }
+}
+assert(v is 7, "bind_ok")

@@ -22,9 +22,9 @@ fn run_reports_circular_import_chain() {
     let a_path = a.to_string_lossy().to_string();
     let b_path = b.to_string_lossy().to_string();
 
-    fs::write(&a, format!("use(\"{b_path}\");")).unwrap();
-    fs::write(&b, format!("use(\"{a_path}\");")).unwrap();
-    fs::write(&main, format!("use(\"{a_path}\");")).unwrap();
+    fs::write(&a, format!("use \"{b_path}\";")).unwrap();
+    fs::write(&b, format!("use \"{a_path}\";")).unwrap();
+    fs::write(&main, format!("use \"{a_path}\";")).unwrap();
 
     let a_key = std::fs::canonicalize(&a)
         .unwrap()

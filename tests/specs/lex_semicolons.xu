@@ -1,0 +1,47 @@
+func assert(x) { __builtin_assert(x) }
+
+let a = 1; let b = 2
+assert(a is 1)
+assert(b is 2)
+
+let c = 1
+let d = 2
+assert(c is 1)
+assert(d is 2)
+
+User has { name: string }
+let user = User{ name: "Tom" }
+assert(user.
+name is "Tom")
+
+let list1 = [1,
+    2, 3]
+assert(list1.len() is 3)
+
+let x = 1 +
+    2
+assert(x is 3)
+
+func sum(a: int, b: int = 0) -> int { return a + b }
+let s = sum(
+    3, 4)
+assert(s is 7)
+
+let names = ["a", "b", "c"]
+let len = names
+    .len()
+assert(len is 3)
+
+let y = sum(1
+)
+assert(y is 1)
+
+let z = 1
+    + 2
+assert(z is 3)
+
+let list2 = [
+    1,
+    2
+]
+assert(list2.len() is 2)

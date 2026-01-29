@@ -1,0 +1,36 @@
+func assert(x) { __builtin_assert(x) }
+
+func some_a() -> Option[int] { return Option#some(1) }
+func none_b() -> Option[int] { return Option#none }
+func ok_c() -> Result[int, string] { return Result#ok(3) }
+func err_d() -> Result[int, string] { return Result#err("e") }
+
+when a = some_a() {
+    assert(a is 1)
+} else {
+    assert(false)
+}
+
+when b = none_b() {
+    assert(false)
+} else {
+    assert(true)
+}
+
+when x = some_a(), y = none_b() {
+    assert(false)
+} else {
+    assert(true)
+}
+
+when v = ok_c() {
+    assert(v is 3)
+} else {
+    assert(false)
+}
+
+when w = err_d() {
+    assert(false)
+} else {
+    assert(true)
+}

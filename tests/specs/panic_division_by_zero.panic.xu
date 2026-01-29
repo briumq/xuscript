@@ -1,0 +1,2 @@
+// test: division_by_zero [expect_panic: "Division by zero"]
+let x = 10 / 0

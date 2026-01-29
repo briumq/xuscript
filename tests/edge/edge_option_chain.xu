@@ -1,0 +1,10 @@
+let a = match Option#none {
+    Option#some(x) { x }
+    _ { 7 }
+};
+let c = match Option#some(3) {
+    Option#some(x) { x }
+    _ { 5 }
+};
+print(a);
+print(c);

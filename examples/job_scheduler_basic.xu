@@ -1,0 +1,21 @@
+Job with [ pending | running | done | fail(msg: string) ]
+
+JobRec has { id: string, state: Job }
+
+func step(j: JobRec) -> JobRec {
+    match j.state {
+        Job#pending { return JobRec{ id: j.id, state: Job#running } }
+        Job#running { return JobRec{ id: j.id, state: Job#done } }
+        _           { return j }
+    }
+}
+
+func main() {
+    var j = JobRec{ id: "A", state: Job#pending }
+    j = step(j)
+    j = step(j)
+    match j.state {
+        Job#done { println("done") }
+        _        { println("not_done") }
+    }
+}

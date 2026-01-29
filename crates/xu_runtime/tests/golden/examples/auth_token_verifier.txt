@@ -1,0 +1,3 @@
+invalid
+ok=0123456789
+done

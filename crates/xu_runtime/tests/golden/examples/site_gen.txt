@@ -1,0 +1,2 @@
+pages=2
+last_title=About

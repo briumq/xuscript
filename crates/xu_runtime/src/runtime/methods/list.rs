@@ -23,7 +23,7 @@ pub(super) fn dispatch(
             if let crate::gc::ManagedObject::List(list) = rt.heap.get_mut(id) {
                 list.push(args[0].clone());
             }
-            Ok(Value::NULL)
+            Ok(Value::UNIT)
         }
         MethodKind::Remove => {
             if args.len() != 1 {
@@ -77,7 +77,7 @@ pub(super) fn dispatch(
                 }));
             }
             if let crate::gc::ManagedObject::List(list) = rt.heap.get_mut(id) {
-                Ok(list.pop().unwrap_or(Value::NULL))
+                Ok(list.pop().unwrap_or(Value::UNIT))
             } else {
                 Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())))
             }
@@ -93,7 +93,7 @@ pub(super) fn dispatch(
             if let crate::gc::ManagedObject::List(list) = rt.heap.get_mut(id) {
                 list.clear();
             }
-            Ok(Value::NULL)
+            Ok(Value::UNIT)
         }
         MethodKind::ListReverse => {
             if !args.is_empty() {
@@ -106,7 +106,7 @@ pub(super) fn dispatch(
             if let crate::gc::ManagedObject::List(list) = rt.heap.get_mut(id) {
                 list.reverse();
             }
-            Ok(Value::NULL)
+            Ok(Value::UNIT)
         }
         MethodKind::ListJoin => {
             if args.len() != 1 {
@@ -150,6 +150,54 @@ pub(super) fn dispatch(
             } else {
                 Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())))
             }
+        }
+        MethodKind::OptFilter => {
+            if args.len() != 1 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 1,
+                    expected_max: 1,
+                    actual: args.len(),
+                }));
+            }
+            let f = args[0];
+            let items: Vec<Value> = if let crate::gc::ManagedObject::List(list) = rt.heap.get(id) {
+                list.to_vec()
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())));
+            };
+            let mut out: Vec<Value> = Vec::with_capacity(items.len());
+            for item in items {
+                let keep = rt.call_function(f, &[item])?;
+                if !keep.is_bool() {
+                    return Err(rt.error(xu_syntax::DiagnosticKind::InvalidConditionType(
+                        keep.type_name().to_string(),
+                    )));
+                }
+                if keep.as_bool() {
+                    out.push(item);
+                }
+            }
+            Ok(Value::list(rt.heap.alloc(crate::gc::ManagedObject::List(out))))
+        }
+        MethodKind::OptMap => {
+            if args.len() != 1 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 1,
+                    expected_max: 1,
+                    actual: args.len(),
+                }));
+            }
+            let f = args[0];
+            let items: Vec<Value> = if let crate::gc::ManagedObject::List(list) = rt.heap.get(id) {
+                list.to_vec()
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())));
+            };
+            let mut out: Vec<Value> = Vec::with_capacity(items.len());
+            for item in items {
+                out.push(rt.call_function(f, &[item])?);
+            }
+            Ok(Value::list(rt.heap.alloc(crate::gc::ManagedObject::List(out))))
         }
         _ => Err(rt.error(xu_syntax::DiagnosticKind::UnknownListMethod(
             method.to_string(),

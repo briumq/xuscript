@@ -1,0 +1,49 @@
+Status with [ ok | warn | fail ]
+
+Record has {
+    ts: int
+    level: Status
+    msg: string
+}
+
+func parse(line: string) -> Option[Record] {
+    let parts = line.split("|")
+    if parts.length < 3 { return Option#none }
+    let ts = parse_int(parts[0])
+    let lv = parts[1]
+    let level =
+        if lv is "ok" { Status#ok }
+        else if lv is "warn" { Status#warn }
+        else { Status#fail }
+    let msg = parts[2]
+    return Option#some(Record{ ts: ts, level: level, msg: msg })
+}
+
+func pipeline(lines: [string]) -> {string: int} {
+    let out: {string: int} = {}
+    out["ok"] = 0
+    out["warn"] = 0
+    out["fail"] = 0
+    for s in lines {
+        when r = parse(s) {
+            match r.level {
+                Status#ok   { out["ok"] = out["ok"] + 1 }
+                Status#warn { out["warn"] = out["warn"] + 1 }
+                Status#fail { out["fail"] = out["fail"] + 1 }
+                _           { }
+            }
+        } else { }
+    }
+    return out
+}
+
+func main() {
+    let lines = [
+        "0|ok|boot",
+        "1|warn|disk almost full",
+        "2|fail|disk full",
+        "3|ok|recover",
+    ]
+    let stats = pipeline(lines)
+    println("ok={stats[\"ok\"]} warn={stats[\"warn\"]} fail={stats[\"fail\"]}")
+}

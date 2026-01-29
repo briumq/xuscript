@@ -12,6 +12,17 @@ def run(name, repeat, logic):
             min_time = duration
     return round(min_time)
 
+def aggregate(label, fn, N, runs=5):
+    vals = []
+    for _ in range(runs):
+        vals.append(fn(N))
+    vals.sort()
+    def p95(xs):
+        if not xs: return 0
+        idx = max(0, int(0.95 * (len(xs) - 1)))
+        return xs[idx]
+    print(f"{label}_{N}=min:{vals[0]} median:{vals[len(vals)//2]} p95:{p95(vals)} max:{vals[-1]}")
+
 def test_loop(N):
     def logic():
         count = 0
@@ -95,11 +106,12 @@ def test_try_catch(N):
 
 if __name__ == "__main__":
     N = int(os.environ.get("BENCH_SCALE", 10000))
-    print(f"loop_{N}={test_loop(N)}")
-    print(f"dict_{N}={test_dict(N)}")
-    print(f"dict_hot_{N}={test_dict_hot(N)}")
-    print(f"dict_intkey_{N}={test_dict_intkey(N)}")
-    print(f"string_{N}={test_string(N)}")
-    print(f"string_builder_{N}={test_string_builder(N)}")
-    print(f"struct_method_{N}={test_struct_method(N)}")
-    print(f"try_catch_{N}={test_try_catch(N)}")
+    runs = int(os.environ.get("BENCH_RUNS", 1))
+    aggregate("loop", test_loop, N, runs)
+    aggregate("dict", test_dict, N, runs)
+    aggregate("dict_hot", test_dict_hot, N, runs)
+    aggregate("dict_intkey", test_dict_intkey, N, runs)
+    aggregate("string", test_string, N, runs)
+    aggregate("string_builder", test_string_builder, N, runs)
+    aggregate("struct_method", test_struct_method, N, runs)
+    aggregate("try_catch", test_try_catch, N, runs)

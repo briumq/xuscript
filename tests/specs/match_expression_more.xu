@@ -1,0 +1,17 @@
+func assert(x) { __builtin_assert(x) }
+
+Status with [ pending | approved | rejected ]
+let s = Status#approved
+
+let a = match s {
+    Status#pending  { 1 }
+    Status#approved { 2 }
+    _               { 0 }
+}
+assert(a is 2)
+
+let b = match s {
+    Status#pending  { "P" }
+    _               { "O" }
+}
+assert(b is "O")

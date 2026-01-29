@@ -1,0 +1,31 @@
+Result with [ ok(user: string) | error(msg: string) ]
+
+func validate_name(name: string) -> Option[string] {
+    if name.length < 3 { return Option#none }
+    return Option#some(name)
+}
+
+func validate_email(email: string) -> Option[string] {
+    if !email.contains("@") { return Option#none }
+    return Option#some(email)
+}
+
+func signup(name: string, email: string) -> Result {
+    match (validate_name(name), validate_email(email)) {
+        (Option#some(n), Option#some(e)) { return Result#ok("{n}<{e}>") }
+        _ { return Result#error("invalid input") }
+    }
+}
+
+func main() {
+    match signup("ab", "user@example.com") {
+        Result#ok(user) { println("ok={user}") }
+        Result#error(msg) { println("error={msg}") }
+        _ { }
+    }
+    match signup("alice", "user@example.com") {
+        Result#ok(user) { println("ok={user}") }
+        Result#error(msg) { println("error={msg}") }
+        _ { }
+    }
+}

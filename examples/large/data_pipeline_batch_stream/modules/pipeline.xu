@@ -1,0 +1,9 @@
+func run_batch(xs: [int]) -> int {
+    var s = 0
+    for x in xs { s = s + x }
+    return s
+}
+
+func run_stream(xs: [int]) -> int {
+    return run_batch(xs)
+}

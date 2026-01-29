@@ -1,14 +1,24 @@
 use xu_lexer::{Lexer, normalize_source};
-use xu_syntax::{Diagnostic, DiagnosticKind, InterpolationParser, InterpolationPiece, TokenKind};
+use xu_syntax::{
+    Diagnostic, DiagnosticKind, InterpolationParser, InterpolationPiece, TokenKind, unescape,
+};
 
 use super::{Expr, Parser, fast_interpolation_expr};
 
 impl<'a, 'b> Parser<'a, 'b> {
     pub(super) fn parse_interpolated_string(&mut self, raw: &str) -> Option<Expr> {
+        if raw.starts_with("r\"") && raw.ends_with('"') && raw.len() >= 3 {
+            let inner = &raw[2..raw.len() - 1];
+            return Some(Expr::Str(inner.to_string()));
+        }
         if raw.len() < 2 {
             return Some(Expr::Str(String::new()));
         }
-        let inner = &raw[1..raw.len() - 1];
+        let inner = if raw.starts_with("\"\"\"") && raw.ends_with("\"\"\"") && raw.len() >= 6 {
+            &raw[3..raw.len() - 3]
+        } else {
+            &raw[1..raw.len() - 1]
+        };
 
         let mut parts = Vec::with_capacity(4);
 
@@ -35,12 +45,13 @@ impl<'a, 'b> Parser<'a, 'b> {
         if let Some(e) = self.interp_cache.get(key) {
             return e.clone();
         }
+        let key_unescaped = unescape(key);
 
         let expr = if let Some(e) = fast_interpolation_expr(key) {
             e
         } else {
-            let mut expr_str_with_term = String::with_capacity(key.len() + 1);
-            expr_str_with_term.push_str(key);
+            let mut expr_str_with_term = String::with_capacity(key_unescaped.len() + 1);
+            expr_str_with_term.push_str(key_unescaped.as_str());
             expr_str_with_term.push(self.stmt_end_char());
             let normalized = normalize_source(&expr_str_with_term);
             let lex = Lexer::new(&normalized.text).lex();

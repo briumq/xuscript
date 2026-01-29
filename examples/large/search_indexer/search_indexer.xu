@@ -1,0 +1,18 @@
+func build_index(docs: {int: string}) -> {string: [int]} {
+    let idx: {string: [int]} = {}
+    for id in docs.keys() {
+        let terms = docs[id].split(" ")
+        for t in terms {
+            if idx.has(t) { idx[t].add(id) } else { idx[t] = [id] }
+        }
+    }
+    return idx
+}
+
+func main() {
+    let docs: {int: string} = {}
+    docs.insert_int(1, "hello xu")
+    docs.insert_int(2, "hello world")
+    let idx = build_index(docs)
+    println("terms={idx.keys().length} docs={docs.keys().length}")
+}

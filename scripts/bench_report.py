@@ -4,13 +4,21 @@ import statistics
 import os
 
 CASES = [
-    ("loop", "Xu loop:"),
-    ("dict", "Xu dict:"),
-    ("dict-intkey", "Xu dict-intkey:"),
-    ("string", "Xu string:"),
-    ("string-builder", "Xu string-builder:"),
-    ("dict-hot", "Xu dict-hot:"),
-    ("struct-method", "Xu struct-method:"),
+    ("loop", "Loop overhead"),
+    ("dict", "Dict insert/get (str)"),
+    ("dict-intkey", "Dict insert/get (int)"),
+    ("string", "String concat"),
+    ("string-builder", "StringBuilder"),
+    ("dict-hot", "Dict hot access"),
+    ("struct-method", "Struct method call"),
+    ("func-call", "Function call"),
+    ("branch-heavy", "Branch heavy"),
+    ("try-catch", "Try-catch overhead"),
+    ("list-push-pop", "List push/pop"),
+    ("dict-miss", "Dict miss"),
+    ("dict-update-hot", "Dict update hot"),
+    ("string-unicode", "String unicode"),
+    ("string-scan", "String scan"),
 ]
 
 def run(cmd):
@@ -19,58 +27,41 @@ def run(cmd):
 def bench_scale(scale):
     p = run(["bash", "scripts/run_cross_lang_bench.sh", str(scale)])
     out = p.stdout.splitlines()
-    # parse python/node json lines
+    # parse python/node/xu json lines
     py = {}
     nd = {}
     xu = {}
     current = None
     for line in out:
+        line = line.strip()
+        if not line:
+            continue
         if line.startswith("Python:"):
             current = "py"
             continue
         if line.startswith("Node.js:"):
             current = "node"
             continue
-        if any(line.startswith(tag) for _, tag in CASES):
+        if line.startswith("Xu:"):
             current = "xu"
             continue
-        if current == "py" or current == "node":
+            
+        if current in ["py", "node", "xu"]:
             try:
+                if not line.startswith("{"):
+                    continue
                 obj = json.loads(line)
                 case = obj.get("case")
                 dur = obj.get("duration_ms")
                 if current == "py":
                     py.setdefault(case, []).append(float(dur))
-                else:
+                elif current == "node":
                     nd.setdefault(case, []).append(float(dur))
+                elif current == "xu":
+                    xu.setdefault(case, []).append(float(dur))
             except Exception:
                 pass
-        elif current == "xu":
-            # Xu prints a single number in ms per case; collect in order
-            for case, tag in CASES:
-                if tag in p.stdout:
-                    # split by tag blocks and pick the number following tag
-                    pass
-            # simpler: scan numbers in order after each tag
-            # rebuild mapping
-            buf = p.stdout
-            vals = {}
-            for case, tag in CASES:
-                idx = buf.find(tag)
-                if idx == -1:
-                    continue
-                rest = buf[idx+len(tag):]
-                # find first number line
-                for ln in rest.splitlines():
-                    ln = ln.strip()
-                    if ln and ln[0].isdigit():
-                        try:
-                            vals[case] = float(ln)
-                        except Exception:
-                            pass
-                        break
-            xu = {k: [v] for k, v in vals.items()}
-            break
+                
     return py, nd, xu
 
 def stats(vals):

@@ -1,0 +1,6 @@
+let s = "こんにちは🌏 XuScript";
+print(s.length());
+print(s.contains("Xu"));
+let parts = s.split(" ");
+print(parts.length());
+print(parts[0]);
