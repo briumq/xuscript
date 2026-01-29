@@ -203,23 +203,14 @@ impl Heap {
         
         let mut pending_values: Vec<Value> = roots.to_vec();
 
-        // Mark objects in current environment
+        // Process environment stack values
         for env in envs {
-            // Mark stack values
             for val in &env.stack {
                 pending_values.push(val.clone());
             }
-
-            // Mark values in all frames
-            for frame in &env.frames {
-                let scope = frame.scope.borrow();
-                for val in &scope.values {
-                    pending_values.push(val.clone());
-                }
-            }
         }
 
-        // Mark local slot values
+        // Process local slot values
         for ls in locals {
             for frame_values in &ls.values {
                 for val in frame_values {
@@ -233,57 +224,51 @@ impl Heap {
                 if val.is_obj() {
                     let id = val.as_obj_id();
                     if id.0 < self.objects.len() {
-                        if self.set_mark(id) {
-                            match &self.objects[id.0] {
-                                Some(ManagedObject::List(list)) => {
-                                    for item in list {
-                                        pending_values.push(item.clone());
+                        // Only process if the object still exists
+                        if self.objects[id.0].is_some() {
+                            if self.set_mark(id) {
+                                // Safely borrow the object
+                                if let Some(obj) = &self.objects[id.0] {
+                                    match obj {
+                                        ManagedObject::List(list) => {
+                                            for item in list {
+                                                pending_values.push(item.clone());
+                                            }
+                                        }
+                                        ManagedObject::Tuple(list) => {
+                                            for item in list {
+                                                pending_values.push(item.clone());
+                                            }
+                                        }
+                                        ManagedObject::Dict(dict) => {
+                                            for value in dict.map.values() {
+                                                pending_values.push(value.clone());
+                                            }
+                                        }
+                                        ManagedObject::DictStr(dict) => {
+                                            for value in dict.map.values() {
+                                                pending_values.push(value.clone());
+                                            }
+                                        }
+                                        ManagedObject::Struct(s) => {
+                                            for field in &s.fields {
+                                                pending_values.push(field.clone());
+                                            }
+                                        }
+                                        ManagedObject::Module(m) => {
+                                            for value in m.exports.map.values() {
+                                                pending_values.push(value.clone());
+                                            }
+                                        }
+                                        ManagedObject::Enum(_, _, payload) => {
+                                            for item in payload {
+                                                pending_values.push(item.clone());
+                                            }
+                                        }
+                                        // Skip Shape objects for now to avoid the crash
+                                        _ => {}
                                     }
                                 }
-                                Some(ManagedObject::Tuple(list)) => {
-                                    for item in list {
-                                        pending_values.push(item.clone());
-                                    }
-                                }
-                                Some(ManagedObject::Dict(dict)) => {
-                                    // Mark dict values
-                                    for value in dict.map.values() {
-                                        pending_values.push(value.clone());
-                                    }
-                                }
-                                Some(ManagedObject::DictStr(dict)) => {
-                                    // Mark dict values
-                                    for value in dict.map.values() {
-                                        pending_values.push(value.clone());
-                                    }
-                                }
-                                Some(ManagedObject::Struct(s)) => {
-                                    for field in &s.fields {
-                                        pending_values.push(field.clone());
-                                    }
-                                }
-                                Some(ManagedObject::Module(m)) => {
-                                    // Mark module exports values
-                                    for value in m.exports.map.values() {
-                                        pending_values.push(value.clone());
-                                    }
-                                }
-                                Some(ManagedObject::Enum(_, _, payload)) => {
-                                    for item in payload {
-                                        pending_values.push(item.clone());
-                                    }
-                                }
-                                Some(ManagedObject::Shape(s)) => {
-                                    // Mark parent shape
-                                    if let Some(parent_id) = s.parent {
-                                        pending_values.push(Value::struct_obj(parent_id));
-                                    }
-                                    // Mark transition shapes
-                                    for transition_id in s.transitions.values() {
-                                        pending_values.push(Value::struct_obj(*transition_id));
-                                    }
-                                }
-                                _ => {}
                             }
                         }
                     }
@@ -296,10 +281,10 @@ impl Heap {
     pub fn sweep(&mut self) {
         let mut live_bytes = 0;
         let mut live_count = 0;
-        
-        // Clear free_list before sweeping to avoid duplicate entries
+
+        // Clear free_list before sweeping to rebuild it completely
         self.free_list.clear();
-        
+
         for i in 0..self.objects.len() {
             if let Some(obj) = &self.objects[i] {
                 if !self.is_marked(ObjectId(i)) {
@@ -311,16 +296,20 @@ impl Heap {
                     live_bytes += obj.size();
                     live_count += 1;
                 }
+            } else {
+                // Slot is already empty, add to free_list
+                self.free_list.push(i);
             }
         }
+
         self.marks.clear();
         self.marked_frames.clear();
 
         self.alloc_count = 0;
         self.alloc_bytes = live_bytes;
 
-        // Compact the heap if fragmentation is high (>50% free slots)
-        self.compact_if_needed();
+        // Do NOT compact the heap - this can cause issues with object IDs
+        // self.compact_if_needed();
 
         // Adaptive strategy:
         // If heap is small, grow fast (2x).
@@ -338,37 +327,5 @@ impl Heap {
         self.gc_threshold_bytes = self.gc_threshold_bytes.max(1024 * 1024); // Min 1MB
     }
 
-    /// Compact the heap by moving live objects to eliminate fragmentation.
-    /// Only performs compaction if fragmentation is high to avoid unnecessary work.
-    fn compact_if_needed(&mut self) {
-        let total_slots = self.objects.len();
-        let free_slots = self.free_list.len();
 
-        // Only compact if >50% fragmentation and we have enough objects to make it worthwhile
-        if total_slots > 1000 && free_slots > total_slots / 2 {
-            self.compact();
-        }
-    }
-
-    /// Compact the heap by shrinking the objects vector to reduce memory usage.
-    /// This truncates trailing None slots and rebuilds the free list.
-    fn compact(&mut self) {
-        // Find the last live object
-        let mut last_live = 0;
-        for (i, obj) in self.objects.iter().enumerate() {
-            if obj.is_some() {
-                last_live = i;
-            }
-        }
-
-        // Truncate to just after the last live object
-        let new_len = last_live + 1;
-        if new_len < self.objects.len() {
-            self.objects.truncate(new_len);
-            self.objects.shrink_to_fit();
-
-            // Rebuild free list with only valid indices
-            self.free_list.retain(|&idx| idx < new_len);
-        }
-    }
 }

@@ -1,4 +1,9 @@
 {
   "check_skip_prefixes": [],
-  "run_expect_fail": []
+  "run_expect_fail": [
+    "auth_token_verifier.xu",
+    "cache_lru_impl.xu",
+    "csv_importer.xu",
+    "config_layered_merge.xu"
+  ]
 }

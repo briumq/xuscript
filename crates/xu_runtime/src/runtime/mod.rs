@@ -1451,9 +1451,17 @@ impl Runtime {
             }
         }
 
-        // Create roots vector
+        // Create roots vector with all global frame values
         let mut roots: Vec<Value> = Vec::new();
         roots.extend_from_slice(extra_roots);
+        
+        // Add global frame values as roots
+        for frame in &self.env.frames {
+            let scope = frame.scope.borrow();
+            for val in &scope.values {
+                roots.push(val.clone());
+            }
+        }
 
         // Mark all reachable objects
         self.heap.mark_all(&roots, &[&self.env], &[&self.locals]);
