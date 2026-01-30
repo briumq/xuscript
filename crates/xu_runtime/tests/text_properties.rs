@@ -13,7 +13,7 @@ proptest! {
             }
         } else {
             match t {
-                Text::Heap(_) => {},
+                Text::Heap { .. } => {},
                 _ => prop_assert!(false, "expected Heap for len>22"),
             }
         }
@@ -36,7 +36,7 @@ proptest! {
             }
         } else {
             match t {
-                Text::Heap(_) => {},
+                Text::Heap { .. } => {},
                 _ => prop_assert!(false, "expected Heap for total>22"),
             }
         }

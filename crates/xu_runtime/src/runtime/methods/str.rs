@@ -256,7 +256,7 @@ pub(super) fn dispatch(
                     actual: args.len(),
                 }));
             }
-            Ok(Value::from_i64(s.as_str().chars().count() as i64))
+            Ok(Value::from_i64(s.char_count() as i64))
         }
         _ => Err(rt.error(xu_syntax::DiagnosticKind::UnknownStrMethod(
             method.to_string(),

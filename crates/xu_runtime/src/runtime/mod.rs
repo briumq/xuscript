@@ -110,6 +110,7 @@ pub struct Runtime {
     vm_stack_pool: Vec<Vec<Value>>,
     vm_iters_pool: Vec<Vec<ir::IterState>>,
     vm_handlers_pool: Vec<Vec<ir::Handler>>,
+    builder_pool: Vec<String>,
     /// Cached Option::none value to avoid repeated allocations
     cached_option_none: Option<Value>,
     /// Temporary GC roots for values being evaluated (e.g., function arguments)
@@ -209,6 +210,7 @@ impl Runtime {
             vm_stack_pool: Vec::new(),
             vm_iters_pool: Vec::new(),
             vm_handlers_pool: Vec::new(),
+            builder_pool: Vec::new(),
             cached_option_none: None,
             gc_temp_roots: Vec::new(),
             active_vm_stacks: Vec::new(),
@@ -223,11 +225,11 @@ impl Runtime {
             return Text::from_str(s);
         }
         if let Some(rc) = self.string_pool.get(s) {
-            return Text::Heap(rc.clone());
+            return Text::Heap { data: rc.clone(), char_count: std::cell::Cell::new(u32::MAX) };
         }
         let rc = Rc::new(s.to_string());
         self.string_pool.insert(s.to_string(), rc.clone());
-        Text::Heap(rc)
+        Text::Heap { data: rc, char_count: std::cell::Cell::new(u32::MAX) }
     }
 
     pub(crate) fn option_none(&mut self) -> Value {
@@ -248,6 +250,27 @@ impl Runtime {
     pub(crate) fn option_some(&mut self, v: Value) -> Value {
         // Use optimized OptionSome variant to avoid Box allocation
         Value::option_some(self.heap.alloc(crate::gc::ManagedObject::OptionSome(v)))
+    }
+
+    /// Get a String from the builder pool, or create a new one with the given capacity
+    pub(crate) fn builder_pool_get(&mut self, cap: usize) -> String {
+        if let Some(mut s) = self.builder_pool.pop() {
+            s.clear();
+            if s.capacity() < cap {
+                s.reserve(cap - s.capacity());
+            }
+            s
+        } else {
+            String::with_capacity(cap)
+        }
+    }
+
+    /// Return a String to the builder pool for reuse
+    pub(crate) fn builder_pool_return(&mut self, s: String) {
+        // Only keep strings with reasonable capacity to avoid memory bloat
+        if s.capacity() <= 4096 && self.builder_pool.len() < 16 {
+            self.builder_pool.push(s);
+        }
     }
 
     pub fn define_global_constant(&mut self, name: &str, value: &str) {
@@ -1093,12 +1116,32 @@ impl Runtime {
             BinaryOp::Add => {
                 let at = a.get_tag();
                 let bt = b.get_tag();
-                if at == crate::value::TAG_STR || bt == crate::value::TAG_STR {
+                if at == crate::value::TAG_STR && bt == crate::value::TAG_STR {
+                    // Fast path: both are strings - use Text::concat2
+                    let ta = if let crate::gc::ManagedObject::Str(s) = self.heap.get(a.as_obj_id()) {
+                        s.clone()
+                    } else {
+                        Text::new()
+                    };
+                    let tb = if let crate::gc::ManagedObject::Str(s) = self.heap.get(b.as_obj_id()) {
+                        s.clone()
+                    } else {
+                        Text::new()
+                    };
+                    let result = Text::concat2(&ta, &tb);
+                    Ok(Value::str(
+                        self.heap.alloc(crate::gc::ManagedObject::Str(result)),
+                    ))
+                } else if at == crate::value::TAG_STR || bt == crate::value::TAG_STR {
                     let sa = value_to_string(&a, &self.heap);
                     let sb = value_to_string(&b, &self.heap);
+                    // Pre-allocate capacity to avoid intermediate allocations
+                    let mut result = String::with_capacity(sa.len() + sb.len());
+                    result.push_str(&sa);
+                    result.push_str(&sb);
                     Ok(Value::str(
                         self.heap
-                            .alloc(crate::gc::ManagedObject::Str((sa + &sb).into())),
+                            .alloc(crate::gc::ManagedObject::Str(result.into())),
                     ))
                 } else {
                     a.bin_op(op, b)

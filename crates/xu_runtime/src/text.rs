@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
@@ -5,11 +6,12 @@ use std::rc::Rc;
 use std::str;
 
 const INLINE_CAP: usize = 22;
+const CHAR_COUNT_UNKNOWN: u32 = u32::MAX;
 
 #[derive(Clone)]
 pub enum Text {
     Inline { len: u8, buf: [u8; INLINE_CAP] },
-    Heap(Rc<String>),
+    Heap { data: Rc<String>, char_count: Cell<u32> },
 }
 
 impl Text {
@@ -26,19 +28,46 @@ impl Text {
                 let s = &buf[..*len as usize];
                 unsafe { str::from_utf8_unchecked(s) }
             }
-            Text::Heap(s) => s.as_str(),
+            Text::Heap { data, .. } => data.as_str(),
         }
     }
 
     pub fn len(&self) -> usize {
         match self {
             Text::Inline { len, .. } => *len as usize,
-            Text::Heap(s) => s.len(),
+            Text::Heap { data, .. } => data.len(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Returns the number of Unicode characters (not bytes)
+    pub fn char_count(&self) -> usize {
+        match self {
+            Text::Inline { len, buf } => {
+                let byte_len = *len as usize;
+                // Fast path: if all bytes are ASCII, char count equals byte count
+                let s = &buf[..byte_len];
+                if s.iter().all(|&b| b < 128) {
+                    byte_len
+                } else {
+                    let s = unsafe { str::from_utf8_unchecked(s) };
+                    s.chars().count()
+                }
+            }
+            Text::Heap { data, char_count } => {
+                let cached = char_count.get();
+                if cached != CHAR_COUNT_UNKNOWN {
+                    cached as usize
+                } else {
+                    let count = data.chars().count() as u32;
+                    char_count.set(count);
+                    count as usize
+                }
+            }
+        }
     }
 
     pub fn from_str(s: &str) -> Self {
@@ -50,7 +79,7 @@ impl Text {
                 buf,
             };
         }
-        Self::Heap(Rc::new(s.to_string()))
+        Self::Heap { data: Rc::new(s.to_string()), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
     }
 
     pub fn from_string(s: String) -> Self {
@@ -62,7 +91,7 @@ impl Text {
                 buf,
             };
         }
-        Self::Heap(Rc::new(s))
+        Self::Heap { data: Rc::new(s), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
     }
 
     pub fn into_string(self) -> String {
@@ -72,7 +101,7 @@ impl Text {
                 let ss = unsafe { str::from_utf8_unchecked(s) };
                 ss.to_string()
             }
-            Text::Heap(s) => match Rc::try_unwrap(s) {
+            Text::Heap { data, .. } => match Rc::try_unwrap(data) {
                 Ok(s) => s,
                 Err(r) => (*r).clone(),
             },
@@ -95,12 +124,14 @@ impl Text {
                 let mut out = String::with_capacity(new_len);
                 out.push_str(unsafe { str::from_utf8_unchecked(&buf[..cur]) });
                 out.push_str(s);
-                *self = Text::Heap(Rc::new(out));
+                *self = Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) };
             }
-            Text::Heap(h) => {
-                let hm = Rc::make_mut(h);
+            Text::Heap { data, char_count } => {
+                let hm = Rc::make_mut(data);
                 hm.reserve(s.len());
                 hm.push_str(s);
+                // Invalidate cached char count
+                char_count.set(CHAR_COUNT_UNKNOWN);
             }
         }
     }
@@ -126,14 +157,10 @@ impl Text {
             };
         }
 
-        // Optimization: if al or bl is large and other is small,
-        // we might want to avoid cloning the large part if it's Rc and refcount 1.
-        // But concat2 doesn't have ownership of a or b.
-
         let mut out = String::with_capacity(total);
         out.push_str(a.as_str());
         out.push_str(b.as_str());
-        Text::Heap(Rc::new(out))
+        Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
     }
 }
 
@@ -191,7 +218,7 @@ impl Default for Text {
 impl PartialEq for Text {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Text::Heap(a), Text::Heap(b)) => Rc::ptr_eq(a, b) || a.as_str() == b.as_str(),
+            (Text::Heap { data: a, .. }, Text::Heap { data: b, .. }) => Rc::ptr_eq(a, b) || a.as_str() == b.as_str(),
             (Text::Inline { len: l1, buf: b1 }, Text::Inline { len: l2, buf: b2 }) => {
                 l1 == l2 && b1[..*l1 as usize] == b2[..*l2 as usize]
             }

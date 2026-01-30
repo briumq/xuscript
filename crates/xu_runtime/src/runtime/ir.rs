@@ -2322,7 +2322,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 stack.push(Value::dict(id));
             }
             Op::BuilderNewCap(cap) => {
-                let s = String::with_capacity(*cap);
+                let s = rt.builder_pool_get(*cap);
                 let id = rt.heap.alloc(ManagedObject::Builder(s));
                 stack.push(Value::builder(id));
             }
@@ -2403,11 +2403,18 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     }));
                 }
                 let id = b.as_obj_id();
-                let out = if let ManagedObject::Builder(s) = rt.heap.get(id) {
-                    crate::Text::from_str(s.as_str())
+                // Take ownership of the builder string and return it to pool
+                let (out, builder_str) = if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+                    let text = crate::Text::from_str(s.as_str());
+                    let taken = std::mem::take(s);
+                    (text, Some(taken))
                 } else {
                     return Err("Not a builder".into());
                 };
+                // Return the string to the pool for reuse
+                if let Some(s) = builder_str {
+                    rt.builder_pool_return(s);
+                }
                 let sid = rt.heap.alloc(ManagedObject::Str(out));
                 stack.push(Value::str(sid));
             }

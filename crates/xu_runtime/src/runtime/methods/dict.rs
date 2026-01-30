@@ -279,24 +279,43 @@ pub(super) fn dispatch(
                     actual: args.len(),
                 }));
             }
-            let key = if args[0].get_tag() == crate::value::TAG_STR {
-                if let crate::gc::ManagedObject::Str(s) = rt.heap.get(args[0].as_obj_id()) {
-                    DictKey::Str(s.clone())
+            // Optimize: use pointer comparison to avoid cloning the key
+            if args[0].get_tag() == crate::value::TAG_STR {
+                let key_ptr = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(args[0].as_obj_id()) {
+                    s.as_str()
                 } else {
                     return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a text".into())));
+                };
+                if let crate::gc::ManagedObject::Dict(me) = rt.heap.get(id) {
+                    // Use raw_entry to avoid cloning the key
+                    let hash = {
+                        let mut h = me.map.hasher().build_hasher();
+                        h.write_u8(0);
+                        key_ptr.as_bytes().hash(&mut h);
+                        h.finish()
+                    };
+                    let found = me.map.raw_entry().from_hash(hash, |k| {
+                        match k {
+                            DictKey::Str(s) => s.as_str() == key_ptr,
+                            _ => false,
+                        }
+                    }).is_some();
+                    Ok(Value::from_bool(found))
+                } else {
+                    Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())))
                 }
             } else if args[0].is_int() {
-                DictKey::Int(args[0].as_i64())
+                let key = DictKey::Int(args[0].as_i64());
+                if let crate::gc::ManagedObject::Dict(me) = rt.heap.get(id) {
+                    Ok(Value::from_bool(me.map.contains_key(&key)))
+                } else {
+                    Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())))
+                }
             } else {
                 return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
                     expected: "text or int".to_string(),
                     actual: args[0].type_name().to_string(),
                 }));
-            };
-            if let crate::gc::ManagedObject::Dict(me) = rt.heap.get(id) {
-                Ok(Value::from_bool(me.map.contains_key(&key)))
-            } else {
-                Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())))
             }
         }
         MethodKind::Remove => {
