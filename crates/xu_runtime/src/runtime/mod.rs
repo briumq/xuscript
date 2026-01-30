@@ -110,6 +110,12 @@ pub struct Runtime {
     vm_stack_pool: Vec<Vec<Value>>,
     vm_iters_pool: Vec<Vec<ir::IterState>>,
     vm_handlers_pool: Vec<Vec<ir::Handler>>,
+    /// Cached Option::none value to avoid repeated allocations
+    cached_option_none: Option<Value>,
+    /// Temporary GC roots for values being evaluated (e.g., function arguments)
+    pub(crate) gc_temp_roots: Vec<Value>,
+    /// Active VM stacks that need GC protection (raw pointers for performance)
+    pub(crate) active_vm_stacks: Vec<*const Vec<Value>>,
 }
 
 #[derive(Clone)]
@@ -133,8 +139,12 @@ struct DictCacheIntLast {
 pub struct ICSlot {
     pub id: usize,
     pub key_hash: u64,
+    pub key_id: usize, // Object ID of the key string for fast comparison
+    pub key_short: [u8; 16], // Short key content for fast comparison
+    pub key_len: u8,
     pub ver: u64,
     pub value: Value,
+    pub option_some_cached: Value, // Cached Option::some(value) result
     pub struct_ty_hash: u64,
     pub field_offset: Option<usize>,
 }
@@ -199,6 +209,9 @@ impl Runtime {
             vm_stack_pool: Vec::new(),
             vm_iters_pool: Vec::new(),
             vm_handlers_pool: Vec::new(),
+            cached_option_none: None,
+            gc_temp_roots: Vec::new(),
+            active_vm_stacks: Vec::new(),
         };
         rt.install_builtins();
         rt
@@ -218,19 +231,23 @@ impl Runtime {
     }
 
     pub(crate) fn option_none(&mut self) -> Value {
-        Value::enum_obj(self.heap.alloc(crate::gc::ManagedObject::Enum(
-            "Option".to_string().into(),
-            "none".to_string().into(),
+        if let Some(v) = self.cached_option_none {
+            return v;
+        }
+        static OPTION: &str = "Option";
+        static NONE: &str = "none";
+        let v = Value::enum_obj(self.heap.alloc(crate::gc::ManagedObject::Enum(
+            crate::Text::from_str(OPTION),
+            crate::Text::from_str(NONE),
             Box::new([]),
-        )))
+        )));
+        self.cached_option_none = Some(v);
+        v
     }
 
     pub(crate) fn option_some(&mut self, v: Value) -> Value {
-        Value::enum_obj(self.heap.alloc(crate::gc::ManagedObject::Enum(
-            "Option".to_string().into(),
-            "some".to_string().into(),
-            vec![v].into_boxed_slice(),
-        )))
+        // Use optimized OptionSome variant to avoid Box allocation
+        Value::enum_obj(self.heap.alloc(crate::gc::ManagedObject::OptionSome(v)))
     }
 
     pub fn define_global_constant(&mut self, name: &str, value: &str) {
@@ -1407,9 +1424,7 @@ impl Runtime {
         }
     }
     pub fn gc(&mut self, extra_roots: &[Value]) {
-        // Clear all caches and pools before marking to ensure no references are held
-        // This is critical for GC correctness - cached objects may hold
-        // references to objects that should be collected
+        // Clear caches that are safe to clear (don't affect correctness)
         self.method_cache.clear();
         self.dict_cache.clear();
         self.dict_cache_int.clear();
@@ -1419,46 +1434,38 @@ impl Runtime {
         self.ic_slots.clear();
         self.ic_method_slots.clear();
 
-        // Clear pools to release references
-        self.env_pool.clear();
-        self.vm_stack_pool.clear();
-        self.vm_iters_pool.clear();
-        self.vm_handlers_pool.clear();
-        self.locals.clear_pools();
+        // Create roots vector
+        let mut roots: Vec<Value> = Vec::new();
+        roots.extend_from_slice(extra_roots);
 
-        // Clear other caches
-        self.loaded_modules.clear();
-        self.string_pool.clear();
-        self.structs.clear();
-        self.struct_layouts.clear();
-        self.enums.clear();
-        self.import_parse_cache.clear();
-        self.compiled_locals.clear();
-        self.compiled_locals_idx.clear();
-        self.import_stack.clear();
-        self.current_func = None;
-        self.current_param_bindings = None;
-        self.predefined_constants.clear();
-        self.entry_path = None;
+        // Add temporary GC roots (e.g., function arguments being evaluated)
+        roots.extend_from_slice(&self.gc_temp_roots);
 
-        // Clear environment stack and keep only global frame
-        self.env.stack.clear();
-        if self.env.frames.len() > 1 {
-            let global_frame = self.env.frames.first().cloned();
-            self.env.frames.clear();
-            if let Some(frame) = global_frame {
-                self.env.frames.push(frame);
+        // Add values from active VM stacks
+        for stack_ptr in &self.active_vm_stacks {
+            // SAFETY: The stack pointer is valid as long as the VM frame is active
+            let stack = unsafe { &**stack_ptr };
+            for val in stack {
+                roots.push(*val);
             }
         }
 
-        // Create roots vector with all global frame values
-        let mut roots: Vec<Value> = Vec::new();
-        roots.extend_from_slice(extra_roots);
-        
-        // Add global frame values as roots
+        // Add stack values as roots
+        for val in &self.env.stack {
+            roots.push(val.clone());
+        }
+
+        // Add all frame values as roots (not just global frame)
         for frame in &self.env.frames {
             let scope = frame.scope.borrow();
             for val in &scope.values {
+                roots.push(val.clone());
+            }
+        }
+
+        // Add local slot values as roots
+        for frame_values in &self.locals.values {
+            for val in frame_values {
                 roots.push(val.clone());
             }
         }
@@ -1468,14 +1475,6 @@ impl Runtime {
 
         // Sweep phase
         self.heap.sweep();
-
-        // Force memory release
-        #[cfg(target_os = "linux")]
-        unsafe {
-            libc::malloc_trim(0);
-        }
-        // Force thread yield to allow OS to reclaim memory
-        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 
     pub(crate) fn maybe_gc(&mut self) {

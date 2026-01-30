@@ -1,5 +1,6 @@
 use crate::value::TAG_BUILDER;
 
+use std::hash::BuildHasher;
 use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
 
@@ -50,20 +51,48 @@ fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Value, String> 
     let at = a.get_tag();
     let bt = b.get_tag();
     if at == TAG_STR || bt == TAG_STR {
-        let mut sa = if at == TAG_STR {
+        // Pre-calculate lengths to avoid reallocations
+        let a_len = if at == TAG_STR {
             if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                s.clone()
+                s.len()
             } else {
                 return Err("Not a string".into());
             }
         } else {
-            let mut s = String::new();
-            s.append_value(&a, &rt.heap);
-            crate::Text::from_string(s)
+            20 // estimate for non-string
+        };
+        let b_len = if bt == TAG_STR {
+            if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
+                s.len()
+            } else {
+                return Err("Not a string".into());
+            }
+        } else {
+            20 // estimate for non-string
         };
 
-        sa.append_value(&b, &rt.heap);
-        Ok(Value::str(rt.heap.alloc(ManagedObject::Str(sa))))
+        // Pre-allocate with exact capacity
+        let mut result = String::with_capacity(a_len + b_len);
+
+        // Append a
+        if at == TAG_STR {
+            if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                result.push_str(s.as_str());
+            }
+        } else {
+            result.append_value(&a, &rt.heap);
+        }
+
+        // Append b
+        if bt == TAG_STR {
+            if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
+                result.push_str(s.as_str());
+            }
+        } else {
+            result.append_value(&b, &rt.heap);
+        }
+
+        Ok(Value::str(rt.heap.alloc(ManagedObject::Str(result.into()))))
     } else {
         a.bin_op(xu_ir::BinaryOp::Add, b)
     }
@@ -90,6 +119,10 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
         .unwrap_or_else(|| Vec::with_capacity(4));
     handlers.clear();
 
+    // Register this VM stack for GC protection
+    let stack_ptr: *const Vec<Value> = &stack;
+    rt.active_vm_stacks.push(stack_ptr);
+
     struct VmScratchReturn {
         rt: *mut Runtime,
         stack: *mut Vec<Value>,
@@ -100,6 +133,8 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
     impl Drop for VmScratchReturn {
         fn drop(&mut self) {
             unsafe {
+                // Unregister VM stack from GC protection
+                (*self.rt).active_vm_stacks.pop();
                 (*self.rt)
                     .vm_stack_pool
                     .push(std::mem::take(&mut *self.stack));
@@ -533,10 +568,13 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             Op::Mod => {
                 let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
                 let a = stack.last_mut().ok_or_else(|| stack_underflow(ip, op))?;
-                match a.bin_op(xu_ir::BinaryOp::Mod, b) {
-                    Ok(r) => *a = r,
-                    Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                // Fast path for integers
+                if a.is_int() && b.is_int() {
+                    let bv = b.as_i64();
+                    if bv != 0 {
+                        *a = Value::from_i64(a.as_i64() % bv);
+                    } else {
+                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str("Division by zero".into())));
                         if let Some(flow) = throw_value(
                             rt,
                             &mut ip,
@@ -550,6 +588,26 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                             return Ok(flow);
                         }
                         continue;
+                    }
+                } else {
+                    match a.bin_op(xu_ir::BinaryOp::Mod, b) {
+                        Ok(r) => *a = r,
+                        Err(e) => {
+                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                            if let Some(flow) = throw_value(
+                                rt,
+                                &mut ip,
+                                &mut handlers,
+                                &mut stack,
+                                &mut iters,
+                                &mut pending,
+                                &mut thrown,
+                                err_val,
+                            ) {
+                                return Ok(flow);
+                            }
+                            continue;
+                        }
                     }
                 }
             }
@@ -1167,25 +1225,66 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 if stack.len() < n + 1 {
                     return Err(stack_underflow(ip, op));
                 }
-                let args: Vec<Value> = stack.drain(stack.len() - n..).collect();
-                let callee = stack.pop().expect("Stack underflow in Call (callee)");
-                match rt.call_function(callee, &args) {
-                    Ok(v) => stack.push(v),
-                    Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
+                let args_start = stack.len() - n;
+                let callee = stack[args_start - 1];
+
+                // Fast path for bytecode functions
+                let mut fast_res = None;
+                if callee.get_tag() == crate::value::TAG_FUNC {
+                    let func_id = callee.as_obj_id();
+                    if let ManagedObject::Function(crate::value::Function::Bytecode(f)) = rt.heap.get(func_id) {
+                        let f = f.clone();
+                        if !f.needs_env_frame && f.def.params.len() == n && f.def.params.iter().all(|p| p.default.is_none()) {
+                            let args = &stack[args_start..];
+                            if let Some(res) = run_bytecode_fast_params_only(rt, &f.bytecode, &f.def.params, args) {
+                                fast_res = Some(res);
+                            }
                         }
-                        continue;
+                    }
+                }
+
+                if let Some(res) = fast_res {
+                    stack.truncate(args_start - 1);
+                    match res {
+                        Ok(v) => stack.push(v),
+                        Err(e) => {
+                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                            if let Some(flow) = throw_value(
+                                rt,
+                                &mut ip,
+                                &mut handlers,
+                                &mut stack,
+                                &mut iters,
+                                &mut pending,
+                                &mut thrown,
+                                err_val,
+                            ) {
+                                return Ok(flow);
+                            }
+                            continue;
+                        }
+                    }
+                } else {
+                    let args: SmallVec<[Value; 8]> = stack.drain(args_start..).collect();
+                    let callee = stack.pop().expect("Stack underflow in Call (callee)");
+                    match rt.call_function(callee, &args) {
+                        Ok(v) => stack.push(v),
+                        Err(e) => {
+                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                            if let Some(flow) = throw_value(
+                                rt,
+                                &mut ip,
+                                &mut handlers,
+                                &mut stack,
+                                &mut iters,
+                                &mut pending,
+                                &mut thrown,
+                                err_val,
+                            ) {
+                                return Ok(flow);
+                            }
+                            continue;
+                        }
                     }
                 }
             }
@@ -1197,6 +1296,131 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let args_start = stack.len() - n;
                 let recv = stack[args_start - 1];
                 let tag = recv.get_tag();
+
+                // Fast path for dict.get with string key - inline the entire operation
+                if tag == TAG_DICT && n == 1 {
+                    static GET_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+                    let get_hash = *GET_HASH.get_or_init(|| xu_ir::stable_hash64("get"));
+                    if *method_hash == get_hash {
+                        let key_val = stack[args_start];
+                        if key_val.get_tag() == TAG_STR {
+                            let dict_id = recv.as_obj_id();
+                            let key_id = key_val.as_obj_id();
+
+                            // Get key text first
+                            let key_text = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
+                                s.clone()
+                            } else {
+                                crate::Text::new()
+                            };
+                            let key_bytes = key_text.as_bytes();
+
+                            // Check IC cache first - fast path when same dict, same key, same version
+                            let mut cached_option = None;
+                            if let Some(idx) = slot_idx {
+                                if *idx < rt.ic_slots.len() {
+                                    let c = &rt.ic_slots[*idx];
+                                    if c.id == dict_id.0 && c.key_len as usize == key_bytes.len() && key_bytes.len() <= 16 {
+                                        // Fast compare short keys
+                                        if &c.key_short[..key_bytes.len()] == key_bytes {
+                                            if let ManagedObject::Dict(me) = rt.heap.get(dict_id) {
+                                                if c.ver == me.ver {
+                                                    cached_option = Some(c.option_some_cached);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if let Some(opt) = cached_option {
+                                stack.truncate(args_start - 1);
+                                stack.push(opt);
+                                ip += 1;
+                                continue;
+                            }
+
+                            let result = if let ManagedObject::Dict(me) = rt.heap.get(dict_id) {
+                                let cur_ver = me.ver;
+                                let key_hash = Runtime::hash_bytes(me.map.hasher(), key_bytes);
+                                if let Some(v) = Runtime::dict_get_by_str_with_hash(me, &key_text, key_hash) {
+                                    // Create Option::some and cache it
+                                    let opt = rt.option_some(v);
+                                    if let Some(idx) = slot_idx {
+                                        while rt.ic_slots.len() <= *idx {
+                                            rt.ic_slots.push(super::ICSlot::default());
+                                        }
+                                        let mut key_short = [0u8; 16];
+                                        let key_len = key_bytes.len().min(16);
+                                        key_short[..key_len].copy_from_slice(&key_bytes[..key_len]);
+                                        rt.ic_slots[*idx] = super::ICSlot {
+                                            id: dict_id.0,
+                                            key_hash,
+                                            key_id: key_id.0,
+                                            key_short,
+                                            key_len: key_len as u8,
+                                            ver: cur_ver,
+                                            value: v,
+                                            option_some_cached: opt,
+                                            ..Default::default()
+                                        };
+                                    }
+                                    Some(opt)
+                                } else {
+                                    Some(rt.option_none())
+                                }
+                            } else {
+                                None
+                            };
+
+                            if let Some(result) = result {
+                                stack.truncate(args_start - 1);
+                                stack.push(result);
+                                ip += 1;
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Fast path for dict.insert with string key
+                    static INSERT_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+                    let insert_hash = *INSERT_HASH.get_or_init(|| xu_ir::stable_hash64("insert"));
+                    if *method_hash == insert_hash && n == 2 {
+                        let key_val = stack[args_start];
+                        let value = stack[args_start + 1];
+                        if key_val.get_tag() == TAG_STR {
+                            let dict_id = recv.as_obj_id();
+                            let key_id = key_val.as_obj_id();
+                            let key_text = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
+                                s.clone()
+                            } else {
+                                crate::Text::new()
+                            };
+
+                            if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
+                                use std::hash::{Hash, Hasher};
+                                let key = crate::value::DictKey::Str(key_text);
+                                let mut hasher = me.map.hasher().build_hasher();
+                                key.hash(&mut hasher);
+                                let h = hasher.finish();
+                                use hashbrown::hash_map::RawEntryMut;
+                                match me.map.raw_entry_mut().from_hash(h, |kk| kk == &key) {
+                                    RawEntryMut::Occupied(mut o) => {
+                                        *o.get_mut() = value;
+                                    }
+                                    RawEntryMut::Vacant(vac) => {
+                                        vac.insert(key, value);
+                                        me.ver += 1;
+                                    }
+                                }
+                            }
+                            stack.truncate(args_start - 1);
+                            stack.push(Value::UNIT);
+                            ip += 1;
+                            continue;
+                        }
+                    }
+                }
 
                 // IC check (Hot path for bytecode methods)
                 let mut fast_res = None;
@@ -1416,6 +1640,41 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                         ver: cur_ver,
                                         value: *v,
                                     });
+                                }
+                            }
+                        } else if idx.get_tag() == TAG_STR {
+                            // Fast path for string key
+                            let key_id = idx.as_obj_id();
+                            if let ManagedObject::Str(key_text) = rt.heap.get(key_id) {
+                                // Check shape-based cache first
+                                if let Some(shape_id) = me.shape {
+                                    if let ManagedObject::Shape(shape) = rt.heap.get(shape_id) {
+                                        if let Some(&off) = shape.prop_map.get(key_text.as_str()) {
+                                            val = Some(me.prop_values[off]);
+                                        }
+                                    }
+                                }
+                                // Check last cache
+                                if val.is_none() {
+                                    if let Some(c) = rt.dict_cache_last.as_ref() {
+                                        if c.id == id.0 && c.ver == cur_ver && c.key.as_str() == key_text.as_str() {
+                                            val = Some(c.value);
+                                        }
+                                    }
+                                }
+                                // Hash lookup
+                                if val.is_none() {
+                                    let key_hash = Runtime::hash_bytes(me.map.hasher(), key_text.as_bytes());
+                                    if let Some(v) = Runtime::dict_get_by_str_with_hash(me, key_text.as_str(), key_hash) {
+                                        val = Some(v);
+                                        rt.dict_cache_last = Some(super::DictCacheLast {
+                                            id: id.0,
+                                            key_hash,
+                                            ver: cur_ver,
+                                            key: key_text.clone(),
+                                            value: v,
+                                        });
+                                    }
                                 }
                             }
                         }

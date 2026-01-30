@@ -7,9 +7,15 @@ use super::Runtime;
 impl Runtime {
     pub(super) fn eval_args(&mut self, args: &[Expr]) -> Result<SmallVec<[Value; 4]>, String> {
         let mut out: SmallVec<[Value; 4]> = SmallVec::with_capacity(args.len());
+        let roots_base = self.gc_temp_roots.len();
         for a in args {
-            out.push(self.eval_expr(a)?);
+            let v = self.eval_expr(a)?;
+            // Push to gc_temp_roots as GC root protection
+            self.gc_temp_roots.push(v);
+            out.push(v);
         }
+        // Pop the temporary roots
+        self.gc_temp_roots.truncate(roots_base);
         Ok(out)
     }
 }

@@ -29,6 +29,7 @@ impl LocalSlots {
     }
 
     /// Clear only the free pools to release references for GC
+    #[allow(dead_code)]
     pub fn clear_pools(&mut self) {
         self.free_maps.clear();
         self.free_values.clear();

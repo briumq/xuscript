@@ -19,6 +19,7 @@ pub enum ManagedObject {
     Module(ModuleInstance),
     Range(i64, i64, bool),
     Enum(crate::Text, crate::Text, Box<[Value]>),
+    OptionSome(Value), // Optimized Option::some with single value
     Function(Function),
     Str(crate::Text),
     Shape(crate::value::Shape),
@@ -97,6 +98,7 @@ impl ManagedObject {
             }
             ManagedObject::Range(_, _, _) => 24, // Simple range size
             ManagedObject::Function(_) => 256,   // Approximate function size
+            ManagedObject::OptionSome(_) => std::mem::size_of::<Value>(), // Single value
         };
         base + deep
     }
@@ -263,6 +265,36 @@ impl Heap {
                                         ManagedObject::Enum(_, _, payload) => {
                                             for item in payload {
                                                 pending_values.push(item.clone());
+                                            }
+                                        }
+                                        ManagedObject::Function(func) => {
+                                            // Mark values captured by closures
+                                            match func {
+                                                Function::User(uf) => {
+                                                    // Mark values in the captured environment
+                                                    for val in &uf.env.stack {
+                                                        pending_values.push(val.clone());
+                                                    }
+                                                    for frame in &uf.env.frames {
+                                                        let scope = frame.scope.borrow();
+                                                        for val in &scope.values {
+                                                            pending_values.push(val.clone());
+                                                        }
+                                                    }
+                                                }
+                                                Function::Bytecode(bf) => {
+                                                    // Mark values in the captured environment
+                                                    for val in &bf.env.stack {
+                                                        pending_values.push(val.clone());
+                                                    }
+                                                    for frame in &bf.env.frames {
+                                                        let scope = frame.scope.borrow();
+                                                        for val in &scope.values {
+                                                            pending_values.push(val.clone());
+                                                        }
+                                                    }
+                                                }
+                                                Function::Builtin(_) => {}
                                             }
                                         }
                                         // Skip Shape objects for now to avoid the crash
