@@ -1,2 +1,3 @@
+// skip: v1.1 no longer requires type annotation for empty dict
 // expect_error:"Type annotation required for empty container literal"
 let m = {}

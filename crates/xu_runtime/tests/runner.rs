@@ -275,6 +275,10 @@ fn run_test(suite_name: &str, _suite_root: &str, path: &PathBuf, strategy: Strat
         Strategy::RunOnly => {
             let src = fs::read_to_string(path).expect("read source");
             match parse_expectation(&src) {
+                Some(Expectation::Skip { reason }) => {
+                    eprintln!("  Skipped: {}", reason);
+                    return;
+                }
                 Some(Expectation::ExpectError { contains }) => {
                     let driver = Driver::new();
                     let parsed = driver
@@ -423,10 +427,16 @@ fn run_test(suite_name: &str, _suite_root: &str, path: &PathBuf, strategy: Strat
 enum Expectation {
     ExpectError { contains: String },
     ExpectPanic { contains: String },
+    Skip { reason: String },
 }
 
 fn parse_expectation(src: &str) -> Option<Expectation> {
     for line in src.lines() {
+        // Check for skip first
+        if line.contains("// skip:") {
+            let reason = line.split("// skip:").nth(1).unwrap_or("").trim().to_string();
+            return Some(Expectation::Skip { reason });
+        }
         if let Some(s) = parse_expectation_from_line(line, "expect_error:") {
             return Some(Expectation::ExpectError { contains: s });
         }
