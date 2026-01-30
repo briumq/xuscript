@@ -87,5 +87,6 @@ impl BuiltinProvider for StdBuiltinProvider {
         registry.register("pow", builtins::builtin_pow);
         registry.register("__builtin_assert", builtins::builtin_assert);
         registry.register("__builtin_assert_eq", builtins::builtin_assert_eq);
+        registry.register("__set_from_list", builtins::builtin_set_from_list);
     }
 }

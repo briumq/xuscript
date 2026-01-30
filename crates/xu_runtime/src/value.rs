@@ -202,19 +202,6 @@ pub fn dict_str_new() -> DictStr {
     })
 }
 
-#[derive(Clone)]
-pub struct SetInstance {
-    pub map: FastHashMap<DictKey, ()>,
-}
-
-pub type Set = Box<SetInstance>;
-
-pub fn set_with_capacity(cap: usize) -> Set {
-    Box::new(SetInstance {
-        map: fast_map_with_capacity(cap),
-    })
-}
-
 // NaN-Boxing constants
 pub const QNAN: u64 = 0x7ff8000000000000;
 pub const TAG_BASE: u64 = 0xfff0000000000000;
@@ -225,6 +212,7 @@ pub const TAG_INT: u64 = 0x0001;
 pub const TAG_BOOL: u64 = 0x0002;
 pub const TAG_UNIT: u64 = 0x0003;
 pub const TAG_NULL: u64 = TAG_UNIT;
+
 pub const TAG_LIST: u64 = 0x0004;
 pub const TAG_DICT: u64 = 0x0005;
 pub const TAG_STR: u64 = 0x0006;
@@ -236,7 +224,7 @@ pub const TAG_RANGE: u64 = 0x000b;
 pub const TAG_ENUM: u64 = 0x000c;
 pub const TAG_BUILDER: u64 = 0x000d;
 pub const TAG_TUPLE: u64 = 0x000e;
-pub const TAG_SET: u64 = 0x000f;
+pub const TAG_OPTION: u64 = 0x000f;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Value(u64);
@@ -249,7 +237,15 @@ impl Default for Value {
 
 impl Value {
     pub const UNIT: Value = Value(TAG_BASE | (TAG_UNIT << 48));
-    pub const NULL: Value = Self::UNIT;
+    pub const NULL: Value = Value::UNIT;
+
+    pub fn none() -> Self {
+        Self::UNIT
+    }
+
+    pub fn some(id: ObjectId) -> Self {
+        Self::from_obj(TAG_OPTION, id)
+    }
 
     #[inline(always)]
     pub fn from_f64(f: f64) -> Self {
@@ -289,9 +285,6 @@ impl Value {
     pub fn tuple(id: ObjectId) -> Self {
         Self::from_obj(TAG_TUPLE, id)
     }
-    pub fn set(id: ObjectId) -> Self {
-        Self::from_obj(TAG_SET, id)
-    }
     pub fn struct_obj(id: ObjectId) -> Self {
         Self::from_obj(TAG_STRUCT, id)
     }
@@ -312,6 +305,9 @@ impl Value {
     }
     pub fn builder(id: ObjectId) -> Self {
         Self::from_obj(TAG_BUILDER, id)
+    }
+    pub fn option_some(id: ObjectId) -> Self {
+        Self::from_obj(TAG_OPTION, id)
     }
 
     #[inline(always)]
@@ -487,7 +483,6 @@ impl Value {
                 TAG_ENUM => "enum",
                 TAG_BUILDER => "builder",
                 TAG_TUPLE => "tuple",
-                TAG_SET => "set",
                 _ => "unknown",
             }
         }

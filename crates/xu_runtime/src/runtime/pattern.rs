@@ -68,14 +68,18 @@ pub(super) fn match_pattern(
                 None
             }
         }
-        Pattern::Null => {
-            if v.is_null() {
-                Some(Vec::new())
-            } else {
-                None
-            }
-        }
         Pattern::EnumVariant { ty, variant, args } => {
+            // Handle optimized OptionSome variant
+            if v.get_tag() == crate::value::TAG_OPTION {
+                if ty == "Option" && variant == "some" && args.len() == 1 {
+                    if let crate::gc::ManagedObject::OptionSome(inner) = rt.heap.get(v.as_obj_id()) {
+                        let inner_val = *inner;
+                        return match_pattern(rt, &args[0], &inner_val);
+                    }
+                }
+                return None;
+            }
+
             if v.get_tag() != crate::value::TAG_ENUM {
                 return None;
             }

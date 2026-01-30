@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::Value;
 use super::{Flow, Runtime};
 use super::ir::{Handler, IterState, Pending};

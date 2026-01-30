@@ -20,5 +20,5 @@ assert(s.contains(2), "s.contains(2)")
 assert(s.contains(3), "s.contains(3)")
 
 // set_empty
-let s2: {int} = set{}
+let s2 = set{}
 assert(s2.length is 0, "s2.length")

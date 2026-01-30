@@ -1,0 +1,44 @@
+// Set implementation using dict as backing store
+// Values are stored as keys with unit value
+
+func new() -> dict {
+    return {}
+}
+
+func from_list(items: list) -> dict {
+    var s = {}
+    for item in items {
+        s[item] = ()
+    }
+    return s
+}
+
+func add(s: dict, item) {
+    s[item] = ()
+}
+
+func remove(s: dict, item) -> ? {
+    if s.has(item) {
+        s.delete(item)
+        return true
+    }
+    return false
+}
+
+func contains(s: dict, item) -> ? {
+    return s.has(item)
+}
+
+func length(s: dict) -> int {
+    return s.keys().length
+}
+
+func clear(s: dict) {
+    for k in s.keys() {
+        s.delete(k)
+    }
+}
+
+func to_list(s: dict) -> list {
+    return s.keys()
+}

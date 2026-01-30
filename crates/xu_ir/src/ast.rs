@@ -20,11 +20,9 @@ pub enum Stmt {
     While(Box<WhileStmt>),
     ForEach(Box<ForEachStmt>),
     When(Box<WhenStmt>),
-    Try(Box<TryStmt>),
     Return(Option<Expr>),
     Break,
     Continue,
-    Throw(Expr),
     Assign(Box<AssignStmt>),
     Expr(Expr),
     Error(Span),
@@ -120,7 +118,6 @@ pub enum Pattern {
     Float(f64),
     Str(String),
     Bool(bool),
-    Null,
     EnumVariant {
         ty: String,
         variant: String,
@@ -133,19 +130,6 @@ pub struct WhenStmt {
     pub expr: Expr,
     pub arms: Box<[(Pattern, Box<[Stmt]>)]>,
     pub else_branch: Option<Box<[Stmt]>>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct TryStmt {
-    pub body: Box<[Stmt]>,
-    pub catch: Option<CatchClause>,
-    pub finally: Option<Box<[Stmt]>>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CatchClause {
-    pub var: Option<String>,
-    pub body: Box<[Stmt]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -183,10 +167,8 @@ pub enum Expr {
     Str(String),
     InterpolatedString(Box<[Expr]>),
     Bool(bool),
-    Null,
     List(Box<[Expr]>),
     Tuple(Box<[Expr]>),
-    Set(Box<[Expr]>),
     Range(Box<RangeExpr>),
     IfExpr(Box<IfExpr>),
     Match(Box<MatchExpr>),

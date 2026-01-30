@@ -52,12 +52,12 @@ impl<'a, 'b> Parser<'a, 'b> {
         } else {
             let mut expr_str_with_term = String::with_capacity(key_unescaped.len() + 1);
             expr_str_with_term.push_str(key_unescaped.as_str());
-            expr_str_with_term.push(self.stmt_end_char());
+            expr_str_with_term.push(';');
             let normalized = normalize_source(&expr_str_with_term);
             let lex = Lexer::new(&normalized.text).lex();
             let mut p = Parser::new(&normalized.text, &lex.tokens, self.bump);
             p.skip_trivia();
-            let expr = p.parse_expr(0).unwrap_or(Expr::Null);
+            let expr = p.parse_expr(0).unwrap_or(Expr::Tuple(Box::new([])));
             p.skip_trivia();
             if !p.at(TokenKind::StmtEnd) && !p.at(TokenKind::Eof) {
                 p.diagnostics.push(Diagnostic::error_kind(
@@ -73,7 +73,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                 .chain(p.diagnostics.iter())
                 .any(|d| matches!(d.severity, xu_syntax::Severity::Error));
 
-            if has_error { Expr::Null } else { expr }
+            if has_error { Expr::Tuple(Box::new([])) } else { expr }
         };
         self.interp_cache.insert(key.to_string(), expr.clone());
         expr

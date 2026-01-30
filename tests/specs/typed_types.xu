@@ -4,8 +4,8 @@ func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
 let d: {string: int} = {}
 assert(d.length is 0, "dict length")
 
-// typed_set_empty
-let s: {int} = set{}
+// typed_set_empty (set is implemented as dict)
+let s = set{}
 assert(s.length is 0, "set length")
 
 // typed_tuple_return

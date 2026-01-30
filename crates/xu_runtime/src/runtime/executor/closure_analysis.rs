@@ -28,21 +28,6 @@ pub(super) fn needs_env_frame(stmts: &[Stmt]) -> bool {
                     return true;
                 }
             }
-            Stmt::Try(x) => {
-                if needs_env_frame(&x.body) {
-                    return true;
-                }
-                if let Some(c) = &x.catch {
-                    if needs_env_frame(&c.body) {
-                        return true;
-                    }
-                }
-                if let Some(f) = &x.finally {
-                    if needs_env_frame(f) {
-                        return true;
-                    }
-                }
-            }
             _ => {}
         }
     }
@@ -79,21 +64,6 @@ pub(super) fn has_ident_assign(stmts: &[Stmt]) -> bool {
                     return true;
                 }
             }
-            Stmt::Try(x) => {
-                if has_ident_assign(&x.body) {
-                    return true;
-                }
-                if let Some(c) = &x.catch {
-                    if has_ident_assign(&c.body) {
-                        return true;
-                    }
-                }
-                if let Some(f) = &x.finally {
-                    if has_ident_assign(f) {
-                        return true;
-                    }
-                }
-            }
             Stmt::FuncDef(_) => {}
             _ => {}
         }
@@ -114,7 +84,7 @@ pub(super) fn params_all_slotted(stmts: &[Stmt], params: &[xu_ir::Param]) -> boo
         match e {
             Expr::Ident(n, slot) => !(slot.get().is_none() && names.contains(n)),
             Expr::List(items) => items.iter().all(|x| check_expr(x, names)),
-            Expr::Tuple(items) | Expr::Set(items) => items.iter().all(|x| check_expr(x, names)),
+            Expr::Tuple(items) => items.iter().all(|x| check_expr(x, names)),
             Expr::Range(r) => check_expr(&r.start, names) && check_expr(&r.end, names),
             Expr::IfExpr(e) => {
                 check_expr(&e.cond, names)
@@ -161,27 +131,7 @@ pub(super) fn params_all_slotted(stmts: &[Stmt], params: &[xu_ir::Param]) -> boo
                         return false;
                     }
                 }
-                Stmt::Try(x) => {
-                    if !check_stmts(&x.body, names) {
-                        return false;
-                    }
-                    if let Some(c) = &x.catch {
-                        if !check_stmts(&c.body, names) {
-                            return false;
-                        }
-                    }
-                    if let Some(f) = &x.finally {
-                        if !check_stmts(f, names) {
-                            return false;
-                        }
-                    }
-                }
                 Stmt::Return(Some(e)) => {
-                    if !check_expr(e, names) {
-                        return false;
-                    }
-                }
-                Stmt::Throw(e) => {
                     if !check_expr(e, names) {
                         return false;
                     }

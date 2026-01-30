@@ -1,17 +1,16 @@
 use crate::value::TAG_BUILDER;
 
-use std::hash::BuildHasher;
 use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
 
 use super::appendable::Appendable;
 use crate::Value;
 use crate::gc::ManagedObject;
-use crate::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_STR, set_with_capacity};
+use crate::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_STR};
 
 use super::util::{to_i64, type_matches, value_to_string};
 use super::{Flow, Runtime};
-use super::ir_throw::{dispatch_throw, throw_value, unwind_to_finally};
+use crate::runtime::ir_throw::throw_value;
 
 mod dict_ops;
 mod fast;
@@ -30,6 +29,10 @@ pub(super) enum IterState {
         step: i64,
         inclusive: bool,
     },
+    Dict {
+        keys: Vec<Value>,
+        idx: usize,
+    },
 }
 
 pub(super) struct Handler {
@@ -40,6 +43,7 @@ pub(super) struct Handler {
     pub(super) env_depth: usize,
 }
 
+#[allow(dead_code)]
 pub(super) enum Pending {
     Jump(usize),
     Return(Value),
@@ -1307,13 +1311,14 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                             let dict_id = recv.as_obj_id();
                             let key_id = key_val.as_obj_id();
 
-                            // Get key text first
-                            let key_text = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
-                                s.clone()
+                            // Get key pointer/len without cloning
+                            let (key_ptr, key_len) = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
+                                (s.as_str().as_ptr(), s.as_str().len())
                             } else {
-                                crate::Text::new()
+                                ("".as_ptr(), 0)
                             };
-                            let key_bytes = key_text.as_bytes();
+                            // SAFETY: key_ptr is valid during this operation
+                            let key_bytes = unsafe { std::slice::from_raw_parts(key_ptr, key_len) };
 
                             // Check IC cache first - fast path when same dict, same key, same version
                             let mut cached_option = None;
@@ -1340,10 +1345,12 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                 continue;
                             }
 
+                            // SAFETY: key_ptr still valid
+                            let key_str = unsafe { std::str::from_utf8_unchecked(key_bytes) };
                             let result = if let ManagedObject::Dict(me) = rt.heap.get(dict_id) {
                                 let cur_ver = me.ver;
                                 let key_hash = Runtime::hash_bytes(me.map.hasher(), key_bytes);
-                                if let Some(v) = Runtime::dict_get_by_str_with_hash(me, &key_text, key_hash) {
+                                if let Some(v) = Runtime::dict_get_by_str_with_hash(me, key_str, key_hash) {
                                     // Create Option::some and cache it
                                     let opt = rt.option_some(v);
                                     if let Some(idx) = slot_idx {
@@ -1351,14 +1358,14 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                             rt.ic_slots.push(super::ICSlot::default());
                                         }
                                         let mut key_short = [0u8; 16];
-                                        let key_len = key_bytes.len().min(16);
-                                        key_short[..key_len].copy_from_slice(&key_bytes[..key_len]);
+                                        let klen = key_bytes.len().min(16);
+                                        key_short[..klen].copy_from_slice(&key_bytes[..klen]);
                                         rt.ic_slots[*idx] = super::ICSlot {
                                             id: dict_id.0,
                                             key_hash,
                                             key_id: key_id.0,
                                             key_short,
-                                            key_len: key_len as u8,
+                                            key_len: klen as u8,
                                             ver: cur_ver,
                                             value: v,
                                             option_some_cached: opt,
@@ -1391,28 +1398,72 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         if key_val.get_tag() == TAG_STR {
                             let dict_id = recv.as_obj_id();
                             let key_id = key_val.as_obj_id();
-                            let key_text = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
-                                s.clone()
+
+                            // Get key pointer/len without cloning
+                            let (key_ptr, key_len) = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
+                                (s.as_str().as_ptr(), s.as_str().len())
                             } else {
-                                crate::Text::new()
+                                ("".as_ptr(), 0)
                             };
 
+                            // IC optimization for insert
+                            let mut cached_hash = None;
+                            if let Some(idx) = slot_idx {
+                                if *idx < rt.ic_slots.len() {
+                                    let c = &rt.ic_slots[*idx];
+                                    if c.id == dict_id.0 && c.key_id == key_id.0 {
+                                        // Cache hit: same dict and same key object (e.g. constant string)
+                                        cached_hash = Some(c.key_hash);
+                                    }
+                                }
+                            }
+
                             if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
-                                use std::hash::{Hash, Hasher};
-                                let key = crate::value::DictKey::Str(key_text);
-                                let mut hasher = me.map.hasher().build_hasher();
-                                key.hash(&mut hasher);
-                                let h = hasher.finish();
+                                // SAFETY: key_ptr is valid during this operation
+                                let key_str = unsafe {
+                                    std::str::from_utf8_unchecked(std::slice::from_raw_parts(key_ptr, key_len))
+                                };
+
+                                let key_hash = if let Some(h) = cached_hash {
+                                    h
+                                } else {
+                                    let h = Runtime::hash_bytes(me.map.hasher(), key_str.as_bytes());
+                                    // Update IC cache
+                                    if let Some(idx) = slot_idx {
+                                        while rt.ic_slots.len() <= *idx {
+                                            rt.ic_slots.push(super::ICSlot::default());
+                                        }
+                                        rt.ic_slots[*idx] = super::ICSlot {
+                                            id: dict_id.0,
+                                            key_hash: h,
+                                            key_id: key_id.0,
+                                            // We don't need short key for insert as we rely on object identity
+                                            key_len: 0,
+                                            ver: 0, // Not used for hash caching
+                                            value: Value::UNIT,
+                                            ..Default::default()
+                                        };
+                                    }
+                                    h
+                                };
+
                                 use hashbrown::hash_map::RawEntryMut;
-                                match me.map.raw_entry_mut().from_hash(h, |kk| kk == &key) {
+                                match me.map.raw_entry_mut().from_hash(key_hash, |kk| {
+                                    match kk {
+                                        DictKey::Str(s) => s.as_str() == key_str,
+                                        _ => false,
+                                    }
+                                }) {
                                     RawEntryMut::Occupied(mut o) => {
                                         *o.get_mut() = value;
                                     }
                                     RawEntryMut::Vacant(vac) => {
+                                        // Only allocate key when inserting new entry
+                                        let key = DictKey::Str(key_str.to_string().into());
                                         vac.insert(key, value);
-                                        me.ver += 1;
                                     }
                                 }
+                                me.ver += 1;
                             }
                             stack.truncate(args_start - 1);
                             stack.push(Value::UNIT);
@@ -1618,7 +1669,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                 let ui = key as usize;
                                 if ui < me.elements.len() {
                                     let v = me.elements[ui];
-                                    if v.get_tag() != crate::value::TAG_NULL {
+                                    if v.get_tag() != crate::value::TAG_UNIT {
                                         val = Some(v);
                                     }
                                 }
@@ -2048,9 +2099,32 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         inclusive,
                     });
                     Value::from_i64(start)
+                } else if tag == TAG_DICT {
+                    let id = iterable.as_obj_id();
+                    let raw_keys: Vec<DictKey> = match rt.heap.get(id) {
+                        ManagedObject::Dict(d) => {
+                            d.map.keys().cloned().collect()
+                        }
+                        _ => {
+                            return Err(
+                                rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into()))
+                            );
+                        }
+                    };
+                    if raw_keys.is_empty() {
+                        ip = *end;
+                        continue;
+                    }
+                    let keys: Vec<Value> = raw_keys.into_iter().map(|k| match k {
+                        DictKey::Str(s) => Value::str(rt.heap.alloc(ManagedObject::Str(s))),
+                        DictKey::Int(i) => Value::from_i64(i),
+                    }).collect();
+                    let first = keys[0];
+                    iters.push(IterState::Dict { keys, idx: 1 });
+                    first
                 } else {
                     return Err(rt.error(xu_syntax::DiagnosticKind::InvalidIteratorType {
-                        expected: "list".to_string(),
+                        expected: "list, range, or dict".to_string(),
                         actual: iterable.type_name().to_string(),
                         iter_desc: "bytecode foreach".to_string(),
                     }));
@@ -2114,6 +2188,15 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                             Some(item)
                         }
                     }
+                    IterState::Dict { keys, idx } => {
+                        if *idx >= keys.len() {
+                            None
+                        } else {
+                            let item = keys[*idx];
+                            *idx += 1;
+                            Some(item)
+                        }
+                    }
                 };
 
                 if let Some(val) = next_val {
@@ -2141,116 +2224,25 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             }
             Op::EnvPush => rt.env.push(),
             Op::EnvPop => rt.env.pop(),
-            Op::TryPush(catch_ip, finally_ip, _end_ip, _catch_var) => {
-                handlers.push(Handler {
-                    catch_ip: *catch_ip,
-                    finally_ip: *finally_ip,
-                    stack_len: stack.len(),
-                    iter_len: iters.len(),
-                    env_depth: rt.env.local_depth(),
-                });
-            }
-            Op::TryPop => {
-                let _ = handlers
-                    .pop()
-                    .ok_or_else(|| "Handler underflow".to_string())?;
-            }
-            Op::SetThrown => {
-                let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                thrown = Some(v);
-            }
-            Op::PushThrown => stack.push(thrown.unwrap_or(Value::UNIT)),
-            Op::ClearThrown => thrown = None,
-            Op::SetPendingNone => pending = None,
-            Op::SetPendingJump(to) => pending = Some(Pending::Jump(*to)),
-            Op::SetPendingReturn => {
-                let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                pending = Some(Pending::Return(v));
-            }
-            Op::SetPendingThrow => {
-                let v = thrown.ok_or_else(|| "No thrown value".to_string())?;
-                pending = Some(Pending::Throw(v));
-            }
             Op::Break(to) => {
-                pending = Some(Pending::Jump(*to));
-                if let Some(fin_ip) = unwind_to_finally(rt, &mut handlers, &mut stack) {
-                    ip = fin_ip;
-                    continue;
-                }
                 ip = *to;
-                pending = None;
                 continue;
             }
             Op::Continue(to) => {
-                pending = Some(Pending::Jump(*to));
-                if let Some(fin_ip) = unwind_to_finally(rt, &mut handlers, &mut stack) {
-                    ip = fin_ip;
-                    continue;
-                }
                 ip = *to;
-                pending = None;
                 continue;
             }
             Op::Return => {
                 let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                pending = Some(Pending::Return(v));
-                if let Some(fin_ip) = unwind_to_finally(rt, &mut handlers, &mut stack) {
-                    ip = fin_ip;
-                    continue;
-                }
-                let Pending::Return(v) = pending.take().expect("Pending return lost") else {
-                    unreachable!();
-                };
                 return Ok(Flow::Return(v));
             }
             Op::Throw => {
-                if thrown.is_none() {
-                    return Err("No thrown value".into());
-                }
-                if let Some(next_ip) = dispatch_throw(
-                    rt,
-                    &mut handlers,
-                    &mut stack,
-                    &mut iters,
-                    &mut pending,
-                    &thrown,
-                ) {
-                    ip = next_ip;
-                    continue;
-                }
-                return Ok(Flow::Throw(thrown.take().expect("Thrown value lost")));
+               return Err("Op::Throw not supported in v1.1".into());
             }
             Op::RunPending => {
-                if pending.is_none() {
-                    ip += 1;
-                    continue;
-                }
-                if let Some(fin_ip) = unwind_to_finally(rt, &mut handlers, &mut stack) {
-                    ip = fin_ip;
-                    continue;
-                }
-                match pending.take().unwrap() {
-                    Pending::Jump(to) => {
-                        ip = to;
-                        continue;
-                    }
-                    Pending::Return(v) => return Ok(Flow::Return(v)),
-                    Pending::Throw(v) => {
-                        thrown = Some(v);
-                        if let Some(next_ip) = dispatch_throw(
-                            rt,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &thrown,
-                        ) {
-                            ip = next_ip;
-                            continue;
-                        }
-                        return Ok(Flow::Throw(thrown.take().expect("Thrown value lost")));
-                    }
-                }
+                // No longer needed without try/catch
+                ip += 1;
+                continue;
             }
             Op::ListNew(n) => {
                 let mut items: Vec<Value> = Vec::with_capacity(*n);
@@ -2296,30 +2288,6 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let id = rt.heap.alloc(ManagedObject::Dict(map));
                 stack.push(Value::dict(id));
             }
-            Op::SetNew(n) => {
-                let mut items: Vec<Value> = Vec::with_capacity(*n);
-                for _ in 0..*n {
-                    items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
-                }
-                items.reverse();
-                let mut set = set_with_capacity(*n);
-                for v in items {
-                    let key = if v.get_tag() == TAG_STR {
-                        if let ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
-                            DictKey::Str(s.clone())
-                        } else {
-                            return Err("Not a string".into());
-                        }
-                    } else if v.is_int() {
-                        DictKey::Int(v.as_i64())
-                    } else {
-                        return Err(rt.error(xu_syntax::DiagnosticKind::DictKeyRequired));
-                    };
-                    set.map.insert(key, ());
-                }
-                let id = rt.heap.alloc(ManagedObject::Set(set));
-                stack.push(Value::set(id));
-            }
             Op::BuilderNewCap(cap) => {
                 let s = String::with_capacity(*cap);
                 let id = rt.heap.alloc(ManagedObject::Builder(s));
@@ -2335,22 +2303,46 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     }));
                 }
                 let id = b.as_obj_id();
+                // Optimized: check most common cases first (int and str)
                 if v.is_int() {
                     let mut buf = itoa::Buffer::new();
                     let digits = buf.format(v.as_i64());
                     if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
                         s.push_str(digits);
                     }
+                } else if v.get_tag() == TAG_STR {
+                    // Optimization: avoid clone by using raw pointer
+                    let str_id = v.as_obj_id();
+                    let ptr = if let ManagedObject::Str(s) = rt.heap.get(str_id) {
+                        s.as_str().as_ptr()
+                    } else {
+                        "".as_ptr()
+                    };
+                    let len = if let ManagedObject::Str(s) = rt.heap.get(str_id) {
+                        s.as_str().len()
+                    } else {
+                        0
+                    };
+                    if let ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+                        // SAFETY: ptr/len are valid, builder and string are different objects
+                        let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
+                        let s_ref = unsafe { std::str::from_utf8_unchecked(slice) };
+                        sb.push_str(s_ref);
+                    }
                 } else if v.is_f64() {
                     let f = v.as_f64();
-                    let piece = if f.fract() == 0.0 {
+                    if f.fract() == 0.0 {
                         let mut buf = itoa::Buffer::new();
-                        buf.format(f as i64).to_string()
+                        let digits = buf.format(f as i64);
+                        if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+                            s.push_str(digits);
+                        }
                     } else {
-                        f.to_string()
-                    };
-                    if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
-                        s.push_str(&piece);
+                        let mut buf = ryu::Buffer::new();
+                        let digits = buf.format(f);
+                        if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+                            s.push_str(digits);
+                        }
                     }
                 } else if v.is_bool() {
                     let piece = if v.as_bool() { "true" } else { "false" };
@@ -2360,15 +2352,6 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 } else if v.is_unit() {
                     if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
                         s.push_str("()");
-                    }
-                } else if v.get_tag() == TAG_STR {
-                    let text = if let ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
-                        s.clone()
-                    } else {
-                        crate::Text::from_str("")
-                    };
-                    if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
-                        s.push_str(text.as_str());
                     }
                 } else {
                     let piece = super::util::value_to_string(&v, &rt.heap);
@@ -2398,6 +2381,88 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             Op::DictInsert => {
                 dict_ops::op_dict_insert(rt, &mut stack)?;
             }
+            Op::DictInsertStrConst(idx, k_hash, slot) => {
+                let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+                let dict = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+                if dict.get_tag() != TAG_DICT {
+                    return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
+                        method: "insert".to_string(),
+                        ty: dict.type_name().to_string(),
+                    }));
+                }
+                let id = dict.as_obj_id();
+
+                // Get the key string first (before any mutable borrows)
+                let k = rt.get_const_str(*idx, &bc.constants);
+
+                // Try IC cache first - optimized for hot path
+                let mut cache_hit = false;
+                if let Some(idx_slot) = slot {
+                    if *idx_slot < rt.ic_slots.len() {
+                        let c = &rt.ic_slots[*idx_slot];
+                        if c.id == id.0 && c.key_hash == *k_hash {
+                            // Cache hit - we have the hash and can update directly
+                            // Relaxed version check: allow any version for hot updates
+                            if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
+                                match d.map.raw_entry_mut().from_hash(*k_hash, |key| {
+                                    match key {
+                                        DictKey::Str(s) => s.as_str() == k,
+                                        _ => false,
+                                    }
+                                }) {
+                                    hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
+                                        *o.get_mut() = v;
+                                        d.ver += 1;
+                                        rt.dict_version_last = Some((id.0, d.ver));
+                                        cache_hit = true;
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if !cache_hit {
+                    // Slow path - compute hash and insert
+                    if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
+                        let internal_hash = Runtime::hash_bytes(d.map.hasher(), k.as_bytes());
+                        // Avoid creating DictKey for comparison - use closure with str comparison
+                        match d.map.raw_entry_mut().from_hash(internal_hash, |key| {
+                            match key {
+                                DictKey::Str(s) => s.as_str() == k,
+                                _ => false,
+                            }
+                        }) {
+                            hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
+                                *o.get_mut() = v;
+                            }
+                            hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
+                                // Only allocate key when actually inserting new entry
+                                let key = DictKey::Str(k.to_string().into());
+                                vac.insert(key, v);
+                            }
+                        }
+                        d.ver += 1;
+                        rt.dict_version_last = Some((id.0, d.ver));
+
+                        // Update IC cache
+                        if let Some(idx_slot) = slot {
+                            while rt.ic_slots.len() <= *idx_slot {
+                                rt.ic_slots.push(super::ICSlot::default());
+                            }
+                            rt.ic_slots[*idx_slot] = super::ICSlot {
+                                id: id.0,
+                                key_hash: internal_hash,
+                                ver: d.ver,
+                                value: Value::UNIT,
+                                ..Default::default()
+                            };
+                        }
+                    }
+                }
+                stack.push(dict);
+            }
             Op::DictMerge => {
                 dict_ops::op_dict_merge(rt, &mut stack)?;
             }
@@ -2426,6 +2491,10 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             Op::Print => {
                 let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                 rt.write_output(&value_to_string(&v, &rt.heap));
+            }
+            Op::TryPush(_, _, _, _) | Op::TryPop | Op::SetThrown => {
+                // try/catch not supported in v1.1
+                return Err("try/catch not supported".into());
             }
             Op::Halt => return Ok(Flow::None),
         }

@@ -557,3 +557,37 @@ fn to_f64(v: &Value) -> Result<f64, String> {
         Err(format!("Expected number, got {}", v.type_name()))
     }
 }
+
+/// Create a set (dict with unit values) from a list
+pub(super) fn builtin_set_from_list(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
+    if args.len() != 1 {
+        return Err("__set_from_list expects 1 argument".into());
+    }
+    let list = &args[0];
+    if list.get_tag() != crate::value::TAG_LIST {
+        return Err("__set_from_list expects list".into());
+    }
+    let items = if let crate::gc::ManagedObject::List(items) = rt.heap.get(list.as_obj_id()) {
+        items.clone()
+    } else {
+        return Err("__set_from_list expects list".into());
+    };
+
+    let mut dict = crate::value::dict_with_capacity(items.len());
+    for item in items {
+        let key = if item.get_tag() == crate::value::TAG_STR {
+            if let crate::gc::ManagedObject::Str(s) = rt.heap.get(item.as_obj_id()) {
+                crate::value::DictKey::Str(s.clone())
+            } else {
+                return Err("Invalid set item".into());
+            }
+        } else if item.is_int() {
+            crate::value::DictKey::Int(item.as_i64())
+        } else {
+            return Err("Set items must be int or string".into());
+        };
+        dict.map.insert(key, Value::UNIT);
+    }
+
+    Ok(Value::dict(rt.heap.alloc(crate::gc::ManagedObject::Dict(dict))))
+}

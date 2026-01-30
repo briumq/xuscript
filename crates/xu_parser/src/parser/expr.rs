@@ -279,10 +279,24 @@ impl<'a, 'b> Parser<'a, 'b> {
                 }
                 TokenKind::LBrace => {
                     if allow_struct_init {
-                        if let Expr::Ident(ty, _) = expr {
+                        if let Expr::Ident(ty, _) = &expr {
+                            // Special handling for set{...} syntax
+                            if ty == "set" {
+                                let items = self.parse_set_items()?;
+                                // Desugar to: __set_from_list([items...])
+                                let list_expr = Expr::List(items.into_boxed_slice());
+                                expr = Expr::Call(Box::new(CallExpr {
+                                    callee: Box::new(Expr::Ident(
+                                        "__set_from_list".to_string(),
+                                        std::cell::Cell::new(None),
+                                    )),
+                                    args: Box::new([list_expr]),
+                                }));
+                                continue;
+                            }
                             let fields = self.parse_struct_init_fields()?;
                             expr = Expr::StructInit(Box::new(StructInitExpr {
-                                ty,
+                                ty: ty.clone(),
                                 items: fields.into_boxed_slice(),
                             }));
                             continue;
@@ -305,35 +319,8 @@ impl<'a, 'b> Parser<'a, 'b> {
                 Some(Expr::Ident("self".to_string(), std::cell::Cell::new(None)))
             }
             TokenKind::Ident => {
-                if self.token_text(&self.tokens[self.i]) == "set"
-                    && self.peek_kind_n(1) == Some(TokenKind::LBrace)
-                {
-                    self.bump();
-                    self.expect(TokenKind::LBrace)?;
-                    let mut items: Vec<Expr> = Vec::with_capacity(4);
-                    self.skip_layout();
-                    if !self.at(TokenKind::RBrace) {
-                        loop {
-                            items.push(self.parse_expr(0)?);
-                            self.skip_layout();
-                            if self.at(TokenKind::Comma) {
-                                self.bump();
-                                self.skip_layout();
-                                if self.at(TokenKind::RBrace) {
-                                    break;
-                                }
-                                continue;
-                            }
-                            break;
-                        }
-                    }
-                    self.skip_layout();
-                    self.expect(TokenKind::RBrace)?;
-                    Some(Expr::Set(items.into_boxed_slice()))
-                } else {
-                    let s = self.expect_ident()?;
-                    Some(Expr::Ident(s, std::cell::Cell::new(None)))
-                }
+                let s = self.expect_ident()?;
+                Some(Expr::Ident(s, std::cell::Cell::new(None)))
             }
             TokenKind::Int => {
                 let t = self.bumped();
@@ -595,6 +582,33 @@ impl<'a, 'b> Parser<'a, 'b> {
         }
         self.expect(TokenKind::RBracket)?;
         Some(Expr::List(items.into_boxed_slice()))
+    }
+
+    fn parse_set_items(&mut self) -> Option<Vec<Expr>> {
+        self.expect(TokenKind::LBrace)?;
+        let mut items: Vec<Expr> = Vec::with_capacity(4);
+        self.skip_layout();
+        if self.at(TokenKind::RBrace) {
+            self.bump();
+            return Some(items);
+        }
+        loop {
+            self.skip_layout();
+            items.push(self.parse_expr(0)?);
+            self.skip_layout();
+            if self.at(TokenKind::Comma) {
+                self.bump();
+                self.skip_layout();
+                if self.at(TokenKind::RBrace) {
+                    break;
+                }
+                continue;
+            }
+            break;
+        }
+        self.skip_layout();
+        self.expect(TokenKind::RBrace)?;
+        Some(items)
     }
 
     fn parse_dict(&mut self) -> Option<Expr> {

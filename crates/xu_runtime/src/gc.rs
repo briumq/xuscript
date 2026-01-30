@@ -1,6 +1,6 @@
 //! Garbage collection and heap management.
 
-use crate::value::{Dict, DictStr, FileHandle, Function, ModuleInstance, Set, StructInstance};
+use crate::value::{Dict, DictStr, FileHandle, Function, ModuleInstance, StructInstance};
 use crate::Value;
 use std::collections::HashSet;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -12,7 +12,6 @@ pub enum ManagedObject {
     Tuple(Vec<Value>),
     Dict(Dict),
     DictStr(DictStr),
-    Set(Set),
     File(FileHandle),
     Builder(String),
     Struct(StructInstance),
@@ -60,12 +59,6 @@ impl ManagedObject {
                 // Add actual string content size
                 let string_size: usize = d.map.keys().map(|s| s.capacity()).sum();
                 map_size + string_size + d.map.capacity() * 8
-            }
-            ManagedObject::Set(s) => {
-                s.map.capacity()
-                    * (std::mem::size_of::<crate::value::DictKey>()
-                        + std::mem::size_of::<()>()
-                        + 16)
             }
             ManagedObject::File(f) => {
                 f.path.capacity() + f.content.capacity() + 1024 // File handle overhead

@@ -177,13 +177,6 @@ impl Runtime {
                     field.to_string(),
                 )))
             }
-        } else if tag == crate::value::TAG_SET && (field == "len" || field == "length") {
-            let id = obj.as_obj_id();
-            if let crate::gc::ManagedObject::Set(v) = self.heap.get(id) {
-                Ok(Value::from_i64(v.map.len() as i64))
-            } else {
-                Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a set".into())))
-            }
         } else if tag == crate::value::TAG_STR && (field == "len" || field == "length") {
             let id = obj.as_obj_id();
             if let crate::gc::ManagedObject::Str(s) = self.heap.get(id) {
@@ -199,7 +192,7 @@ impl Runtime {
                 let mut n = v.map.len();
                 n += v.prop_values.len();
                 for ev in &v.elements {
-                    if ev.get_tag() != crate::value::TAG_NULL {
+                    if ev.get_tag() != crate::value::TAG_UNIT {
                         n += 1;
                     }
                 }

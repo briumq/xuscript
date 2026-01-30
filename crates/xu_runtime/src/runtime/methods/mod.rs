@@ -6,7 +6,6 @@ mod dict;
 mod enum_;
 mod file;
 mod list;
-mod set;
 mod str;
 mod common;
 
@@ -111,9 +110,6 @@ pub(super) fn dispatch_builtin_method(
     let tag = recv.get_tag();
     if tag == crate::value::TAG_LIST {
         return list::dispatch(rt, recv, kind, args, method);
-    }
-    if tag == crate::value::TAG_SET {
-        return set::dispatch(rt, recv, kind, args, method);
     }
     if tag == crate::value::TAG_DICT {
         return dict::dispatch(rt, recv, kind, args, method);

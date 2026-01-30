@@ -34,7 +34,7 @@ assert(dict_ok["a"] is 1)
 let set_ok = set{1, 2, 3}
 assert(set_ok.length is 3)
 
-let set_empty: {int} = set{}
+let set_empty = set{}
 assert(set_empty.length is 0)
 
 let tup = (1, "hi")

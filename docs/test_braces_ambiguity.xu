@@ -1,0 +1,29 @@
+# Test Brace Ambiguity (Statement Block vs Empty Dict)
+
+# 1. Empty Block in Statement position
+if true {
+    # This is a block
+}
+
+# 2. Empty Dict in Expression position
+let empty_map = {}
+print(empty_map)
+
+# 3. Block acting as expression (not supported in Xu directly like Rust, but let's see context)
+# Xu usually requires `if` or function bodies for blocks.
+
+# 4. Function body (Block)
+func test() {
+    return 1
+}
+
+# 5. Dict as last expression in block
+func return_dict() -> dict {
+    return {}
+}
+
+# 6. Nested
+if true {
+    let x = {}
+    print(x)
+}

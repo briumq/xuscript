@@ -141,7 +141,7 @@ impl Runtime {
         if fun.locals_count > 0 {
             if let Some(values) = self.locals.values.last_mut() {
                 if values.len() < fun.locals_count {
-                    values.resize(fun.locals_count, Value::NULL);
+                    values.resize(fun.locals_count, Value::UNIT);
                 }
             }
         }
@@ -206,7 +206,7 @@ impl Runtime {
                     }
                 }
             } else {
-                Value::NULL
+                Value::UNIT
             };
             if !skip_type_checks {
                 if let Some(ty) = &p.ty {
@@ -276,7 +276,7 @@ impl Runtime {
                 }
                 Ok(v)
             }
-            Flow::None => Ok(Value::NULL),
+            Flow::None => Ok(Value::UNIT),
             Flow::Throw(v) => Err(self.format_throw(&v)),
             Flow::Break | Flow::Continue => Err(self.error(
                 xu_syntax::DiagnosticKind::UnexpectedControlFlowInFunction("break or continue"),
@@ -389,7 +389,7 @@ impl Runtime {
                     }
                 }
             } else {
-                Value::NULL
+                Value::UNIT
             };
             if !skip_type_checks {
                 if let Some(ty) = &p.ty {
@@ -443,7 +443,7 @@ impl Runtime {
                 }
                 Ok(v)
             }
-            Flow::None => Ok(Value::NULL),
+            Flow::None => Ok(Value::UNIT),
             Flow::Throw(v) => Err(self.format_throw(&v)),
             Flow::Break | Flow::Continue => Err(self.error(
                 xu_syntax::DiagnosticKind::UnexpectedControlFlowInFunction("break or continue"),

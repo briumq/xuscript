@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use xu_ir::{AssignOp, AssignStmt, BinaryOp, Expr, Stmt, TryStmt};
+use xu_ir::{AssignOp, AssignStmt, BinaryOp, Expr, Stmt};
 
 use crate::Value;
 use crate::value::{DictKey, Function, UserFunction};
@@ -191,11 +191,11 @@ impl Runtime {
                 let mut local_idx: Option<usize> = None;
                 if use_local {
                     if self.get_local(&s.var).is_none() {
-                        self.define_local(s.var.clone(), Value::NULL);
+                        self.define_local(s.var.clone(), Value::UNIT);
                     }
                     local_idx = self.get_local_index(&s.var);
                 } else {
-                    self.env.define(s.var.clone(), Value::NULL);
+                    self.env.define(s.var.clone(), Value::UNIT);
                 }
 
                 let tag = iter.get_tag();
@@ -307,9 +307,8 @@ impl Runtime {
                 }
                 Flow::None
             }
-            Stmt::Try(s) => self.exec_try(s),
             Stmt::Return(v) => match v {
-                None => Flow::Return(Value::NULL),
+                None => Flow::Return(Value::UNIT),
                 Some(e) => match self.eval_expr(e) {
                     Ok(v) => Flow::Return(v),
                     Err(e) => {
@@ -320,13 +319,6 @@ impl Runtime {
             },
             Stmt::Break => Flow::Break,
             Stmt::Continue => Flow::Continue,
-            Stmt::Throw(e) => match self.eval_expr(e) {
-                Ok(v) => Flow::Throw(v),
-                Err(e) => {
-                    let err_val = Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(e.into())));
-                    Flow::Throw(err_val)
-                }
-            },
             Stmt::Expr(e) => match self.eval_expr(e) {
                 Ok(_) => Flow::None,
                 Err(e) => {
@@ -335,55 +327,6 @@ impl Runtime {
                 }
             },
             Stmt::Error(_) => Flow::None,
-        }
-    }
-
-    fn exec_try(&mut self, stmt: &TryStmt) -> Flow {
-        let mut thrown: Option<Value> = None;
-        let mut flow = self.exec_stmts(&stmt.body);
-
-        if let Flow::Throw(v) = flow {
-            thrown = Some(v);
-            flow = Flow::None;
-        }
-
-        if thrown.is_some() {
-            if let Some(catch) = &stmt.catch {
-                self.env.push();
-                if let Some(var) = &catch.var {
-                    let val = thrown.clone().unwrap();
-                    self.env.define(var.clone(), val.clone());
-                    if self.locals.is_active() && self.get_local(var).is_some() {
-                        let _ = self.set_local(var, val.clone());
-                    }
-                }
-                let catch_flow = self.exec_stmts(&catch.body);
-                self.env.pop();
-
-                match catch_flow {
-                    Flow::None => {
-                        thrown = None;
-                    }
-                    other => {
-                        thrown = None;
-                        flow = other;
-                    }
-                }
-            }
-        }
-
-        if let Some(fin) = &stmt.finally {
-            let fin_flow = self.exec_stmts(fin);
-            match fin_flow {
-                Flow::None => {}
-                other => return other,
-            }
-        }
-
-        if let Some(v) = thrown {
-            Flow::Throw(v)
-        } else {
-            flow
         }
     }
 
@@ -415,7 +358,7 @@ impl Runtime {
                         if self.locals.is_active() {
                             if let Some(idx) = self.locals.get_index(name) {
                                 let mut val =
-                                    self.locals.take_local_by_index(idx).unwrap_or(Value::NULL);
+                                    self.locals.take_local_by_index(idx).unwrap_or(Value::UNIT);
                                 val.bin_op_assign(BinaryOp::Add, rhs, &mut self.heap)?;
                                 self.locals.set_by_index(idx, val);
                                 return Ok(());

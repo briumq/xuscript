@@ -247,7 +247,7 @@ impl Runtime {
 
     pub(crate) fn option_some(&mut self, v: Value) -> Value {
         // Use optimized OptionSome variant to avoid Box allocation
-        Value::enum_obj(self.heap.alloc(crate::gc::ManagedObject::OptionSome(v)))
+        Value::option_some(self.heap.alloc(crate::gc::ManagedObject::OptionSome(v)))
     }
 
     pub fn define_global_constant(&mut self, name: &str, value: &str) {
@@ -279,11 +279,13 @@ impl Runtime {
             .map(|(_, v)| v.clone())
     }
 
+    #[allow(dead_code)]
     fn dict_remove_by_str(me: &mut Dict, key: &str) -> Option<Value> {
         let hash = Self::hash_bytes(me.map.hasher(), key.as_bytes());
         Self::dict_remove_by_str_with_hash(me, key, hash)
     }
 
+    #[allow(dead_code)]
     fn dict_remove_by_str_with_hash(me: &mut Dict, key: &str, hash: u64) -> Option<Value> {
         match me.map.raw_entry_mut().from_hash(hash, |k| match k {
             DictKey::Str(s) => s.as_str() == key,
@@ -735,18 +737,6 @@ impl Runtime {
                         }
                     }
                     Stmt::While(w) => walk_stmts(ordered, seen, &w.body),
-                    Stmt::Try(t) => {
-                        walk_stmts(ordered, seen, &t.body);
-                        if let Some(c) = &t.catch {
-                            if let Some(v) = &c.var {
-                                push_unique(ordered, seen, v);
-                            }
-                            walk_stmts(ordered, seen, &c.body);
-                        }
-                        if let Some(f) = &t.finally {
-                            walk_stmts(ordered, seen, f);
-                        }
-                    }
                     Stmt::FuncDef(_) => {}
                     _ => {}
                 }
@@ -1016,7 +1006,7 @@ impl Runtime {
                                 method_hash,
                                 struct_ty_hash: 0,
                                 kind,
-                                cached_func: Value::NULL,
+                                cached_func: Value::UNIT,
                                 cached_user: None,
                                 cached_bytecode: None,
                             };
@@ -1079,7 +1069,7 @@ impl Runtime {
                     method_hash,
                     struct_ty_hash: 0,
                     kind,
-                    cached_func: Value::NULL,
+                    cached_func: Value::UNIT,
                     cached_user: None,
                     cached_bytecode: None,
                 };
@@ -1324,21 +1314,11 @@ impl Runtime {
                         Self::precompile_stmts(body)?;
                     }
                 }
-                Stmt::Try(s) => {
-                    Self::precompile_stmts(&s.body)?;
-                    if let Some(c) = &s.catch {
-                        Self::precompile_stmts(&c.body)?;
-                    }
-                    if let Some(f) = &s.finally {
-                        Self::precompile_stmts(f)?;
-                    }
-                }
                 Stmt::Return(e) => {
                     if let Some(e) = e {
                         Self::precompile_expr(e)?;
                     }
                 }
-                Stmt::Throw(e) => Self::precompile_expr(e)?,
                 Stmt::Assign(s) => {
                     Self::precompile_expr(&s.target)?;
                     Self::precompile_expr(&s.value)?;
@@ -1357,9 +1337,10 @@ impl Runtime {
             Expr::EnumCtor { .. } => Ok(()),
             Expr::InterpolatedString(parts) => {
                 for e in parts {
-                    if matches!(e, Expr::Null) {
-                        return Err("Interpolation parse error: expected expression".into());
-                    }
+                    // Expr::Null is gone, no need to check for it specifically?
+                    // But if interpolation has Empty/Unit expression?
+                    // Expr can't be Unit directly, only via Block/Tuple.
+                    // Let's just recurse.
                     Self::precompile_expr(e)?;
                 }
                 Ok(())
@@ -1419,7 +1400,7 @@ impl Runtime {
                 Self::precompile_expr(right)
             }
             Expr::Group(e) => Self::precompile_expr(e),
-            Expr::Ident(..) | Expr::Int(_) | Expr::Float(_) | Expr::Bool(_) | Expr::Null => Ok(()),
+            Expr::Ident(..) | Expr::Int(_) | Expr::Float(_) | Expr::Bool(_) => Ok(()),
             _ => Ok(()),
         }
     }

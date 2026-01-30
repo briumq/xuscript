@@ -44,7 +44,6 @@ impl Runtime {
             Expr::Int(v) => Ok(Value::from_i64(*v)),
             Expr::Float(v) => Ok(Value::from_f64(*v)),
             Expr::Bool(v) => Ok(Value::from_bool(*v)),
-            Expr::Null => Ok(Value::NULL),
             Expr::Str(s) => Ok(Value::str(
                 self.heap
                     .alloc(crate::gc::ManagedObject::Str(s.clone().into())),
@@ -151,27 +150,6 @@ impl Runtime {
                     v.push(self.eval_expr(e)?);
                 }
                 Ok(Value::tuple(self.heap.alloc(crate::gc::ManagedObject::Tuple(v))))
-            }
-            Expr::Set(items) => {
-                let mut set = crate::value::set_with_capacity(items.len());
-                for e in items {
-                    let v = self.eval_expr(e)?;
-                    let key = if v.get_tag() == crate::value::TAG_STR {
-                        if let crate::gc::ManagedObject::Str(s) = self.heap.get(v.as_obj_id()) {
-                            DictKey::Str(s.clone())
-                        } else {
-                            return Err(self.error(xu_syntax::DiagnosticKind::Raw(
-                                "Not a string".into(),
-                            )));
-                        }
-                    } else if v.is_int() {
-                        DictKey::Int(v.as_i64())
-                    } else {
-                        return Err(self.error(xu_syntax::DiagnosticKind::DictKeyRequired));
-                    };
-                    set.map.insert(key, ());
-                }
-                Ok(Value::set(self.heap.alloc(crate::gc::ManagedObject::Set(set))))
             }
             Expr::Range(r) => {
                 let a = self.eval_expr(&r.start)?;

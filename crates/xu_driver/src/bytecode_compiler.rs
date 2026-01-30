@@ -5,7 +5,7 @@
 
 use xu_ir::{
     AssignOp, AssignStmt, BinaryOp, Bytecode, BytecodeFunction, Expr, IfStmt, Module, Op, Stmt,
-    TryStmt, UnaryOp,
+    UnaryOp,
 };
 
 pub fn compile_module(module: &Module) -> Option<Bytecode> {
@@ -110,7 +110,7 @@ impl Compiler {
 
     fn is_const_expr(&self, expr: &Expr) -> bool {
         match expr {
-            Expr::Int(_) | Expr::Float(_) | Expr::Bool(_) | Expr::Null | Expr::Str(_) => true,
+            Expr::Int(_) | Expr::Float(_) | Expr::Bool(_) | Expr::Str(_) => true,
             Expr::Unary { expr, .. } => self.is_const_expr(expr),
             Expr::Binary { left, right, .. } => {
                 self.is_const_expr(left) && self.is_const_expr(right)
@@ -154,11 +154,9 @@ impl Compiler {
                 Some(())
             }
             Stmt::When(_) => None,
-            Stmt::Try(s) => self.compile_try(s),
             Stmt::Return(v) => self.compile_return(v.as_ref()),
             Stmt::Break => self.compile_break(),
             Stmt::Continue => self.compile_continue(),
-            Stmt::Throw(e) => self.compile_throw(e),
             Stmt::Assign(s) => self.compile_assign(s),
             Stmt::Expr(e) => {
                 if self.is_const_expr(e) {
@@ -333,94 +331,6 @@ impl Compiler {
         Some(())
     }
 
-    fn compile_try(&mut self, stmt: &TryStmt) -> Option<()> {
-        if stmt.catch.is_none() && stmt.finally.is_none() {
-            for s in &stmt.body {
-                self.compile_stmt(s)?;
-            }
-            return Some(());
-        }
-
-        let catch_var = stmt.catch.as_ref().and_then(|c| c.var.clone());
-        let catch_var_idx = catch_var.map(|v| self.add_constant(xu_ir::Constant::Str(v)));
-        let try_push_pos = self.bc.ops.len();
-        self.bc
-            .ops
-            .push(Op::TryPush(None, None, usize::MAX, catch_var_idx));
-        for s in &stmt.body {
-            self.compile_stmt(s)?;
-        }
-        if stmt.finally.is_none() {
-            self.bc.ops.push(Op::TryPop);
-        }
-        let j_after_body = self.bc.ops.len();
-        self.bc.ops.push(Op::Jump(usize::MAX));
-
-        let catch_start = self.bc.ops.len();
-        let mut j_after_catch: Option<usize> = None;
-        if let Some(catch) = &stmt.catch {
-            self.bc.ops.push(Op::EnvPush);
-            if let Some(var) = &catch.var {
-                self.bc.ops.push(Op::PushThrown);
-                let n_idx = self.add_constant(xu_ir::Constant::Str(var.clone()));
-                self.bc.ops.push(Op::StoreName(n_idx));
-            }
-            self.bc.ops.push(Op::ClearThrown);
-            for s in &catch.body {
-                self.compile_stmt(s)?;
-            }
-            self.bc.ops.push(Op::EnvPop);
-            if stmt.finally.is_none() {
-                self.bc.ops.push(Op::TryPop);
-            }
-            let pos = self.bc.ops.len();
-            self.bc.ops.push(Op::Jump(usize::MAX));
-            j_after_catch = Some(pos);
-        }
-
-        let finally_start = self.bc.ops.len();
-        if let Some(fin) = &stmt.finally {
-            self.bc.ops.push(Op::TryPop);
-            for s in fin {
-                self.compile_stmt(s)?;
-            }
-            self.bc.ops.push(Op::RunPending);
-        }
-        let end = self.bc.ops.len();
-
-        let Op::TryPush(catch_ip, finally_ip, end_ip, _) = &mut self.bc.ops[try_push_pos] else {
-            return None;
-        };
-        if stmt.catch.is_some() {
-            *catch_ip = Some(catch_start);
-        }
-        if stmt.finally.is_some() {
-            *finally_ip = Some(finally_start);
-        }
-        *end_ip = end;
-
-        let Op::Jump(to) = &mut self.bc.ops[j_after_body] else {
-            return None;
-        };
-        if stmt.finally.is_some() {
-            *to = finally_start;
-        } else {
-            *to = end;
-        }
-
-        if let Some(pos) = j_after_catch {
-            let Op::Jump(to) = &mut self.bc.ops[pos] else {
-                return None;
-            };
-            if stmt.finally.is_some() {
-                *to = finally_start;
-            } else {
-                *to = end;
-            }
-        }
-        Some(())
-    }
-
     fn compile_return(&mut self, v: Option<&Expr>) -> Option<()> {
         if let Some(e) = v {
             self.compile_expr(e)?;
@@ -428,13 +338,6 @@ impl Compiler {
             self.bc.ops.push(Op::ConstNull);
         }
         self.bc.ops.push(Op::Return);
-        Some(())
-    }
-
-    fn compile_throw(&mut self, e: &Expr) -> Option<()> {
-        self.compile_expr(e)?;
-        self.bc.ops.push(Op::SetThrown);
-        self.bc.ops.push(Op::Throw);
         Some(())
     }
 
@@ -600,10 +503,6 @@ impl Compiler {
                 self.bc.ops.push(Op::ConstBool(*v));
                 Some(())
             }
-            Expr::Null => {
-                self.bc.ops.push(Op::ConstNull);
-                Some(())
-            }
             Expr::Str(s) => {
                 let s_idx = self.add_constant(xu_ir::Constant::Str(s.clone()));
                 self.bc.ops.push(Op::Const(s_idx));
@@ -656,7 +555,6 @@ impl Compiler {
                 fn const_part_text(e: &Expr) -> Option<String> {
                     match e {
                         Expr::Str(s) => Some(s.clone()),
-                        Expr::Null => Some("()".to_string()),
                         Expr::Bool(b) => Some(if *b {
                             "true".to_string()
                         } else {
@@ -682,8 +580,7 @@ impl Compiler {
                     } else {
                         non_const += 1;
                         match p {
-                            Expr::Null
-                            | Expr::Bool(_)
+                            Expr::Bool(_)
                             | Expr::Int(_)
                             | Expr::Float(_)
                             | Expr::Str(_) => {}
@@ -716,7 +613,6 @@ impl Compiler {
                     self.bc.ops.push(Op::Const(f_idx));
                     for p in &parts[1..] {
                         match p {
-                            Expr::Null => self.bc.ops.push(Op::StrAppendNull),
                             Expr::Bool(_) => {
                                 self.compile_expr(p)?;
                                 self.bc.ops.push(Op::StrAppendBool)
@@ -746,7 +642,6 @@ impl Compiler {
                 self.bc.ops.push(Op::Const(empty_idx));
                 for p in parts {
                     match p {
-                        Expr::Null => self.bc.ops.push(Op::StrAppendNull),
                         Expr::Bool(_) => {
                             self.compile_expr(p)?;
                             self.bc.ops.push(Op::StrAppendBool)
@@ -784,13 +679,6 @@ impl Compiler {
                     self.compile_expr(e)?;
                 }
                 self.bc.ops.push(Op::TupleNew(items.len()));
-                Some(())
-            }
-            Expr::Set(items) => {
-                for e in items {
-                    self.compile_expr(e)?;
-                }
-                self.bc.ops.push(Op::SetNew(items.len()));
                 Some(())
             }
             Expr::Dict(entries) => {
@@ -916,9 +804,28 @@ impl Compiler {
                     self.bc.ops.push(Op::DictMerge);
                 } else if (mname == "insert" || mname == "insert_int") && m.args.len() == 2 {
                     self.compile_expr(&m.receiver)?;
-                    self.compile_expr(&m.args[0])?;
-                    self.compile_expr(&m.args[1])?;
-                    self.bc.ops.push(Op::DictInsert);
+                    // Check if key is a string constant for optimized path
+                    if mname == "insert" {
+                        if let Expr::Str(s) = &m.args[0] {
+                            // Use optimized DictInsertStrConst for string constant keys
+                            self.compile_expr(&m.args[1])?;
+                            let slot = self.alloc_ic_slot();
+                            let s_idx = self.add_constant(xu_ir::Constant::Str(s.clone()));
+                            self.bc.ops.push(Op::DictInsertStrConst(
+                                s_idx,
+                                xu_ir::stable_hash64(s.as_str()),
+                                Some(slot),
+                            ));
+                        } else {
+                            self.compile_expr(&m.args[0])?;
+                            self.compile_expr(&m.args[1])?;
+                            self.bc.ops.push(Op::DictInsert);
+                        }
+                    } else {
+                        self.compile_expr(&m.args[0])?;
+                        self.compile_expr(&m.args[1])?;
+                        self.bc.ops.push(Op::DictInsert);
+                    }
                 } else if mname == "get" && m.args.len() == 1 {
                     self.compile_expr(&m.receiver)?;
                     if let Expr::Str(s) = &m.args[0] {
