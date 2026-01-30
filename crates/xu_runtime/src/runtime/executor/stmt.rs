@@ -539,6 +539,18 @@ impl Runtime {
             };
             let ui = i as usize;
 
+            // Fast path for simple assignment (no need to read old value)
+            if op == AssignOp::Set {
+                if let crate::gc::ManagedObject::List(list) = self.heap.get_mut(id) {
+                    if ui >= list.len() {
+                        return Err(self.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
+                    }
+                    list[ui] = rhs;
+                }
+                return Ok(());
+            }
+
+            // Compound assignment needs old value
             let mut prev = None;
             if let crate::gc::ManagedObject::List(list) = self.heap.get(id) {
                 if ui >= list.len() {
@@ -567,6 +579,17 @@ impl Runtime {
                 return Err(self.error(xu_syntax::DiagnosticKind::DictKeyRequired));
             };
 
+            // Fast path for simple assignment
+            if op == AssignOp::Set {
+                if let crate::gc::ManagedObject::Dict(me) = self.heap.get_mut(id) {
+                    me.map.insert(key, rhs);
+                    me.ver += 1;
+                    self.dict_version_last = Some((id.0, me.ver));
+                }
+                return Ok(());
+            }
+
+            // Compound assignment needs old value
             let mut prev = None;
             if let crate::gc::ManagedObject::Dict(me) = self.heap.get(id) {
                 prev = me.map.get(&key).cloned();
