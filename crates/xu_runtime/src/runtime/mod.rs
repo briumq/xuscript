@@ -1030,7 +1030,7 @@ impl Runtime {
                                 method_hash,
                                 struct_ty_hash: 0,
                                 kind,
-                                cached_func: Value::UNIT,
+                                cached_func: Value::VOID,
                                 cached_user: None,
                                 cached_bytecode: None,
                             };
@@ -1093,7 +1093,7 @@ impl Runtime {
                     method_hash,
                     struct_ty_hash: 0,
                     kind,
-                    cached_func: Value::UNIT,
+                    cached_func: Value::VOID,
                     cached_user: None,
                     cached_bytecode: None,
                 };

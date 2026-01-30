@@ -29,7 +29,7 @@ pub(super) fn dispatch(
             if let crate::gc::ManagedObject::File(h) = rt.heap.get_mut(id) {
                 h.open = false;
             }
-            Ok(Value::NULL)
+            Ok(Value::VOID)
         }
         _ => Err(rt.error(xu_syntax::DiagnosticKind::UnknownFileMethod(
             method.to_string(),

@@ -8,6 +8,15 @@ use super::utils::{Finder, report_shadowing, collect_pattern_binds};
 use super::expr::analyze_expr;
 use super::{ImportCache, process_import, infer_module_alias};
 
+/// Check if an expression is a void literal (empty tuple)
+fn is_void_expr(expr: &Expr) -> bool {
+    match expr {
+        Expr::Tuple(items) if items.is_empty() => true,
+        Expr::Group(inner) => is_void_expr(inner),
+        _ => false,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn analyze_stmts(
     stmts: &mut [Stmt],
@@ -318,6 +327,15 @@ pub fn analyze_stmts(
             }
             Stmt::Assign(s) => {
                 analyze_expr(&mut s.value, funcs, scope, finder, out);
+
+                // Check for void assignment
+                if is_void_expr(&s.value) {
+                    out.push(Diagnostic::error_kind(
+                        DiagnosticKind::VoidAssignment,
+                        finder.next_significant_span(),
+                    ));
+                }
+
                 match &mut s.target {
                     Expr::Ident(name, slot) => {
                         if s.decl.is_some() && s.ty.is_none() {

@@ -143,7 +143,7 @@ impl Runtime {
             }
             Expr::Tuple(items) => {
                 if items.is_empty() {
-                    return Ok(Value::NULL);
+                    return Ok(Value::VOID);
                 }
                 let mut v = Vec::with_capacity(items.len());
                 for e in items {
@@ -247,7 +247,7 @@ impl Runtime {
                 let layout = self.struct_layouts.get(&s.ty).cloned().ok_or_else(|| {
                     self.error(xu_syntax::DiagnosticKind::UnknownStruct(s.ty.clone()))
                 })?;
-                let mut values = vec![Value::NULL; layout.len()];
+                let mut values = vec![Value::VOID; layout.len()];
                 if let Some(def) = self.structs.get(&s.ty) {
                     let defaults = def
                         .fields

@@ -202,7 +202,7 @@ fn dispatch_option_some(
             }
             let f = args[0];
             let _ = rt.call_function(f, &[inner])?;
-            Ok(Value::NULL)
+            Ok(Value::VOID)
         }
         MethodKind::OptFilter => {
             if args.len() != 1 {

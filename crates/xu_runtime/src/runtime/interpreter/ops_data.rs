@@ -16,7 +16,7 @@ pub(super) fn op_store_local(rt: &mut Runtime, stack: &mut Vec<Value>, idx: usiz
     let val = stack.pop().ok_or("Stack underflow")?;
     if !rt.set_local_by_index(idx, val) {
         while rt.get_local_by_index(idx).is_none() {
-            rt.define_local(format!("_tmp_{}", idx), Value::UNIT);
+            rt.define_local(format!("_tmp_{}", idx), Value::VOID);
         }
         rt.set_local_by_index(idx, val);
     }
@@ -68,7 +68,7 @@ pub(super) fn op_struct_init(
         rt.error(xu_syntax::DiagnosticKind::UnknownStruct(ty.to_string()))
     })?.clone();
 
-    let mut values = vec![Value::UNIT; layout.len()];
+    let mut values = vec![Value::VOID; layout.len()];
     for k in field_names.iter().rev() {
         let v = stack.pop().ok_or("Stack underflow")?;
         if let Some(pos) = layout.iter().position(|f| f == k) {
@@ -101,7 +101,7 @@ pub(super) fn op_list_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) ->
 #[inline(always)]
 pub(super) fn op_tuple_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -> Result<(), String> {
     if n == 0 {
-        stack.push(Value::UNIT);
+        stack.push(Value::VOID);
         return Ok(());
     }
     let mut items: Vec<Value> = Vec::with_capacity(n);

@@ -277,7 +277,7 @@ pub(super) fn dispatch(
                         ty: ty.as_str().to_string(),
                     }));
                 }
-                Ok(Value::NULL)
+                Ok(Value::VOID)
             } else {
                 if variant.as_str() == "ok" {
                     let v = payload.get(0).cloned().ok_or_else(|| {
@@ -286,9 +286,9 @@ pub(super) fn dispatch(
                         ))
                     })?;
                     let _ = rt.call_function(f, &[v])?;
-                    Ok(Value::NULL)
+                    Ok(Value::VOID)
                 } else if variant.as_str() == "err" {
-                    Ok(Value::NULL)
+                    Ok(Value::VOID)
                 } else {
                     Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
                         method: method.to_string(),

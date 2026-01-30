@@ -20,6 +20,7 @@ pub enum DiagnosticKind {
 
     // Analyzer
     UnreachableCode,
+    VoidAssignment,
     TypeMismatch {
         expected: String,
         actual: String,
@@ -125,6 +126,7 @@ impl DiagnosticsFormatter {
             DiagnosticKind::UnclosedDelimiter(c) => format!("Unclosed '{}'", c),
 
             DiagnosticKind::UnreachableCode => "Unreachable code".into(),
+            DiagnosticKind::VoidAssignment => "Cannot assign void to a variable".into(),
             DiagnosticKind::DidYouMean(s) => format!("Did you mean '{}'?", s),
 
             DiagnosticKind::ExpectedToken(s) => format!("Expected {}", s),

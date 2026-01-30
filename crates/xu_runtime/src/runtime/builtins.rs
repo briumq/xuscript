@@ -10,7 +10,7 @@ pub(super) fn builtin_print(rt: &mut Runtime, args: &[Value]) -> Result<Value, S
     for a in args {
         rt.write_output(&value_to_string(a, &rt.heap));
     }
-    Ok(Value::UNIT)
+    Ok(Value::VOID)
 }
 
 pub(super) fn builtin_gen_id(rt: &mut Runtime, _args: &[Value]) -> Result<Value, String> {
@@ -28,7 +28,7 @@ pub(super) fn builtin_gc(rt: &mut Runtime, _args: &[Value]) -> Result<Value, Str
     }
     // Force a thread yield to allow OS to reclaim memory
     std::thread::sleep(std::time::Duration::from_millis(10));
-    Ok(Value::UNIT)
+    Ok(Value::VOID)
 }
 
 pub(super) fn builtin_open(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
@@ -213,7 +213,7 @@ pub(super) fn builtin_to_text(rt: &mut Runtime, args: &[Value]) -> Result<Value,
         } else {
             "text".into()
         }
-    } else if v.is_unit() {
+    } else if v.is_void() {
         "()".into()
     } else if v.is_bool() {
         if v.as_bool() {
@@ -277,7 +277,7 @@ pub(super) fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<V
     };
 
     let v = &args[1];
-    if v.is_unit() {
+    if v.is_void() {
         if let crate::gc::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
             sb.push_str("()");
         }
@@ -328,7 +328,7 @@ pub(super) fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<V
         }
     }
 
-    Ok(Value::UNIT)
+    Ok(Value::VOID)
 }
 
 pub(super) fn builtin_builder_finalize(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
@@ -526,7 +526,7 @@ pub(super) fn builtin_assert(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
         };
         return Err(msg);
     }
-    Ok(Value::UNIT)
+    Ok(Value::VOID)
 }
 
 pub(super) fn builtin_assert_eq(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
@@ -545,7 +545,7 @@ pub(super) fn builtin_assert_eq(rt: &mut Runtime, args: &[Value]) -> Result<Valu
         };
         return Err(msg);
     }
-    Ok(Value::UNIT)
+    Ok(Value::VOID)
 }
 
 fn to_f64(v: &Value) -> Result<f64, String> {
@@ -586,7 +586,7 @@ pub(super) fn builtin_set_from_list(rt: &mut Runtime, args: &[Value]) -> Result<
         } else {
             return Err("Set items must be int or string".into());
         };
-        dict.map.insert(key, Value::UNIT);
+        dict.map.insert(key, Value::VOID);
     }
 
     Ok(Value::dict(rt.heap.alloc(crate::gc::ManagedObject::Dict(dict))))

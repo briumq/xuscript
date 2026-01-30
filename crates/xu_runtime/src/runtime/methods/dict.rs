@@ -63,7 +63,7 @@ pub(super) fn dispatch(
                     rt.dict_version_last = Some((id.0, me.ver));
                 }
             }
-            Ok(Value::UNIT)
+            Ok(Value::VOID)
         }
         MethodKind::DictInsert => {
             if args.len() != 2 {
@@ -110,7 +110,7 @@ pub(super) fn dispatch(
                     rt.dict_version_last = Some((id.0, me.ver));
                 }
             }
-            Ok(Value::UNIT)
+            Ok(Value::VOID)
         }
         MethodKind::DictInsertInt => {
             if args.len() != 2 {
@@ -144,7 +144,7 @@ pub(super) fn dispatch(
                     rt.dict_version_last = Some((id.0, me.ver));
                 }
             }
-            Ok(Value::UNIT)
+            Ok(Value::VOID)
         }
         MethodKind::DictGet => {
             if args.len() != 1 {
@@ -261,7 +261,7 @@ pub(super) fn dispatch(
                             let ok = me
                                 .prop_values
                                 .get(off)
-                                .is_some_and(|v| v.get_tag() != crate::value::TAG_UNIT);
+                                .is_some_and(|v| v.get_tag() != crate::value::TAG_VOID);
                             return Ok(Value::from_bool(ok));
                         }
                     }
@@ -369,7 +369,7 @@ pub(super) fn dispatch(
                 me.ver += 1;
                 rt.dict_version_last = Some((id.0, me.ver));
             }
-            Ok(Value::UNIT)
+            Ok(Value::VOID)
         }
         MethodKind::DictKeys => {
             if !args.is_empty() {
@@ -426,7 +426,7 @@ pub(super) fn dispatch(
                 let mut n = me.map.len();
                 n += me.prop_values.len();
                 for ev in &me.elements {
-                    if ev.get_tag() != crate::value::TAG_UNIT {
+                    if ev.get_tag() != crate::value::TAG_VOID {
                         n += 1;
                     }
                 }

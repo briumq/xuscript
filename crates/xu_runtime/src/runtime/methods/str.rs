@@ -1,7 +1,7 @@
 use crate::Value;
 
 use super::{MethodKind, Runtime};
-use crate::runtime::util::value_to_string;
+use crate::runtime::util::{to_i64, value_to_string};
 
 pub(super) fn dispatch(
     rt: &mut Runtime,
@@ -17,6 +17,27 @@ pub(super) fn dispatch(
         return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a string".into())));
     };
     match kind {
+        MethodKind::DictGet | MethodKind::DictGetInt => {
+            // str.get(i) - safe access returning Option
+            if args.len() != 1 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 1,
+                    expected_max: 1,
+                    actual: args.len(),
+                }));
+            }
+            let i = to_i64(&args[0])?;
+            let total = s.as_str().chars().count();
+            if i < 0 || (i as usize) >= total {
+                Ok(rt.option_none())
+            } else {
+                let ch: String = s.as_str().chars().skip(i as usize).take(1).collect();
+                let str_val = Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+                    crate::Text::from_string(ch),
+                )));
+                Ok(rt.option_some(str_val))
+            }
+        }
         MethodKind::StrFormat => {
             if args.len() != 1 {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {

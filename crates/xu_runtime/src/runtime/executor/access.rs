@@ -192,7 +192,7 @@ impl Runtime {
                 let mut n = v.map.len();
                 n += v.prop_values.len();
                 for ev in &v.elements {
-                    if ev.get_tag() != crate::value::TAG_UNIT {
+                    if ev.get_tag() != crate::value::TAG_VOID {
                         n += 1;
                     }
                 }
@@ -220,7 +220,7 @@ impl Runtime {
                     }
                 }
                 for (i, v) in db.elements.iter().enumerate() {
-                    if v.get_tag() != crate::value::TAG_NULL {
+                    if v.get_tag() != crate::value::TAG_VOID {
                         out.push(i64_to_text_fast(i as i64));
                     }
                 }
@@ -249,7 +249,7 @@ impl Runtime {
                     }
                 }
                 for v in db.elements.iter() {
-                    if v.get_tag() != crate::value::TAG_NULL {
+                    if v.get_tag() != crate::value::TAG_VOID {
                         out.push(*v);
                     }
                 }
@@ -281,7 +281,7 @@ impl Runtime {
                         }
                     }
                     for (i, v) in db.elements.iter().enumerate() {
-                        if v.get_tag() != crate::value::TAG_NULL {
+                        if v.get_tag() != crate::value::TAG_VOID {
                             out.push((i64_to_text_fast(i as i64), *v));
                         }
                     }

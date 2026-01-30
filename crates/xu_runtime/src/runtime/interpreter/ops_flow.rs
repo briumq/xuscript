@@ -96,7 +96,7 @@ pub(super) fn op_foreach_init(
             return Ok(());
         }
         let first = match rt.heap.get(id) {
-            ManagedObject::List(v) => v.get(0).cloned().unwrap_or(Value::UNIT),
+            ManagedObject::List(v) => v.get(0).cloned().unwrap_or(Value::VOID),
             _ => return Err("Not a list".into()),
         };
         iters.push(IterState::List { id, idx: 1, len });
@@ -165,7 +165,7 @@ pub(super) fn op_foreach_next(
                 None
             } else {
                 let item = match rt.heap.get(*id) {
-                    ManagedObject::List(v) => v.get(*idx).cloned().unwrap_or(Value::UNIT),
+                    ManagedObject::List(v) => v.get(*idx).cloned().unwrap_or(Value::VOID),
                     _ => return Err("Not a list".into()),
                 };
                 *idx += 1;

@@ -187,7 +187,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::ConstBool(b) => stack.push(Value::from_bool(*b)),
-            Op::ConstNull => stack.push(Value::UNIT),
+            Op::ConstNull => stack.push(Value::VOID),
             Op::Pop => {
                 let _ = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
             }
@@ -202,7 +202,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 if !rt.set_local_by_index(*idx, val) {
                     // Define up to idx if not exist
                     while rt.get_local_by_index(*idx).is_none() {
-                        rt.define_local(format!("_tmp_{}", idx), Value::UNIT);
+                        rt.define_local(format!("_tmp_{}", idx), Value::VOID);
                     }
                     rt.set_local_by_index(*idx, val);
                 }
@@ -659,7 +659,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     sa.append_null();
                     stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
                 } else {
-                    match add_with_heap(rt, a, Value::UNIT) {
+                    match add_with_heap(rt, a, Value::VOID) {
                         Ok(r) => stack.push(r),
                         Err(e) => {
                             let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
@@ -1134,7 +1134,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     continue;
                 };
 
-                let mut values = vec![Value::UNIT; layout.len()];
+                let mut values = vec![Value::VOID; layout.len()];
 
                 // Apply default values from struct definition
                 if let Some(def) = rt.structs.get(&ty).cloned() {
@@ -1473,7 +1473,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                             // We don't need short key for insert as we rely on object identity
                                             key_len: 0,
                                             ver: 0, // Not used for hash caching
-                                            value: Value::UNIT,
+                                            value: Value::VOID,
                                             ..Default::default()
                                         };
                                     }
@@ -1499,7 +1499,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                 me.ver += 1;
                             }
                             stack.truncate(args_start - 1);
-                            stack.push(Value::UNIT);
+                            stack.push(Value::VOID);
                             ip += 1;
                             continue;
                         }
@@ -1702,7 +1702,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                 let ui = key as usize;
                                 if ui < me.elements.len() {
                                     let v = me.elements[ui];
-                                    if v.get_tag() != crate::value::TAG_UNIT {
+                                    if v.get_tag() != crate::value::TAG_VOID {
                                         val = Some(v);
                                     }
                                 }
@@ -1976,7 +1976,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         let ui = *i as usize;
                         if ui < me.elements.len() {
                             let v = me.elements[ui];
-                            if v.get_tag() != crate::value::TAG_UNIT {
+                            if v.get_tag() != crate::value::TAG_VOID {
                                 val = Some(v);
                             }
                         }
@@ -2098,7 +2098,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         continue;
                     }
                     let first = match rt.heap.get(id) {
-                        ManagedObject::List(v) => v.get(0).cloned().unwrap_or(Value::UNIT),
+                        ManagedObject::List(v) => v.get(0).cloned().unwrap_or(Value::VOID),
                         _ => {
                             return Err(
                                 rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into()))
@@ -2189,7 +2189,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         } else {
                             let item = match rt.heap.get(*id) {
                                 ManagedObject::List(v) => {
-                                    v.get(*idx).cloned().unwrap_or(Value::UNIT)
+                                    v.get(*idx).cloned().unwrap_or(Value::VOID)
                                 }
                                 _ => {
                                     return Err(rt.error(xu_syntax::DiagnosticKind::Raw(
@@ -2288,7 +2288,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             }
             Op::TupleNew(n) => {
                 if *n == 0 {
-                    stack.push(Value::UNIT);
+                    stack.push(Value::VOID);
                     ip += 1;
                     continue;
                 }
@@ -2382,7 +2382,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
                         s.push_str(piece);
                     }
-                } else if v.is_unit() {
+                } else if v.is_void() {
                     if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
                         s.push_str("()");
                     }
@@ -2495,7 +2495,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                 id: id.0,
                                 key_hash: internal_hash,
                                 ver: d.ver,
-                                value: Value::UNIT,
+                                value: Value::VOID,
                                 ..Default::default()
                             };
                         }

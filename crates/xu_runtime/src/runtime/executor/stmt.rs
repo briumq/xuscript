@@ -198,7 +198,7 @@ impl Runtime {
                                 // Ensure the slot exists
                                 if let Some(values) = self.locals.values.last_mut() {
                                     if values.len() <= idx {
-                                        values.resize(idx + 1, Value::UNIT);
+                                        values.resize(idx + 1, Value::VOID);
                                     }
                                 }
                                 if let Some(map) = self.locals.maps.last_mut() {
@@ -210,12 +210,12 @@ impl Runtime {
                     // Fallback to define_local if not found in compiled_locals_idx
                     if local_idx.is_none() {
                         if self.get_local(&s.var).is_none() {
-                            self.define_local(s.var.clone(), Value::UNIT);
+                            self.define_local(s.var.clone(), Value::VOID);
                         }
                         local_idx = self.get_local_index(&s.var);
                     }
                 } else {
-                    self.env.define(s.var.clone(), Value::UNIT);
+                    self.env.define(s.var.clone(), Value::VOID);
                 }
 
                 let tag = iter.get_tag();
@@ -328,7 +328,7 @@ impl Runtime {
                 Flow::None
             }
             Stmt::Return(v) => match v {
-                None => Flow::Return(Value::UNIT),
+                None => Flow::Return(Value::VOID),
                 Some(e) => match self.eval_expr(e) {
                     Ok(v) => Flow::Return(v),
                     Err(e) => {
@@ -392,7 +392,7 @@ impl Runtime {
                         if self.locals.is_active() {
                             if let Some(idx) = self.locals.get_index(name) {
                                 let mut val =
-                                    self.locals.take_local_by_index(idx).unwrap_or(Value::UNIT);
+                                    self.locals.take_local_by_index(idx).unwrap_or(Value::VOID);
                                 val.bin_op_assign(BinaryOp::Add, rhs, &mut self.heap)?;
                                 self.locals.set_by_index(idx, val);
                                 return Ok(());

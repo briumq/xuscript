@@ -10,7 +10,7 @@ pub(super) fn value_to_string(v: &Value, heap: &Heap) -> String {
 }
 
 fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) -> String {
-    if v.is_null() {
+    if v.is_void() {
         "()".to_string()
     } else if v.is_bool() {
         if v.as_bool() {
@@ -166,7 +166,7 @@ pub(super) fn type_matches(ty: &str, v: &Value, heap: &Heap) -> bool {
         "module" => v.get_tag() == crate::value::TAG_MODULE,
         "range" => v.get_tag() == crate::value::TAG_RANGE,
         "file" => v.get_tag() == crate::value::TAG_FILE,
-        "unit" => v.is_null(),
+        "void" => v.is_void(),
         _ => {
             let tag = v.get_tag();
             if tag == crate::value::TAG_STRUCT {

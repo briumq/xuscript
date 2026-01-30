@@ -12,6 +12,26 @@ pub(super) fn dispatch(
 ) -> Result<Value, String> {
     let id = recv.as_obj_id();
     match kind {
+        MethodKind::DictGet | MethodKind::DictGetInt => {
+            // list.get(i) - safe access returning Option
+            if args.len() != 1 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 1,
+                    expected_max: 1,
+                    actual: args.len(),
+                }));
+            }
+            let i = to_i64(&args[0])?;
+            if let crate::gc::ManagedObject::List(list) = rt.heap.get(id) {
+                if i < 0 || (i as usize) >= list.len() {
+                    Ok(rt.option_none())
+                } else {
+                    Ok(rt.option_some(list[i as usize]))
+                }
+            } else {
+                Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())))
+            }
+        }
         MethodKind::ListAdd => {
             if args.len() != 1 {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
@@ -23,7 +43,7 @@ pub(super) fn dispatch(
             if let crate::gc::ManagedObject::List(list) = rt.heap.get_mut(id) {
                 list.push(args[0].clone());
             }
-            Ok(Value::UNIT)
+            Ok(Value::VOID)
         }
         MethodKind::Remove => {
             if args.len() != 1 {
@@ -77,7 +97,7 @@ pub(super) fn dispatch(
                 }));
             }
             if let crate::gc::ManagedObject::List(list) = rt.heap.get_mut(id) {
-                Ok(list.pop().unwrap_or(Value::UNIT))
+                Ok(list.pop().unwrap_or(Value::VOID))
             } else {
                 Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())))
             }
@@ -93,7 +113,7 @@ pub(super) fn dispatch(
             if let crate::gc::ManagedObject::List(list) = rt.heap.get_mut(id) {
                 list.clear();
             }
-            Ok(Value::UNIT)
+            Ok(Value::VOID)
         }
         MethodKind::ListReverse => {
             if !args.is_empty() {
@@ -106,7 +126,7 @@ pub(super) fn dispatch(
             if let crate::gc::ManagedObject::List(list) = rt.heap.get_mut(id) {
                 list.reverse();
             }
-            Ok(Value::UNIT)
+            Ok(Value::VOID)
         }
         MethodKind::ListJoin => {
             if args.len() != 1 {
