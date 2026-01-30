@@ -2420,7 +2420,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             Op::DictInsert => {
                 dict_ops::op_dict_insert(rt, &mut stack)?;
             }
-            Op::DictInsertStrConst(idx, k_hash, slot) => {
+            Op::DictInsertStrConst(idx, _k_hash, slot) => {
                 let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                 let dict = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                 if dict.get_tag() != TAG_DICT {
@@ -2433,17 +2433,24 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
 
                 // Get the key string first (before any mutable borrows)
                 let k = rt.get_const_str(*idx, &bc.constants);
+                let k_bytes = k.as_bytes();
+                let k_len = k_bytes.len();
 
-                // Try IC cache first - optimized for hot path
+                // Try IC cache first - fast path for short keys (<=16 bytes)
                 let mut cache_hit = false;
                 if let Some(idx_slot) = slot {
                     if *idx_slot < rt.ic_slots.len() {
                         let c = &rt.ic_slots[*idx_slot];
-                        if c.id == id.0 && c.key_hash == *k_hash {
-                            // Cache hit - we have the hash and can update directly
-                            // Relaxed version check: allow any version for hot updates
+                        // For short keys, compare directly; for long keys, compare hash
+                        let key_match = if k_len <= 16 {
+                            c.key_len == k_len as u8 && c.key_short[..k_len] == k_bytes[..]
+                        } else {
+                            c.key_len == k_len as u8 && c.key_hash != 0
+                        };
+                        if c.id == id.0 && key_match {
+                            let cached_hash = c.key_hash;
                             if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
-                                match d.map.raw_entry_mut().from_hash(*k_hash, |key| {
+                                match d.map.raw_entry_mut().from_hash(cached_hash, |key| {
                                     match key {
                                         DictKey::Str { data, .. } => data.as_str() == k,
                                         _ => false,
@@ -2485,14 +2492,20 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         d.ver += 1;
                         rt.dict_version_last = Some((id.0, d.ver));
 
-                        // Update IC cache
+                        // Update IC cache with key info for fast comparison
                         if let Some(idx_slot) = slot {
                             while rt.ic_slots.len() <= *idx_slot {
                                 rt.ic_slots.push(super::ICSlot::default());
                             }
+                            let mut key_short = [0u8; 16];
+                            let key_bytes = k.as_bytes();
+                            let copy_len = key_bytes.len().min(16);
+                            key_short[..copy_len].copy_from_slice(&key_bytes[..copy_len]);
                             rt.ic_slots[*idx_slot] = super::ICSlot {
                                 id: id.0,
                                 key_hash: internal_hash,
+                                key_short,
+                                key_len: key_bytes.len() as u8,
                                 ver: d.ver,
                                 value: Value::VOID,
                                 ..Default::default()
