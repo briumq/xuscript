@@ -591,3 +591,28 @@ pub(super) fn builtin_set_from_list(rt: &mut Runtime, args: &[Value]) -> Result<
 
     Ok(Value::dict(rt.heap.alloc(crate::gc::ManagedObject::Dict(dict))))
 }
+
+pub(super) fn builtin_heap_stats(rt: &mut Runtime, _args: &[Value]) -> Result<Value, String> {
+    let stats = rt.heap.memory_stats();
+    rt.write_output(&stats);
+    rt.write_output("\n");
+    // Print type sizes
+    rt.write_output(&format!(
+        "Type sizes: Text={}, DictKey={}, Value={}, ManagedObject={}\n",
+        std::mem::size_of::<crate::Text>(),
+        std::mem::size_of::<crate::value::DictKey>(),
+        std::mem::size_of::<Value>(),
+        std::mem::size_of::<crate::gc::ManagedObject>()
+    ));
+    rt.write_output(&format!(
+        "Variant sizes: List={}, Dict={}, DictStr={}, Str={}, Function={}, Module={}, Shape={}\n",
+        std::mem::size_of::<Vec<Value>>(),
+        std::mem::size_of::<crate::value::Dict>(),
+        std::mem::size_of::<crate::value::DictStr>(),
+        std::mem::size_of::<crate::Text>(),
+        std::mem::size_of::<crate::value::Function>(),
+        std::mem::size_of::<crate::value::ModuleInstance>(),
+        std::mem::size_of::<crate::value::Shape>()
+    ));
+    Ok(Value::VOID)
+}

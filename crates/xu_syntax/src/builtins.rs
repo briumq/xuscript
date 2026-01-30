@@ -1,6 +1,7 @@
 pub const BUILTIN_NAMES: &[&str] = &[
     "__builtin_assert",
     "__builtin_assert_eq",
+    "__heap_stats",
     "__set_from_list",
     "os_args",
     "print",
@@ -38,7 +39,7 @@ pub const BUILTIN_NAMES: &[&str] = &[
 
 pub fn builtin_return_type(name: &str) -> Option<&'static str> {
     match name {
-        "__builtin_assert" | "__builtin_assert_eq" => Some("unit"),
+        "__builtin_assert" | "__builtin_assert_eq" | "__heap_stats" => Some("unit"),
         "__set_from_list" => Some("dict"),
         "print" | "println" | "builder_push" | "gc" => Some("unit"),
         "gen_id" | "time_unix" | "time_millis" | "mono_micros" | "mono_nanos" | "abs" | "max"

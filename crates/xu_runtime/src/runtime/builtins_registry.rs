@@ -88,5 +88,6 @@ impl BuiltinProvider for StdBuiltinProvider {
         registry.register("__builtin_assert", builtins::builtin_assert);
         registry.register("__builtin_assert_eq", builtins::builtin_assert_eq);
         registry.register("__set_from_list", builtins::builtin_set_from_list);
+        registry.register("__heap_stats", builtins::builtin_heap_stats);
     }
 }

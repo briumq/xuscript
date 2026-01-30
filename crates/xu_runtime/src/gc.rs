@@ -15,13 +15,13 @@ pub enum ManagedObject {
     File(Box<FileHandle>),
     Builder(String),
     Struct(Box<StructInstance>),
-    Module(ModuleInstance),
+    Module(Box<ModuleInstance>),
     Range(i64, i64, bool),
     Enum(Box<(crate::Text, crate::Text, Box<[Value]>)>),
     OptionSome(Value), // Optimized Option::some with single value
     Function(Function),
     Str(crate::Text),
-    Shape(crate::value::Shape),
+    Shape(Box<crate::value::Shape>),
 }
 
 impl ManagedObject {
@@ -366,5 +366,86 @@ impl Heap {
         self.gc_threshold_bytes = self.gc_threshold_bytes.max(1024 * 1024); // Min 1MB
     }
 
+    /// Get memory statistics by object type
+    pub fn memory_stats(&self) -> String {
+        let mut str_count = 0usize;
+        let mut str_bytes = 0usize;
+        let mut list_count = 0usize;
+        let mut list_bytes = 0usize;
+        let mut dict_count = 0usize;
+        let mut dict_bytes = 0usize;
+        let mut dict_capacity = 0usize;
+        let mut dict_len = 0usize;
+        let mut dict_str_count = 0usize;
+        let mut dict_str_bytes = 0usize;
+        let mut struct_count = 0usize;
+        let mut struct_bytes = 0usize;
+        let mut enum_count = 0usize;
+        let mut enum_bytes = 0usize;
+        let mut func_count = 0usize;
+        let mut func_bytes = 0usize;
+        let mut builder_count = 0usize;
+        let mut builder_bytes = 0usize;
+        let mut range_count = 0usize;
+        let mut range_bytes = 0usize;
+        let mut other_count = 0usize;
+        let mut other_bytes = 0usize;
+
+        for obj in self.objects.iter().flatten() {
+            let size = obj.size();
+            match obj {
+                ManagedObject::Str(_) => { str_count += 1; str_bytes += size; }
+                ManagedObject::List(_) => { list_count += 1; list_bytes += size; }
+                ManagedObject::Dict(d) => {
+                    dict_count += 1;
+                    dict_bytes += size;
+                    dict_capacity += d.map.capacity();
+                    dict_len += d.map.len();
+                }
+                ManagedObject::DictStr(_) => { dict_str_count += 1; dict_str_bytes += size; }
+                ManagedObject::Struct(_) => { struct_count += 1; struct_bytes += size; }
+                ManagedObject::Enum(_) | ManagedObject::OptionSome(_) => { enum_count += 1; enum_bytes += size; }
+                ManagedObject::Function(_) => { func_count += 1; func_bytes += size; }
+                ManagedObject::Builder(_) => { builder_count += 1; builder_bytes += size; }
+                ManagedObject::Range(_, _, _) => { range_count += 1; range_bytes += size; }
+                _ => { other_count += 1; other_bytes += size; }
+            }
+        }
+
+        let total_count = str_count + list_count + dict_count + dict_str_count + struct_count + enum_count + func_count + builder_count + range_count + other_count;
+        let total_bytes = str_bytes + list_bytes + dict_bytes + dict_str_bytes + struct_bytes + enum_bytes + func_bytes + builder_bytes + range_bytes + other_bytes;
+        let heap_overhead = self.objects.capacity() * std::mem::size_of::<Option<ManagedObject>>();
+
+        format!(
+            "=== Heap Memory Stats ===\n\
+             Str:      {:>8} objects, {:>12} bytes ({:.1}%)\n\
+             List:     {:>8} objects, {:>12} bytes ({:.1}%)\n\
+             Dict:     {:>8} objects, {:>12} bytes ({:.1}%) [cap={}, len={}]\n\
+             DictStr:  {:>8} objects, {:>12} bytes ({:.1}%)\n\
+             Struct:   {:>8} objects, {:>12} bytes ({:.1}%)\n\
+             Enum:     {:>8} objects, {:>12} bytes ({:.1}%)\n\
+             Function: {:>8} objects, {:>12} bytes ({:.1}%)\n\
+             Builder:  {:>8} objects, {:>12} bytes ({:.1}%)\n\
+             Range:    {:>8} objects, {:>12} bytes ({:.1}%)\n\
+             Other:    {:>8} objects, {:>12} bytes ({:.1}%)\n\
+             --------------------------\n\
+             Total:    {:>8} objects, {:>12} bytes\n\
+             Heap vec: {:>8} slots,   {:>12} bytes overhead\n\
+             Free:     {:>8} slots",
+            str_count, str_bytes, if total_bytes > 0 { str_bytes as f64 / total_bytes as f64 * 100.0 } else { 0.0 },
+            list_count, list_bytes, if total_bytes > 0 { list_bytes as f64 / total_bytes as f64 * 100.0 } else { 0.0 },
+            dict_count, dict_bytes, if total_bytes > 0 { dict_bytes as f64 / total_bytes as f64 * 100.0 } else { 0.0 }, dict_capacity, dict_len,
+            dict_str_count, dict_str_bytes, if total_bytes > 0 { dict_str_bytes as f64 / total_bytes as f64 * 100.0 } else { 0.0 },
+            struct_count, struct_bytes, if total_bytes > 0 { struct_bytes as f64 / total_bytes as f64 * 100.0 } else { 0.0 },
+            enum_count, enum_bytes, if total_bytes > 0 { enum_bytes as f64 / total_bytes as f64 * 100.0 } else { 0.0 },
+            func_count, func_bytes, if total_bytes > 0 { func_bytes as f64 / total_bytes as f64 * 100.0 } else { 0.0 },
+            builder_count, builder_bytes, if total_bytes > 0 { builder_bytes as f64 / total_bytes as f64 * 100.0 } else { 0.0 },
+            range_count, range_bytes, if total_bytes > 0 { range_bytes as f64 / total_bytes as f64 * 100.0 } else { 0.0 },
+            other_count, other_bytes, if total_bytes > 0 { other_bytes as f64 / total_bytes as f64 * 100.0 } else { 0.0 },
+            total_count, total_bytes,
+            self.objects.capacity(), heap_overhead,
+            self.free_list.len()
+        )
+    }
 
 }

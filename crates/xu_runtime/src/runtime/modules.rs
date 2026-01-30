@@ -188,7 +188,7 @@ pub(super) fn import_path(rt: &mut Runtime, path: &str) -> Result<Value, String>
         }
         let module_obj = Value::module(
             rt.heap
-                .alloc(crate::gc::ManagedObject::Module(ModuleInstance { exports })),
+                .alloc(crate::gc::ManagedObject::Module(Box::new(ModuleInstance { exports }))),
         );
         rt.loaded_modules.insert(key.clone(), module_obj.clone());
         if trace_import {
