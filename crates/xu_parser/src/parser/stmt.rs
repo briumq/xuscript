@@ -61,28 +61,30 @@ impl<'a, 'b> Parser<'a, 'b> {
     }
 
     /// Check if the current `{` starts a block statement (not a dict literal).
-    /// A block statement has `{` followed by a statement keyword or `}`.
+    /// Dict literal patterns:
+    /// - `{ }` empty dict (but we treat as empty block for simplicity)
+    /// - `{ "key": value }` string key
+    /// - `{ ident: value }` identifier key (note the colon)
+    /// Everything else is a block statement.
     fn is_block_stmt(&self) -> bool {
         if !self.at(TokenKind::LBrace) {
             return false;
         }
-        // Look ahead to see what follows the `{`
         let next = self.peek_kind_after_lbrace();
-        matches!(
-            next,
-            Some(TokenKind::KwLet)
-                | Some(TokenKind::KwVar)
-                | Some(TokenKind::KwIf)
-                | Some(TokenKind::KwWhile)
-                | Some(TokenKind::KwFor)
-                | Some(TokenKind::KwMatch)
-                | Some(TokenKind::KwReturn)
-                | Some(TokenKind::KwBreak)
-                | Some(TokenKind::KwContinue)
-                | Some(TokenKind::KwFunc)
-                | Some(TokenKind::KwUse)
-                | Some(TokenKind::LBrace)  // nested block
-        )
+        match next {
+            // String followed by `:` is a dict literal
+            Some(TokenKind::Str) => {
+                let after = self.peek_kind_after_lbrace_skip_one();
+                after != Some(TokenKind::Colon)
+            }
+            // Identifier followed by `:` is a dict literal
+            Some(TokenKind::Ident) => {
+                let after = self.peek_kind_after_lbrace_ident();
+                after != Some(TokenKind::Colon)
+            }
+            // Everything else is a block (including empty `{}`)
+            _ => true,
+        }
     }
 
     /// Parse a block statement: `{ stmts... }`

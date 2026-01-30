@@ -257,6 +257,63 @@ impl<'a, 'b> Parser<'a, 'b> {
         None
     }
 
+    /// Peek at the token kind after `{ ident`, skipping whitespace/newlines.
+    pub(super) fn peek_kind_after_lbrace_ident(&self) -> Option<TokenKind> {
+        let mut j = self.i + 1; // skip the `{`
+        // Skip whitespace to find the identifier
+        while j < self.tokens.len() {
+            let kind = self.tokens[j].kind;
+            if kind == TokenKind::Newline || kind == TokenKind::Indent {
+                j += 1;
+                continue;
+            }
+            break;
+        }
+        // Skip the identifier
+        if j < self.tokens.len() && self.tokens[j].kind == TokenKind::Ident {
+            j += 1;
+        }
+        // Skip whitespace after identifier
+        while j < self.tokens.len() {
+            let kind = self.tokens[j].kind;
+            if kind == TokenKind::Newline || kind == TokenKind::Indent {
+                j += 1;
+                continue;
+            }
+            return Some(kind);
+        }
+        None
+    }
+
+    /// Peek at the token kind after `{ <token>`, skipping whitespace/newlines.
+    /// Used for checking what follows a string literal in `{ "key": ... }`.
+    pub(super) fn peek_kind_after_lbrace_skip_one(&self) -> Option<TokenKind> {
+        let mut j = self.i + 1; // skip the `{`
+        // Skip whitespace to find the first token
+        while j < self.tokens.len() {
+            let kind = self.tokens[j].kind;
+            if kind == TokenKind::Newline || kind == TokenKind::Indent {
+                j += 1;
+                continue;
+            }
+            break;
+        }
+        // Skip the first token (e.g., string literal)
+        if j < self.tokens.len() {
+            j += 1;
+        }
+        // Skip whitespace after the token
+        while j < self.tokens.len() {
+            let kind = self.tokens[j].kind;
+            if kind == TokenKind::Newline || kind == TokenKind::Indent {
+                j += 1;
+                continue;
+            }
+            return Some(kind);
+        }
+        None
+    }
+
     pub(super) fn bumped(&mut self) -> Token {
         let t = self.tokens[self.i].clone();
         self.i += 1;
