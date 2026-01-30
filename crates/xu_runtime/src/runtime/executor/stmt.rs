@@ -190,10 +190,30 @@ impl Runtime {
                 let use_local = self.locals.is_active();
                 let mut local_idx: Option<usize> = None;
                 if use_local {
-                    if self.get_local(&s.var).is_none() {
-                        self.define_local(s.var.clone(), Value::UNIT);
+                    // First try to get the index from compiled_locals_idx
+                    if let Some(func_name) = self.current_func.as_deref() {
+                        if let Some(idxmap) = self.compiled_locals_idx.get(func_name) {
+                            if let Some(&idx) = idxmap.get(&s.var) {
+                                local_idx = Some(idx);
+                                // Ensure the slot exists
+                                if let Some(values) = self.locals.values.last_mut() {
+                                    if values.len() <= idx {
+                                        values.resize(idx + 1, Value::UNIT);
+                                    }
+                                }
+                                if let Some(map) = self.locals.maps.last_mut() {
+                                    map.insert(s.var.clone(), idx);
+                                }
+                            }
+                        }
                     }
-                    local_idx = self.get_local_index(&s.var);
+                    // Fallback to define_local if not found in compiled_locals_idx
+                    if local_idx.is_none() {
+                        if self.get_local(&s.var).is_none() {
+                            self.define_local(s.var.clone(), Value::UNIT);
+                        }
+                        local_idx = self.get_local_index(&s.var);
+                    }
                 } else {
                     self.env.define(s.var.clone(), Value::UNIT);
                 }

@@ -1108,14 +1108,14 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::StructInit(t_idx, n_idx) => {
-                let ty = rt.get_const_str(*t_idx, &bc.constants);
-                let fields = rt.get_const_names(*n_idx, &bc.constants);
-                let layout = if let Some(l) = rt.struct_layouts.get(ty) {
+                let ty = rt.get_const_str(*t_idx, &bc.constants).to_string();
+                let fields = rt.get_const_names(*n_idx, &bc.constants).to_vec();
+                let layout = if let Some(l) = rt.struct_layouts.get(&ty).cloned() {
                     l
                 } else {
                     let err_val = Value::str(
                         rt.heap.alloc(ManagedObject::Str(
-                            rt.error(xu_syntax::DiagnosticKind::UnknownStruct(ty.to_string()))
+                            rt.error(xu_syntax::DiagnosticKind::UnknownStruct(ty.clone()))
                                 .into(),
                         )),
                     );
@@ -1135,6 +1135,39 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 };
 
                 let mut values = vec![Value::UNIT; layout.len()];
+
+                // Apply default values from struct definition
+                if let Some(def) = rt.structs.get(&ty).cloned() {
+                    for (i, field) in def.fields.iter().enumerate() {
+                        if let Some(ref default_expr) = field.default {
+                            if i < values.len() {
+                                match rt.eval_expr(default_expr) {
+                                    Ok(v) => values[i] = v,
+                                    Err(e) => {
+                                        let err_val = Value::str(
+                                            rt.heap.alloc(ManagedObject::Str(e.into())),
+                                        );
+                                        if let Some(flow) = throw_value(
+                                            rt,
+                                            &mut ip,
+                                            &mut handlers,
+                                            &mut stack,
+                                            &mut iters,
+                                            &mut pending,
+                                            &mut thrown,
+                                            err_val,
+                                        ) {
+                                            return Ok(flow);
+                                        }
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Override with explicitly provided field values
                 for k in fields.iter().rev() {
                     let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                     if let Some(pos) = layout.iter().position(|f| f == k) {
@@ -1145,8 +1178,8 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let id = rt
                     .heap
                     .alloc(ManagedObject::Struct(crate::value::StructInstance {
-                        ty: ty.to_string(),
-                        ty_hash: xu_ir::stable_hash64(ty),
+                        ty: ty.clone(),
+                        ty_hash: xu_ir::stable_hash64(&ty),
                         fields: values.into_boxed_slice(),
                         field_names: layout.clone(),
                     }));

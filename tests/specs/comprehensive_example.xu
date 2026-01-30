@@ -1,5 +1,4 @@
 // test: comprehensive_example
-// skip: struct default values not yet implemented
 func assert(x) { __builtin_assert(x) }
 
 Status with [ pending | approved | rejected ]
