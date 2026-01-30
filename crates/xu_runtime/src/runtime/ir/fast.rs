@@ -101,8 +101,8 @@ pub(in crate::runtime) fn run_bytecode_fast(
                 let c = &bc.constants[*idx as usize];
                 match c {
                     xu_ir::Constant::Str(s) => {
-                        let text = rt.intern_string(s);
-                        stack[sp] = Value::str(rt.heap.alloc(ManagedObject::Str(text)));
+                        let bc_ptr = bc as *const Bytecode as usize;
+                        stack[sp] = rt.get_string_const(bc_ptr, *idx, s);
                     }
                     xu_ir::Constant::Int(i) => stack[sp] = Value::from_i64(*i),
                     xu_ir::Constant::Float(f) => stack[sp] = Value::from_f64(*f),
@@ -345,8 +345,8 @@ pub(in crate::runtime) fn run_bytecode_fast_params_only(
                 let c = &bc.constants[*idx as usize];
                 match c {
                     xu_ir::Constant::Str(s) => {
-                        let text = rt.intern_string(s);
-                        stack[sp] = Value::str(rt.heap.alloc(ManagedObject::Str(text)));
+                        let bc_ptr = bc as *const Bytecode as usize;
+                        stack[sp] = rt.get_string_const(bc_ptr, *idx, s);
                     }
                     xu_ir::Constant::Int(i) => stack[sp] = Value::from_i64(*i),
                     xu_ir::Constant::Float(f) => stack[sp] = Value::from_f64(*f),

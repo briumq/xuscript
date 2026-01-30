@@ -103,6 +103,9 @@ pub struct Runtime {
     pub(crate) ic_slots: Vec<ICSlot>,
     pub(crate) ic_method_slots: Vec<MethodICSlot>,
     pub(crate) string_pool: HashMap<String, Rc<String>>,
+    /// Pre-allocated string constant Values per Bytecode (keyed by Bytecode pointer)
+    /// Each entry maps constant index to pre-allocated Value
+    bytecode_string_cache: HashMap<usize, Vec<Option<Value>>>,
     pub(crate) stdlib_path: Option<String>,
     pub(crate) args: Vec<String>,
     pub(crate) call_stack_depth: usize,
@@ -203,6 +206,7 @@ impl Runtime {
             ic_slots: Vec::new(),
             ic_method_slots: Vec::new(),
             string_pool: fast_map_new(),
+            bytecode_string_cache: fast_map_new(),
             stdlib_path: None,
             args: Vec::new(),
             call_stack_depth: 0,
@@ -230,6 +234,29 @@ impl Runtime {
         let rc = Rc::new(s.to_string());
         self.string_pool.insert(s.to_string(), rc.clone());
         Text::Heap { data: rc, char_count: std::cell::Cell::new(u32::MAX) }
+    }
+
+    /// Get or create a pre-allocated string Value for a bytecode constant.
+    /// Uses bytecode pointer + constant index as cache key.
+    #[inline]
+    pub fn get_string_const(&mut self, bc_ptr: usize, idx: u32, s: &str) -> Value {
+        // Fast path: check if we have a cached value
+        if let Some(cache) = self.bytecode_string_cache.get(&bc_ptr) {
+            if let Some(Some(val)) = cache.get(idx as usize) {
+                return *val;
+            }
+        }
+        // Slow path: create and cache the value
+        let text = self.intern_string(s);
+        let val = Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(text)));
+
+        let cache = self.bytecode_string_cache.entry(bc_ptr).or_insert_with(Vec::new);
+        let idx_usize = idx as usize;
+        if cache.len() <= idx_usize {
+            cache.resize(idx_usize + 1, None);
+        }
+        cache[idx_usize] = Some(val);
+        val
     }
 
     pub(crate) fn option_none(&mut self) -> Value {
@@ -1474,6 +1501,13 @@ impl Runtime {
         for frame_values in &self.locals.values {
             for val in frame_values {
                 roots.push(val.clone());
+            }
+        }
+
+        // Add bytecode string cache values as roots
+        for cache in self.bytecode_string_cache.values() {
+            for val in cache.iter().flatten() {
+                roots.push(*val);
             }
         }
 

@@ -176,8 +176,8 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let c = rt.get_constant(*idx, &bc.constants);
                 match c {
                     xu_ir::Constant::Str(s) => {
-                        let text = rt.intern_string(s);
-                        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(text))));
+                        let bc_ptr = bc as *const Bytecode as usize;
+                        stack.push(rt.get_string_const(bc_ptr, *idx, s));
                     }
                     xu_ir::Constant::Int(i) => stack.push(Value::from_i64(*i)),
                     xu_ir::Constant::Float(f) => stack.push(Value::from_f64(*f)),
