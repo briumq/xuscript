@@ -16,7 +16,7 @@ pub(crate) fn run(args: &CliArgs, driver: &Driver, render_opts: RenderOptions) {
         match driver.parse_text_timed(
             path,
             &std::fs::read_to_string(path).unwrap_or_default(),
-            args.strict,
+            args.strict.unwrap_or(true),
         ) {
             Ok(v) => v,
             Err(e) => {
@@ -25,7 +25,7 @@ pub(crate) fn run(args: &CliArgs, driver: &Driver, render_opts: RenderOptions) {
             }
         }
     } else {
-        let parsed = match driver.parse_file(path, args.strict) {
+        let parsed = match driver.parse_file(path, args.strict.unwrap_or(true)) {
             Ok(v) => v,
             Err(e) => {
                 eprintln!("{e}");

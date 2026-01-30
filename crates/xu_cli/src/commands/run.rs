@@ -13,7 +13,7 @@ pub(crate) fn run(args: &CliArgs, driver: &Driver, render_opts: RenderOptions) {
         std::process::exit(2);
     }
     let path = args.positional[0].as_str();
-    let compiled = match driver.compile_file_bytecode(path, args.strict) {
+    let compiled = match driver.compile_file(path, args.strict.unwrap_or(true)) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("{e}");
@@ -30,7 +30,7 @@ pub(crate) fn run(args: &CliArgs, driver: &Driver, render_opts: RenderOptions) {
     }
 
     let mut rt = Runtime::new();
-    rt.set_strict_vars(args.strict);
+    rt.set_strict_vars(args.strict.unwrap_or(true));
     rt.set_frontend(Box::new(Driver::new()));
     rt.set_entry_path(path).expect("set entry path");
     set_stdlib_path(&mut rt);

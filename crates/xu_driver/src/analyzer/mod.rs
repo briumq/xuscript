@@ -37,7 +37,7 @@ pub(crate) fn analyze_module(
     source: &SourceFile,
     tokens: &[xu_syntax::Token],
     module: &mut xu_parser::Module,
-    _strict: bool, // Ignored: v1.1 enforces strict mode
+    strict: bool,
     cache: Arc<RwLock<ImportCache>>,
     import_stack: &mut Vec<PathBuf>,
     extra_predefs: &[&str],
@@ -97,7 +97,7 @@ pub(crate) fn analyze_module(
     let mut sem_finder = Finder::new(source, tokens);
     let base_dir = Path::new(&source.name).parent().unwrap_or(Path::new("."));
 
-    // v1.1: Always use strict=true
+    // Use the strict parameter passed in
     analyze_stmts(
         &mut module.stmts,
         &funcs,
@@ -107,7 +107,7 @@ pub(crate) fn analyze_module(
         &mut sem_finder,
         &mut out,
         base_dir,
-        true,
+        strict,
         cache,
         import_stack,
     );

@@ -10,7 +10,7 @@ pub(crate) fn run(args: &CliArgs, driver: &Driver, render_opts: RenderOptions) {
         std::process::exit(2);
     }
     let path = args.positional[0].as_str();
-    let parsed = match driver.parse_file(path, args.strict) {
+    let parsed = match driver.parse_file(path, args.strict.unwrap_or(true)) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("{e}");
