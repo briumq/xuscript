@@ -427,17 +427,19 @@ pub(super) fn builtin_contains(rt: &mut Runtime, args: &[Value]) -> Result<Value
     if hay.get_tag() != crate::value::TAG_STR || needle.get_tag() != crate::value::TAG_STR {
         return Err("contains expects (text, text)".into());
     }
-    let hs = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(hay.as_obj_id()) {
-        s.to_string()
+    let hay_id = hay.as_obj_id();
+    let needle_id = needle.as_obj_id();
+
+    // Get references without cloning
+    let result = if let (
+        crate::gc::ManagedObject::Str(hs),
+        crate::gc::ManagedObject::Str(ns),
+    ) = (rt.heap.get(hay_id), rt.heap.get(needle_id)) {
+        hs.as_str().contains(ns.as_str())
     } else {
         return Err("contains expects text".into());
     };
-    let ns = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(needle.as_obj_id()) {
-        s.to_string()
-    } else {
-        return Err("contains expects text".into());
-    };
-    Ok(Value::from_bool(hs.contains(&ns)))
+    Ok(Value::from_bool(result))
 }
 
 pub(super) fn builtin_starts_with(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
@@ -449,17 +451,19 @@ pub(super) fn builtin_starts_with(rt: &mut Runtime, args: &[Value]) -> Result<Va
     if hay.get_tag() != crate::value::TAG_STR || prefix.get_tag() != crate::value::TAG_STR {
         return Err("starts_with expects (text, text)".into());
     }
-    let hs = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(hay.as_obj_id()) {
-        s.to_string()
+    let hay_id = hay.as_obj_id();
+    let prefix_id = prefix.as_obj_id();
+
+    // Get references without cloning
+    let result = if let (
+        crate::gc::ManagedObject::Str(hs),
+        crate::gc::ManagedObject::Str(ps),
+    ) = (rt.heap.get(hay_id), rt.heap.get(prefix_id)) {
+        hs.as_str().starts_with(ps.as_str())
     } else {
         return Err("starts_with expects text".into());
     };
-    let ps = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(prefix.as_obj_id()) {
-        s.to_string()
-    } else {
-        return Err("starts_with expects text".into());
-    };
-    Ok(Value::from_bool(hs.starts_with(&ps)))
+    Ok(Value::from_bool(result))
 }
 
 pub(super) fn builtin_ends_with(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
@@ -471,17 +475,19 @@ pub(super) fn builtin_ends_with(rt: &mut Runtime, args: &[Value]) -> Result<Valu
     if hay.get_tag() != crate::value::TAG_STR || suffix.get_tag() != crate::value::TAG_STR {
         return Err("ends_with expects (text, text)".into());
     }
-    let hs = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(hay.as_obj_id()) {
-        s.to_string()
+    let hay_id = hay.as_obj_id();
+    let suffix_id = suffix.as_obj_id();
+
+    // Get references without cloning
+    let result = if let (
+        crate::gc::ManagedObject::Str(hs),
+        crate::gc::ManagedObject::Str(ss),
+    ) = (rt.heap.get(hay_id), rt.heap.get(suffix_id)) {
+        hs.as_str().ends_with(ss.as_str())
     } else {
         return Err("ends_with expects text".into());
     };
-    let ss = if let crate::gc::ManagedObject::Str(s) = rt.heap.get(suffix.as_obj_id()) {
-        s.to_string()
-    } else {
-        return Err("ends_with expects text".into());
-    };
-    Ok(Value::from_bool(hs.ends_with(&ss)))
+    Ok(Value::from_bool(result))
 }
 
 pub(super) fn builtin_process_rss(_rt: &mut Runtime, _args: &[Value]) -> Result<Value, String> {
