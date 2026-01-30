@@ -9,25 +9,24 @@ Xu 是一门**强类型脚本语言**，设计目标：
 |目标|说明|
 |---|---|
 |可读无歧义|看到一行就知道在做什么，最多回看两行|
-|无空值|没有 `null`，用 Option/Result 表达不确定性|
+|无空值|没有 `null`，用 Option/Result 表达不确定性|
 |自然简洁|关键字接近自然语言，运算符尽量简单|
 
 ---
 
 ## 2. 关键字
 
-共 24 个关键字，按用途分类：
+共 23 个关键字，按用途分类：
 
 | 分类  | 关键字                                                              |
 | --- | ---------------------------------------------------------------- |
-| 控制流 | `if` `else` `while` `for` `in` `break` `continue` `match` `when` |
-| 定义  | `let` `var` `func` `return` `has` `with` `does`                  |
-| 修饰  | `inner` `static`                                                 |
-| 字面  | `self` `true` `false`                                            |
-| 逻辑  | `not` `and` `or` `is` `isnt`                                     |
-| 模块  | `use` `as`                                                       |
+| 控制流 | `if` `else` `while` `for` `in` `break` `continue` `match` `when` |
+| 定义  | `let` `var` `func` `return` `has` `with` `does`                  |
+| 修饰  | `inner` `static`                                                 |
+| 字面  | `self` `true` `false`                                            |
+| 模块  | `use` `as`                                                       |
 
-> 预留关键字：`can` `async` `await`（不可作为标识符使用）
+> 预留关键字：`is` `can` `async` `await`（不可作为标识符使用）
 
 ---
 
@@ -37,12 +36,27 @@ Xu 是一门**强类型脚本语言**，设计目标：
 
 |类别|符号|
 |---|---|
-|赋值|`=` `+=` `-=` `*=` `/=`|
-|比较|`>` `<` `>=` `<=` `==` `!=`|
-|算术|`+` `-` `*` `/` `%`|
+|赋值|`=` `+=` `-=` `*=` `/=`|
+|比较|`>` `<` `>=` `<=` `==` `!=`|
+|算术|`+` `-` `*` `/` `%`|
+|逻辑|`!` `&&` `\|\|`|
 
-> - `is` / `isnt` 与 `==` / `!=` 语义相同，推荐使用前者。
-> - `!` 是 `not` 的别名，如 `!expr` 等价于 `not expr`。
+> 逻辑运算符 `&&` 和 `||` 支持短路求值。
+
+**运算符优先级**（从高到低）：
+
+|优先级|运算符|结合性|
+|---|---|---|
+|1|`()` `[]` `.` `#`|左到右|
+|2|`!` `-`（一元）|右到左|
+|3|`*` `/` `%`|左到右|
+|4|`+` `-`|左到右|
+|5|`..` `..=`|左到右|
+|6|`>` `<` `>=` `<=`|左到右|
+|7|`==` `!=`|左到右|
+|8|`&&`|左到右|
+|9|`\|\|`|左到右|
+|10|`=` `+=` `-=` `*=` `/=`|右到左|
 
 ### 3.2 结构符号
 
@@ -51,9 +65,9 @@ Xu 是一门**强类型脚本语言**，设计目标：
 |`{ }`|并存/聚合|代码块、结构体定义与字面量、字典|
 |`[ ]`|多选一/序列|列表、枚举定义、索引|
 |`( )`|分组/调用|表达式分组、函数调用、元组|
-|`#`|变体选择|枚举变体 `Status#pending`|
+|`#`|变体选择|枚举变体 `Status#pending`|
 |`.`|访问|属性/方法访问|
-|`..` `..=`|范围|整数范围（不含/含结束值）|
+|`..` `..=`|范围|整数范围（不含/含结束值）|
 |`->`|指向|函数返回类型、匿名函数体|
 |`...`|展开|结构体字段展开|
 |`:`|标注|类型标注、键值对、单语句块引导|
@@ -61,13 +75,11 @@ Xu 是一门**强类型脚本语言**，设计目标：
 
 ### 3.3 注释
 
-xu
-
-```
+```xu
 // 单行注释
 
-/* 
-   多行注释 
+/*
+   多行注释
 */
 ```
 
@@ -75,9 +87,9 @@ xu
 
 分号可选。换行等价语句结束，**除以下情况自动续行**：
 
-- 行末是 `. , + - * / = ( [ {`
+- 行末是 `. , + - * / = && || ( [ {`
 - 括号未闭合
-- 下一行以 `. ) ] }` 或二元运算符开头
+- 下一行以 `. ) ] }` 或二元运算符开头
 
 ---
 
@@ -92,16 +104,12 @@ xu
 
 **元组解构与通配符**：
 
-xu
-
-```
+```xu
 let (x, y) = (1, 2)
 let (a, _) = (10, 20)  // 使用 _ 忽略不需要的值
 ```
 
-xu
-
-```
+```xu
 let name = "Tom"
 var count = 0
 
@@ -109,24 +117,20 @@ count = count + 1    // ✅
 name = "Bob"         // ❌ 不可重新赋值
 ```
 
-> **注意**：绑定不可变 ≠ 对象不可变。`let` 绑定的列表仍可修改内容：
-> 
-> xu
-> 
-> ```
+> **注意**：绑定不可变 ≠ 对象不可变。`let` 绑定的列表仍可修改内容：
+>
+> ```xu
 > let list = [1, 2]
 > list.add(3)          // ✅ 修改列表内容
 > ```
 
 ### 4.2 赋值规则
 
-- `x = expr` 只能更新已声明的 `var` 变量
+- `x = expr` 只能更新已声明的 `var` 变量
 - 对未声明变量赋值 → 编译错误
-- 对 `let` 变量赋值 → 编译错误
+- 对 `let` 变量赋值 → 编译错误
 
-xu
-
-```
+```xu
 x = 1      // ❌ 未声明
 let y = 1
 y += 1     // ❌ 不可变绑定
@@ -136,9 +140,7 @@ y += 1     // ❌ 不可变绑定
 
 内层作用域不得声明与外层同名变量：
 
-xu
-
-```
+```xu
 var x = 1
 if cond {
     let x = 2     // ❌ 禁止遮蔽
@@ -157,16 +159,14 @@ func f(x: int) {
 
 |类型|说明|示例|
 |---|---|---|
-|`int`|整数|`42` `0xFF` `0b1010` `1_000_000`|
-|`float`|浮点数|`3.14` `1.0e-10`|
-|`string`|字符串|`"hello"` `"""多行"""` `r"原始串"`|
-|`bool`|布尔值|`true` `false`|
+|`int`|整数|`42` `0xFF` `0b1010` `1_000_000`|
+|`float`|浮点数|`3.14` `1.0e-10`|
+|`string`|字符串|`"hello"` `"""多行"""` `r"原始串"`|
+|`bool`|布尔值|`true` `false`|
 
 **字符串插值**（支持任意表达式）：
 
-xu
-
-```
+```xu
 "Name: {user.name}"
 "Sum: {a + b}"
 "Result: {if ok { "成功" } else { "失败" }}"
@@ -178,17 +178,23 @@ xu
 |---|---|---|
 |列表|`[1, 2, 3]`|`let xs: [int] = []`|
 |字典|`{"a": 1}`|`let m: {string: int} = {}`|
-|集合|`set{1, 2, 3}`|`let s: {int} = set{}`|
 |元组|`(1, "hi")`|—|
-|范围|`0..5` `0..=5`|—|
+|范围|`0..5` `0..=5`|—|
 
 > 范围仅支持整数类型。
 
-### 5.3 结构体 `has`
+### 5.3 特殊类型
 
-xu
+|类型|说明|
+|---|---|
+|`void`|无值类型，表示函数无返回值或空状态|
+|`any`|动态类型，可持有任意值，运行时类型检查|
 
-```
+> `any` 类型主要用于与外部数据交互（如 JSON 解析），应谨慎使用。
+
+### 5.4 结构体 `has`
+
+```xu
 User has {
     name: string
     age: int = 0
@@ -205,20 +211,16 @@ User has {
 
 **字面量与展开**：
 
-xu
-
-```
+```xu
 let u = User{ name: "Tom", age: 20 }
 let older = User{ ...u, age: 21 }    // 浅复制 + 覆盖
 ```
 
-### 5.4 扩展方法 `does`
+### 5.5 扩展方法 `does`
 
 为已定义的结构体/枚举添加方法：
 
-xu
-
-```
+```xu
 User does {
     func to_json() -> string { ... }
 }
@@ -236,11 +238,9 @@ User does {
 |多块支持|同一类型可有多个 does 块|
 |内置类型|不能扩展 int/string/bool 等内置类型|
 
-### 5.5 枚举 `with`
+### 5.6 枚举 `with`
 
-xu
-
-```
+```xu
 // 简单枚举
 Status with [ pending | approved | rejected ]
 
@@ -255,35 +255,29 @@ let s = Status#pending
 let r = Response#error(404, "not found")
 ```
 
-### 5.6 Option 与 Result
+### 5.7 Option 与 Result
 
 内置泛型类型，用于表达不确定性：
 
-xu
-
-```
+```xu
 Option[T] with [ some(value: T) | none ]
 Result[T, E] with [ ok(value: T) | err(error: E) ]
 ```
 
 常见返回类型：
 
-xu
-
-```
+```xu
 users.first                      // Option[User]
 users.find(func(u) -> u.active)  // Option[User]
 map.get("key")                   // Option[V]
 file.read("config.json")         // Result[string, IOError]
 ```
 
-### 5.7 类型推断
+### 5.8 类型推断
 
 **可省略类型**：
 
-xu
-
-```
+```xu
 let x = 1                // int
 let list = [1, 2, 3]     // [int]
 let map = {"a": 1}       // {string: int}
@@ -291,9 +285,7 @@ let map = {"a": 1}       // {string: int}
 
 **必须标注**：
 
-xu
-
-```
+```xu
 let list: [int] = []
 let m: {string: int} = {}
 func add(a: int, b: int) -> int { ... }
@@ -305,9 +297,7 @@ func add(a: int, b: int) -> int { ... }
 
 ### 6.1 命名函数
 
-xu
-
-```
+```xu
 // 基本函数
 func add(a: int, b: int) -> int {
     return a + b
@@ -330,13 +320,11 @@ let (only_q, _) = div(10, 3) // 忽略第二个返回值
 
 ### 6.2 匿名函数
 
-统一使用 `func` 关键字：
+统一使用 `func` 关键字：
 
 **单表达式形式**：
 
-xu
-
-```
+```xu
 let inc = func(x: int) -> x + 1
 let add_fn = func(a, b) -> a + b
 
@@ -347,9 +335,7 @@ users
 
 **块形式**：
 
-xu
-
-```
+```xu
 let process = func(x: int) -> int {
     let y = x * 2
     if y > 10 { return y }
@@ -365,9 +351,7 @@ let process = func(x: int) -> int {
 
 **语句形式**（else 可省略）：
 
-xu
-
-```
+```xu
 if x > 0 {
     println("positive")
 } else if x < 0 {
@@ -379,9 +363,7 @@ if x > 0 {
 
 **单语句简写**（使用 `:` 引导一条语句作为分支体）：
 
-xu
-
-```
+```xu
 if x > 0: println("positive")
 if x < 0:
     println("negative")
@@ -389,17 +371,13 @@ if x < 0:
 
 **表达式形式**（必须有 else，类型一致）：
 
-xu
-
-```
+```xu
 let sign = if x >= 0 { 1 } else { -1 }
 ```
 
 ### 7.2 循环
 
-xu
-
-```
+```xu
 // while
 var i = 0
 while i < 10 {
@@ -418,9 +396,7 @@ for (key, value) in map {
 
 **单语句简写**：
 
-xu
-
-```
+```xu
 while i < 10: i += 1
 for i in 0..5: println(i)
 ```
@@ -431,9 +407,7 @@ for i in 0..5: println(i)
 
 **语句形式**：
 
-xu
-
-```
+```xu
 match status {
     Status#pending  { println("待处理") }
     Status#approved { println("已通过") }
@@ -444,9 +418,7 @@ match status {
 
 **表达式形式**：
 
-xu
-
-```
+```xu
 let text = match status {
     Status#pending  { "待处理" }
     Status#approved { "已通过" }
@@ -457,9 +429,7 @@ let text = match status {
 
 **匹配 Result**：
 
-xu
-
-```
+```xu
 match fetch_users("/api/users") {
     Result#ok(data) {
         for user in data { println(user.name) }
@@ -477,13 +447,11 @@ match fetch_users("/api/users") {
 
 ## 8. when 条件绑定
 
-`when` 专门用于 Option/Result 解包，强调"快乐路径优先"，**仅作为语句使用**。
+`when` 专门用于 Option/Result 解包，强调"快乐路径优先"，**仅作为语句使用**。
 
 ### 8.1 基本用法
 
-xu
-
-```
+```xu
 when user = find_user(id) {
     println(user.name)
 } else {
@@ -495,9 +463,7 @@ when user = find_user(id) {
 
 任一绑定失败则跳转到 else：
 
-xu
-
-```
+```xu
 when a = get_a(), b = get_b(), c = get_c() {
     use(a, b, c)
 } else {
@@ -524,9 +490,7 @@ Xu 没有异常机制，使用 Result 类型显式处理错误。以下是三种
 
 适用于只关心成功/失败，不需要区分具体错误：
 
-xu
-
-```
+```xu
 func load_config() -> Result[Config, string] {
     when content = file.read("config.json"),
          config = parse(content) {
@@ -545,9 +509,7 @@ func load_config() -> Result[Config, string] {
 
 适用于需要精确处理每一步的错误：
 
-xu
-
-```
+```xu
 func load_config() -> Result[Config, string] {
     match file.read("config.json") {
         Result#ok(content) {
@@ -571,9 +533,7 @@ func load_config() -> Result[Config, string] {
 
 适用于错误可以统一处理的场景：
 
-xu
-
-```
+```xu
 func load_config() -> Result[Config, string] {
     return file.read("config.json")
         .then(func(s) -> parse(s))
@@ -599,7 +559,7 @@ func load_config() -> Result[Config, string] {
 
 ### 10.1 核心约束
 
-- 没有 `null` 关键字
+- 没有 `null` 关键字
 - 所有变量和字段必须初始化
 - 用 Option/Result 显式表达不确定性
 
@@ -607,7 +567,7 @@ func load_config() -> Result[Config, string] {
 
 |方法|说明|
 |---|---|
-|`.has` `.none`|是否有值/无值（属性）|
+|`.has` `.none`|是否有值/无值（属性）|
 |`.or(v)`|有值取值，否则用默认值|
 |`.or_else(func)`|惰性默认值|
 |`.map(func)`|映射变换|
@@ -615,9 +575,7 @@ func load_config() -> Result[Config, string] {
 |`.each(func)`|有值则执行|
 |`.filter(pred)`|不满足则变为 none|
 
-xu
-
-```
+```xu
 let name = users.first
     .map(func(u) -> u.name)
     .or("匿名")
@@ -631,9 +589,7 @@ let name = users.first
 |---|---|
 |`.map_err(func)`|转换错误类型/信息|
 
-xu
-
-```
+```xu
 let config = file.read("config.json")
     .then(func(s) -> parse(s))
     .map_err(func(e) -> "配置加载失败: {e}")
@@ -646,8 +602,8 @@ let config = file.read("config.json")
 
 |方式|语法|缺失时行为|
 |---|---|---|
-|强访问|`list[0]` `map["key"]`|panic|
-|安全访问|`list.first` `map.get("key")`|返回 Option|
+|强访问|`list[0]` `map["key"]`|panic|
+|安全访问|`list.first` `list.get(0)` `map.get("key")`|返回 Option|
 
 > panic 为不可恢复错误，终止脚本执行。
 
@@ -657,15 +613,13 @@ let config = file.read("config.json")
 
 ### 12.1 模块导入
 
-xu
-
-```
+```xu
 use "utils"
 use "utils" as u
 ```
 
 - 每个文件是一个模块
-- `use` 时执行模块顶层一次并缓存
+- `use` 时执行模块顶层一次并缓存
 - `use "path"` 会将模块绑定到一个默认别名（由路径末尾推断，例如 `utils`），不会把导出成员注入当前作用域
 - 访问导出成员使用 `alias.member`；`as` 可显式指定别名
 
@@ -679,9 +633,7 @@ use "utils" as u
 |（默认）|公开|顶层定义、方法|
 |`inner`|仅本文件可见|顶层定义、方法|
 
-xu
-
-```
+```xu
 // 仅本模块可见的变量
 inner var counter = 0
 
@@ -691,7 +643,7 @@ inner Foo has { x: int }
 User does {
     // 仅本模块可见的方法（即私有辅助方法）
     inner func internal_helper() {}
-    
+
     // 公开方法
     func public_api() {}
 }
@@ -701,9 +653,7 @@ User does {
 
 ## 13. 完整示例
 
-xu
-
-```
+```xu
 use "http" as http
 
 // 枚举定义
@@ -756,8 +706,10 @@ func main() {
     }
 
     // when 条件绑定
-    when user = users.find(func(u) -> u.name is "Alice") {
+    when user = users.find(func(u) -> u.name == "Alice") {
         user.greet()
+    } else {
+        println("未找到 Alice")
     }
 
     // 多绑定短路
@@ -771,6 +723,8 @@ func main() {
     when first = users.first {
         let older = User{ ...first, age: first.age + 1 }
         println("{older.name} 明年 {older.age} 岁")
+    } else {
+        println("没有用户")
     }
 
     // match 表达式
