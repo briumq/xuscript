@@ -62,7 +62,7 @@ func map_to_config(raw: {string: any}) -> Result[AppConfig, string] {
     
     // 处理 bool: 这里演示简单的 true/false 判断
     // 注意：any 类型的 raw["debug"] 可以直接比较
-    let debug = raw["debug"] is true
+    let debug = raw["debug"] == true
     
     // 处理 DB
     let db_host = to_text(raw["db_host"])

@@ -7,11 +7,11 @@ func topo(nodes: [string], edges: [[int]]) -> [string] {
     while changed {
         changed = false
         for i in 0..nodes.length {
-            if indeg[i] is 0 {
+            if indeg[i] == 0 {
                 out.add(nodes[i])
                 indeg[i] = -1
                 for edge2 in edges {
-                    if edge2[0] is i { indeg[edge2[1]] = indeg[edge2[1]] - 1 }
+                    if edge2[0] == i { indeg[edge2[1]] = indeg[edge2[1]] - 1 }
                 }
                 changed = true
             }

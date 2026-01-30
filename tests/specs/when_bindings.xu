@@ -6,7 +6,7 @@ func ok_c() -> Result[int, string] { return Result#ok(3) }
 func err_d() -> Result[int, string] { return Result#err("e") }
 
 when a = some_a() {
-    assert(a is 1)
+    assert(a == 1)
 } else {
     assert(false)
 }
@@ -24,7 +24,7 @@ when x = some_a(), y = none_b() {
 }
 
 when v = ok_c() {
-    assert(v is 3)
+    assert(v == 3)
 } else {
     assert(false)
 }

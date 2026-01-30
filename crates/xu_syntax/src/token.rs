@@ -61,6 +61,10 @@ pub enum TokenKind {
     Percent,
     Hash,
     Pipe,
+    /// `&&`
+    AmpAmp,
+    /// `||`
+    PipePipe,
 
     /// `+=`
     PlusEq,
@@ -83,10 +87,8 @@ pub enum TokenKind {
     /// `let`
     KwLet,
     KwVar,
-    /// `is`
+    /// `is` (reserved keyword)
     KwIs,
-    /// `isnt`
-    KwIsnt,
     /// `with`
     KwWith,
     KwHas,
@@ -109,12 +111,6 @@ pub enum TokenKind {
     KwBreak,
     /// `continue`
     KwContinue,
-    /// `not`
-    KwNot,
-    /// `and`
-    KwAnd,
-    /// `or`
-    KwOr,
     KwDoes,
     KwInner,
     KwStatic,

@@ -1,6 +1,6 @@
 func assert(x) { __builtin_assert(x) }
 
-// does extension methods and multiple blocks
+// does extension methods && multiple blocks
 User has {
     name: string
     age: int
@@ -21,6 +21,6 @@ User does {
 }
 
 let u = User{ name: "Alice", age: 20 }
-assert(u.to_json() is """{"name": "Alice", "age": 20}""")
-assert(u.method1() is "m1")
-assert(u.method2() is "m2")
+assert(u.to_json() == """{"name": "Alice", "age": 20}""")
+assert(u.method1() == "m1")
+assert(u.method2() == "m2")

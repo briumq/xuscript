@@ -10,7 +10,7 @@ User has {
     status: Status = Status#pending
 
     func is_active() -> bool {
-        return self.status is Status#approved
+        return self.status == Status#approved
     }
 
     static func create(id: int, name: string, email: string) -> User {
@@ -26,7 +26,7 @@ User does {
 
 func find_user(users: [User], id: int) -> Option[User] {
     for user in users {
-        if user.id is id {
+        if user.id == id {
             return Option#some(user)
         }
     }
@@ -48,14 +48,14 @@ let users = [
 when user = find_user(users, 2) {
     let approved = approve_user(user)
     assert(approved.is_active())
-    assert(approved.name is "Bob")
+    assert(approved.name == "Bob")
 } else {
     assert(false)
 }
 
 // 链式过滤
-let pending_users = users.filter(func(u) -> u.status is Status#pending)
-assert(pending_users.length is 3)
+let pending_users = users.filter(func(u) -> u.status == Status#pending)
+assert(pending_users.length == 3)
 
 // match 表达式
 let first_status = match users.first {
@@ -70,14 +70,14 @@ let first_status = match users.first {
     Option#none() { "无用户" }
     _ { "未知" }
 }
-assert(first_status is "待处理")
+assert(first_status == "待处理")
 
 // Option 组合子
 let first_name = users.first.map(func(u) -> u.name).or("匿名")
-assert(first_name is "Alice")
+assert(first_name == "Alice")
 
 // 不存在的用户
 let missing = find_user(users, 999).map(func(u) -> u.name).or("未找到")
-assert(missing is "未找到")
+assert(missing == "未找到")
 
 print("OK")

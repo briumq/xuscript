@@ -17,7 +17,7 @@ func test_gc_memory() {
     
     print("After creation: " + to_text(process_rss()))
     
-    // Clear reference and run GC
+    // Clear reference && run GC
     let _ = d
     gc()
     

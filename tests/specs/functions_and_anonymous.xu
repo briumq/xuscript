@@ -3,16 +3,16 @@ func assert(x) { __builtin_assert(x) }
 func add(a: int, b: int) -> int {
     return a + b
 }
-assert(add(2, 3) is 5)
+assert(add(2, 3) == 5)
 
 func greet(name: string, msg = "Hello") -> string {
     return "{msg}, {name}!"
 }
-assert(greet("Alice") is "Hello, Alice!")
-assert(greet("Bob", "Hi") is "Hi, Bob!")
+assert(greet("Alice") == "Hello, Alice!")
+assert(greet("Bob", "Hi") == "Hi, Bob!")
 
 func inc(x: int) -> int { return x + 1 }
-assert(inc(1) is 2)
+assert(inc(1) == 2)
 
 User has { name: string, age: int }
 
@@ -24,7 +24,7 @@ let users = [
 
 func is_adult(u: User) -> bool { return u.age >= 18 }
 let adults = users.filter(is_adult)
-assert(adults.len() is 2)
+assert(adults.len() == 2)
 func name_of(u: User) -> string { return u.name }
 let names = adults.map(name_of)
-assert(names[0] is "Alice")
+assert(names[0] == "Alice")

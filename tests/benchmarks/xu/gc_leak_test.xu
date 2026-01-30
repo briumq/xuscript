@@ -2,7 +2,7 @@
 func test_gc_leak() {
     print("Initial RSS: " + to_text(process_rss()));
 
-    // Round 1: Create and discard large dict
+    // Round 1: Create && discard large dict
     var round = 1;
     while round <= 5 {
         print("=== Round " + to_text(round) + " ===");

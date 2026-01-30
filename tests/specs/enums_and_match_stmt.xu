@@ -1,6 +1,6 @@
 func assert(x) { __builtin_assert(x) }
 
-// simple enum and match statement
+// simple enum && match statement
 Status with [ pending | approved | rejected ]
 
 let s = Status#approved
@@ -11,9 +11,9 @@ match s {
     Status#rejected { result = "rejected" }
     _ { assert(false) }
 }
-assert(result is "approved")
+assert(result == "approved")
 
-// enum with data and match statement with payload
+// enum with data && match statement with payload
 Response with [
     success(data: string) |
     error(code: int, msg: string)
@@ -26,7 +26,7 @@ match r {
     Response#error(code, msg) { text = "Error {code}: {msg}" }
     _ { assert(false) }
 }
-assert(text is "Error 404: not found")
+assert(text == "Error 404: not found")
 
 // match with else branch (non-exhaustive)
 let x = 42
@@ -36,4 +36,4 @@ match x {
     1 { res2 = "one" }
     _ { res2 = "other" }
 }
-assert(res2 is "other")
+assert(res2 == "other")

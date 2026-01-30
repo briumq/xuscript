@@ -8,10 +8,10 @@ let a = match s {
     Status#approved { 2 }
     _               { 0 }
 }
-assert(a is 2)
+assert(a == 2)
 
 let b = match s {
     Status#pending  { "P" }
     _               { "O" }
 }
-assert(b is "O")
+assert(b == "O")

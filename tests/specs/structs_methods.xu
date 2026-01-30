@@ -5,4 +5,4 @@ func (self: Foo) add(n: int) -> int { return self.x + n }
 
 let f = Foo{ x: 1 }
 let r = f.add(3)
-assert(r is 4)
+assert(r == 4)

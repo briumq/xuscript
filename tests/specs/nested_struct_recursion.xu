@@ -15,7 +15,7 @@ let u = User{
     name: "Alice",
     address: Address{ city: "Beijing", street: "Main St" }
 }
-assert(u.address.city is "Beijing")
+assert(u.address.city == "Beijing")
 
 // recursion
 func factorial(n: int) -> int {
@@ -25,9 +25,9 @@ func factorial(n: int) -> int {
     return n * factorial(n - 1)
 }
 
-assert(factorial(0) is 1)
-assert(factorial(1) is 1)
-assert(factorial(5) is 120)
+assert(factorial(0) == 1)
+assert(factorial(1) == 1)
+assert(factorial(5) == 120)
 
 func fib(n: int) -> int {
     if n <= 1 {
@@ -36,6 +36,6 @@ func fib(n: int) -> int {
     return fib(n - 1) + fib(n - 2)
 }
 
-assert(fib(0) is 0)
-assert(fib(1) is 1)
-assert(fib(10) is 55)
+assert(fib(0) == 0)
+assert(fib(1) == 1)
+assert(fib(10) == 55)

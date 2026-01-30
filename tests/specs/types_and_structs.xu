@@ -4,41 +4,41 @@ let i_dec = 42
 let i_hex = 0xFF
 let i_bin = 0b1010
 let i_sep = 1_000_000
-assert(i_dec is 42)
-assert(i_hex is 255)
-assert(i_bin is 10)
-assert(i_sep is 1000000)
+assert(i_dec == 42)
+assert(i_hex == 255)
+assert(i_bin == 10)
+assert(i_sep == 1000000)
 
 let f_basic = 3.14
 let f_sci = 1.0e-1
-assert(f_basic is 3.14)
-assert(f_sci is 0.1)
+assert(f_basic == 3.14)
+assert(f_sci == 0.1)
 
 let s_basic = "hello"
-assert(s_basic is "hello")
+assert(s_basic == "hello")
 
 let b_true = true
 let b_false = false
 assert(b_true)
-assert(not b_false)
+assert(!b_false)
 
 let list_ok = [1, 2, 3]
-assert(list_ok.len() is 3)
+assert(list_ok.len() == 3)
 
 let list_empty: [int] = []
-assert(list_empty.len() is 0)
+assert(list_empty.len() == 0)
 
 let dict_ok = {"a": 1}
-assert(dict_ok["a"] is 1)
+assert(dict_ok["a"] == 1)
 
 let set_ok = set{1, 2, 3}
-assert(set_ok.length is 3)
+assert(set_ok.length == 3)
 
 let set_empty = set{}
-assert(set_empty.length is 0)
+assert(set_empty.length == 0)
 
 let tup = (1, "hi")
-assert(tup.0 is 1)
+assert(tup.0 == 1)
 
 User has {
     name: string
@@ -46,15 +46,15 @@ User has {
 }
 
 let u1 = User{ name: "Tom", age: 20 }
-assert(u1.name is "Tom")
-assert(u1.age is 20)
+assert(u1.name == "Tom")
+assert(u1.age == 20)
 
 let u2 = User{ name: "Bob", age: 0 }
-assert(u2.age is 0)
+assert(u2.age == 0)
 
 let older = User{ ...u1, age: u1.age + 1 }
-assert(older.name is "Tom")
-assert(older.age is 21)
+assert(older.name == "Tom")
+assert(older.age == 21)
 
 Status with [ pending | approved | rejected ]
 
@@ -70,4 +70,4 @@ func status_text(s: Status) -> string {
 }
 
 let st = Status#approved
-assert(status_text(st) is "已通过")
+assert(status_text(st) == "已通过")

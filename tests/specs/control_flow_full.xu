@@ -6,16 +6,16 @@ if true {
 } else {
     c += 100
 }
-assert(c is 1)
+assert(c == 1)
 
 var w = 0
 while w < 3 {
     w += 1
 }
-assert(w is 3)
+assert(w == 3)
 
 var sum = 0
 for i in 1..4 {
     sum += i
 }
-assert(sum is 6)
+assert(sum == 6)

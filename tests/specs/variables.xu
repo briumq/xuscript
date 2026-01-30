@@ -2,18 +2,18 @@ func assert(x) { __builtin_assert(x) }
 
 // let immutable
 let x = 10
-assert(x is 10)
+assert(x == 10)
 
 // var mutable
 var y = 10
-assert(y is 10)
+assert(y == 10)
 y = 20
-assert(y is 20)
+assert(y == 20)
 y += 5
-assert(y is 25)
+assert(y == 25)
 
 // let binding object mutation
 let list = [1, 2, 3]
 list.add(4)
-assert(list.len() is 4)
-assert(list[3] is 4)
+assert(list.len() == 4)
+assert(list[3] == 4)

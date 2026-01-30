@@ -281,7 +281,24 @@ impl<'a> Lexer<'a> {
                 }
                 Some('|') => {
                     self.i += 1;
-                    self.push(TokenKind::Pipe, start, self.i);
+                    if self.peek_char() == Some('|') {
+                        self.i += 1;
+                        self.push(TokenKind::PipePipe, start, self.i);
+                    } else {
+                        self.push(TokenKind::Pipe, start, self.i);
+                    }
+                }
+                Some('&') => {
+                    self.i += 1;
+                    if self.peek_char() == Some('&') {
+                        self.i += 1;
+                        self.push(TokenKind::AmpAmp, start, self.i);
+                    } else {
+                        self.diagnostics.push(Diagnostic::error_kind(
+                            DiagnosticKind::UnexpectedChar('&'),
+                            Some(Span::new(start as u32, self.i as u32)),
+                        ));
+                    }
                 }
                 Some('>') => {
                     self.i += 1;

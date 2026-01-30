@@ -2,13 +2,13 @@ func assert(x) { __builtin_assert(x) }
 
 let name = "Alice"
 let msg1 = "Hello, {name}!"
-assert(msg1 is "Hello, Alice!")
+assert(msg1 == "Hello, Alice!")
 
 let a = 10
 let b = 20
 let msg2 = "Sum: {a + b}"
-assert(msg2 is "Sum: 30")
+assert(msg2 == "Sum: 30")
 
 let ok = true
 let msg3 = "Status: {if ok { \"success\" } else { \"fail\" }}"
-assert(msg3 is "Status: success")
+assert(msg3 == "Status: success")

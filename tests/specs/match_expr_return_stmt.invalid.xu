@@ -1,6 +1,6 @@
 // Regression test: match expression arms cannot contain statements like `return`.
 // This used to cause an infinite loop in the parser (fixed in commit fixing parse_primary).
-// The parser should report "Expected expression" error and terminate normally.
+// The parser should report "Expected expression" error && terminate normally.
 // expect_error: "Expected expression"
 
 func test(s: string) -> Result[int, string] {

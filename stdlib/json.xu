@@ -1,23 +1,23 @@
 func parse_json(strings: string) -> Result {
   let s = strings.trim();
-  if s is "null" {
+  if s == "null" {
     return Result#ok(());
   }
-  if s is "true" {
+  if s == "true" {
     return Result#ok(true);
   }
-  if s is "false" {
+  if s == "false" {
     return Result#ok(false);
   }
-  if s.length >= 2 and s[0] is "\"" and s[s.length - 1] is "\"" {
+  if s.length >= 2 && s[0] == "\"" && s[s.length - 1] == "\"" {
     return Result#ok(s[1..s.length - 2]);
   }
   if s.length > 0 {
     let c = s[0];
-    if (c >= "0" and c <= "9") or c is "-" {
+    if (c >= "0" && c <= "9") || c == "-" {
       return Result#ok(float(s));
     }
-    if c is "\{" or c is "[" {
+    if c == "\{" || c == "[" {
       return Result#err("JSON parse not implemented: only null/true/false/number/string supported");
     }
   }
@@ -25,13 +25,13 @@ func parse_json(strings: string) -> Result {
 }
 
 func generate_json(data: any) -> string {
-  if data is () {
+  if data == () {
     return "null";
   }
-  if data is true {
+  if data == true {
     return "true";
   }
-  if data is false {
+  if data == false {
     return "false";
   }
   return "\"" + string(data) + "\"";

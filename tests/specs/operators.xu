@@ -1,39 +1,39 @@
 func assert(x) { __builtin_assert(x) }
 
 // arithmetic int
-assert(10 + 3 is 13)
-assert(10 - 3 is 7)
-assert(10 * 3 is 30)
-assert(10 / 3 is 3)
-assert(10 % 3 is 1)
+assert(10 + 3 == 13)
+assert(10 - 3 == 7)
+assert(10 * 3 == 30)
+assert(10 / 3 == 3)
+assert(10 % 3 == 1)
 
 // arithmetic float
-assert(10.0 + 3.0 is 13.0)
-assert(10.0 / 4.0 is 2.5)
+assert(10.0 + 3.0 == 13.0)
+assert(10.0 / 4.0 == 2.5)
 
 // comparison
 assert(5 > 3)
 assert(3 < 5)
 assert(5 >= 5)
 assert(5 <= 5)
-assert(5 is 5)
 assert(5 == 5)
-assert(5 isnt 3)
+assert(5 == 5)
+assert(5 != 3)
 assert(5 != 3)
 
 // logical
-assert(true and true)
-assert(not (true and false))
-assert(not (false and true))
-assert(not (false and false))
+assert(true && true)
+assert(!(true && false))
+assert(!(false && true))
+assert(!(false && false))
 
-assert(true or true)
-assert(true or false)
-assert(false or true)
-assert(not (false or false))
+assert(true || true)
+assert(true || false)
+assert(false || true)
+assert(!(false || false))
 
-assert(not false)
-assert(not (not true))
+assert(!false)
+assert(!(!true))
 
 // short-circuit
 var called1 = false
@@ -41,18 +41,18 @@ func side_effect1() -> bool {
     called1 = true
     return true
 }
-let r1 = false and side_effect1()
-assert(not called1)
+let r1 = false && side_effect1()
+assert(!called1)
 
 var called2 = false
 func side_effect2() -> bool {
     called2 = true
     return true
 }
-let r2 = true or side_effect2()
-assert(not called2)
+let r2 = true || side_effect2()
+assert(!called2)
 
 // string concat
 let a = "hello"
 let b = " world"
-assert(a + b is "hello world")
+assert(a + b == "hello world")

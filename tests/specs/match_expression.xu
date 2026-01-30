@@ -10,13 +10,13 @@ let text = match status {
     Status#rejected { "已拒绝" }
     _ { "?" }
 }
-assert(text is "已通过", "exhaustive_match")
+assert(text == "已通过", "exhaustive_match")
 
 let num = match status {
     Status#pending { 1 }
     _ { 0 }
 }
-assert(num is 0, "else_branch")
+assert(num == 0, "else_branch")
 
 func ok_or_err(ok: bool) -> Result[int, string] {
     if ok { return Result#ok(7) }
@@ -27,4 +27,4 @@ let v = match ok_or_err(true) {
     Result#ok(x) { x }
     _ { 0 }
 }
-assert(v is 7, "bind_ok")
+assert(v == 7, "bind_ok")

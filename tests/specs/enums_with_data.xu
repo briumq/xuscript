@@ -12,4 +12,4 @@ match r {
     Response#error(code, msg) { text = "Error {code}: {msg}" }
     _ { assert(false) }
 }
-assert(text is "Error 404: not found")
+assert(text == "Error 404: not found")

@@ -12,8 +12,8 @@ func parse(line: string) -> Option[Record] {
     let ts = parse_int(parts[0])
     let lv = parts[1]
     let level =
-        if lv is "ok" { Status#ok }
-        else if lv is "warn" { Status#warn }
+        if lv == "ok" { Status#ok }
+        else if lv == "warn" { Status#warn }
         else { Status#fail }
     let msg = parts[2]
     return Option#some(Record{ ts: ts, level: level, msg: msg })

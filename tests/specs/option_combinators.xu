@@ -1,7 +1,7 @@
 func assert(x) { __builtin_assert(x) }
 
 let s2 = Option#some(2).filter(func(x: int) -> x > 1)
-assert(match s2 { Option#some(v) { v } _ { 0 } } is 2)
+assert(match s2 { Option#some(v) { v } _ { 0 } } == 2)
 
 let snone = Option#some(0).filter(func(x: int) -> x > 1)
 assert(match snone { Option#none() { true } _ { false } })

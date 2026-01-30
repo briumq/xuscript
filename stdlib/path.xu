@@ -1,5 +1,5 @@
 func join(a: string, b: string) -> string {
-  if a.ends_with("/") or a.ends_with("\\") {
+  if a.ends_with("/") || a.ends_with("\\") {
     return a + b;
   }
   return a + "/" + b;
@@ -7,10 +7,10 @@ func join(a: string, b: string) -> string {
 
 func basename(p: string) -> string {
   let parts = p.split("/");
-  if parts.length is 1 {
+  if parts.length == 1 {
     parts = p.split("\\");
   }
-  if parts.length is 0 {
+  if parts.length == 0 {
     return "";
   }
   return parts[parts.length - 1];
@@ -26,7 +26,7 @@ func extname(name: string) -> string {
 
 func dirname(p: string) -> string {
   let parts = p.split("/");
-  if parts.length is 1 {
+  if parts.length == 1 {
     parts = p.split("\\");
   }
   if parts.length <= 1 {
@@ -43,7 +43,7 @@ func dirname(p: string) -> string {
 
 func change_ext(name: string, ext: string) -> string {
   let parts = name.split(".");
-  if parts.length is 1 {
+  if parts.length == 1 {
     return name + "." + ext;
   }
   let out = [];

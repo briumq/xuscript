@@ -7,11 +7,11 @@ let c = 0xFF
 let d = 0b1010
 let e = 1_000_000
 
-assert(a is 42, "a")
-assert(b is -17, "b")
-assert(c is 255, "c")
-assert(d is 10, "d")
-assert(e is 1000000, "e")
+assert(a == 42, "a")
+assert(b == -17, "b")
+assert(c == 255, "c")
+assert(d == 10, "d")
+assert(e == 1000000, "e")
 
 // float literals
 let f1 = 3.14
@@ -19,10 +19,10 @@ let f2 = -0.5
 let f3 = 1.0e10
 let f4 = 2.5e-3
 
-assert(f1 is 3.14, "f1")
-assert(f2 is -0.5, "f2")
-assert(f3 is 10000000000.0, "f3")
-assert(f4 is 0.0025, "f4")
+assert(f1 == 3.14, "f1")
+assert(f2 == -0.5, "f2")
+assert(f3 == 10000000000.0, "f3")
+assert(f4 == 0.0025, "f4")
 
 // string literals
 let s1 = "hello"
@@ -33,7 +33,7 @@ string
 """
 let s4 = r"raw\nstring"
 
-assert(s1 is "hello", "s1")
+assert(s1 == "hello", "s1")
 assert(s2.contains("\n"), "s2 contains")
 assert(s3.contains("multiline"), "s3 contains")
 assert(s4.contains("\\n"), "s4 contains")
@@ -41,6 +41,6 @@ assert(s4.contains("\\n"), "s4 contains")
 // boolean literals
 let t = true
 let f = false
-assert(t is true, "t")
-assert(f is false, "f")
-assert(t isnt f, "t isnt f")
+assert(t == true, "t")
+assert(f == false, "f")
+assert(t != f, "t != f")

@@ -29,7 +29,7 @@ Lru does {
         
         // 1. 查找已存在
         for i in 0..self.data.length() {
-            if self.data[i].k is k {
+            if self.data[i].k == k {
                 // 更新值和过期时间
                 // 简单的 LRU 移动策略：删除再添加
                 self.data.remove(i)
@@ -49,11 +49,11 @@ Lru does {
 
     func get(k: string) -> Option[int] {
         for i in 0..self.data.length() {
-            if self.data[i].k is k {
+            if self.data[i].k == k {
                 let e = self.data[i]
                 
                 // 检查过期
-                if e.expire_at > 0 and e.expire_at < self.now() {
+                if e.expire_at > 0 && e.expire_at < self.now() {
                     self.data.remove(i) // 惰性删除
                     self.stats.misses += 1
                     return Option#none

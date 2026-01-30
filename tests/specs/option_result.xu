@@ -2,7 +2,7 @@ func assert(x) { __builtin_assert(x) }
 
 let opt1 = Option#some(42)
 match opt1 {
-    Option#some(x) { assert(x is 42) }
+    Option#some(x) { assert(x == 42) }
     _ { assert(false) }
 }
 
@@ -13,13 +13,13 @@ match opt2 {
 }
 
 match Option#some(1) {
-    Option#some(x) { assert(x is 1) }
+    Option#some(x) { assert(x == 1) }
     _ { assert(false) }
 }
 
 let r1 = Result#ok(10)
 match r1 {
-    Result#ok(x)  { assert(x is 10) }
+    Result#ok(x)  { assert(x == 10) }
     Result#err(e) { assert(false) }
     _ { assert(false) }
 }
@@ -27,6 +27,6 @@ match r1 {
 let r2 = Result#err("failed")
 match r2 {
     Result#ok(x)  { assert(false) }
-    Result#err(e) { assert(e is "failed") }
+    Result#err(e) { assert(e == "failed") }
     _ { assert(false) }
 }

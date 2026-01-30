@@ -48,11 +48,9 @@ impl<'a, 'b> Parser<'a, 'b> {
                 continue;
             }
             let op = match self.peek_kind() {
-                TokenKind::KwOr => BinaryOp::Or,
-                TokenKind::KwAnd => BinaryOp::And,
-                TokenKind::KwIs => BinaryOp::Eq,
+                TokenKind::PipePipe => BinaryOp::Or,
+                TokenKind::AmpAmp => BinaryOp::And,
                 TokenKind::EqEq => BinaryOp::Eq,
-                TokenKind::KwIsnt => BinaryOp::Ne,
                 TokenKind::Ne => BinaryOp::Ne,
                 TokenKind::Gt => BinaryOp::Gt,
                 TokenKind::Lt => BinaryOp::Lt,
@@ -84,7 +82,7 @@ impl<'a, 'b> Parser<'a, 'b> {
     fn parse_prefix_impl(&mut self, allow_struct_init: bool) -> Option<Expr> {
         self.skip_trivia();
         match self.peek_kind() {
-            TokenKind::KwNot | TokenKind::Bang => {
+            TokenKind::Bang => {
                 self.bump();
                 let expr = self.parse_expr_impl(prefix_binding_power(), allow_struct_init)?;
                 Some(Expr::Unary {
@@ -130,11 +128,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                     let field = if self.at(TokenKind::Ident) {
                         self.expect_ident()?
                     } else if self.at(TokenKind::KwHas)
-                        || self.at(TokenKind::KwOr)
-                        || self.at(TokenKind::KwAnd)
-                        || self.at(TokenKind::KwNot)
                         || self.at(TokenKind::KwIs)
-                        || self.at(TokenKind::KwIsnt)
                         || self.at(TokenKind::KwIf)
                         || self.at(TokenKind::KwElse)
                         || self.at(TokenKind::KwMatch)
@@ -259,17 +253,6 @@ impl<'a, 'b> Parser<'a, 'b> {
                             continue;
                         }
                     }
-                    expr = Expr::MethodCall(Box::new(MethodCallExpr {
-                        receiver: Box::new(expr),
-                        method,
-                        args: args.into_boxed_slice(),
-                        ic_slot: std::cell::Cell::new(None),
-                    }));
-                }
-                TokenKind::KwOr if self.peek_kind_n(1) == Some(TokenKind::LParen) => {
-                    self.bump();
-                    let method = "or".to_string();
-                    let args = self.parse_args()?;
                     expr = Expr::MethodCall(Box::new(MethodCallExpr {
                         receiver: Box::new(expr),
                         method,

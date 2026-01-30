@@ -4,5 +4,5 @@ func assert(x) { __builtin_assert(x) }
 func some_a() -> Option[int] { return Option#some(1) }
 
 when a = some_a() {
-    assert(a is 1)
+    assert(a == 1)
 }

@@ -5,10 +5,10 @@ let l: [int] = [];
 l.add(1);
 l.add(2);
 l.add(3);
-assert(l.length() is 3);
-assert(l[0] is 1);
-assert(l[1] is 2);
-assert(l[2] is 3);
+assert(l.length() == 3);
+assert(l[0] == 1);
+assert(l[1] == 2);
+assert(l[2] == 3);
 assert(l.contains(2));
 
 // dict
@@ -16,9 +16,9 @@ let d: {string: int} = {};
 d.insert("a", 1);
 let got = d.get("a");
 match got {
-    Option#some(x) { assert(x is 1); }
+    Option#some(x) { assert(x == 1); }
     Option#none    { assert(false); }
     _ { assert(false); }
 };
-assert(d.length() is 1);
-assert(not (d.contains("b")));
+assert(d.length() == 1);
+assert(!(d.contains("b")));

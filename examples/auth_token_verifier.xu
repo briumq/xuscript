@@ -17,11 +17,11 @@ Token has {
 
 // 3. 解析角色类型
 func parse_role(type_str: string, id_str: string) -> Result[Role, string] {
-    if type_str is "admin" {
+    if type_str == "admin" {
         return Result#ok(Role#Admin)
-    } else if type_str is "user" {
+    } else if type_str == "user" {
         return Result#ok(Role#User(parse_int(id_str)))
-    } else if type_str is "guest" {
+    } else if type_str == "guest" {
         return Result#ok(Role#Guest)
     } else {
         return Result#err("Unknown role: {type_str}")
@@ -53,7 +53,7 @@ func verify_token(raw: string, now: int) -> Result[Role, string] {
     return decode_token(raw)
         .and_then(func(t: Token) -> Result[Token, string] {
             // 模拟验签
-            if t.sign isnt "secret" {
+            if t.sign != "secret" {
                 return Result#err("Invalid signature")
             }
             return Result#ok(t)

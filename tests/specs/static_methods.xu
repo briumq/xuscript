@@ -13,6 +13,6 @@ User has {
 }
 
 let u = User.create("Tom")
-assert(u.name is "Tom", "name")
-assert(u.greet() is "Hi, Tom", "greet")
+assert(u.name == "Tom", "name")
+assert(u.greet() == "Hi, Tom", "greet")
 

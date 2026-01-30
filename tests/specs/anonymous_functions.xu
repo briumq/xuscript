@@ -5,17 +5,17 @@ func make_adder(a: int) {
 }
 
 let add5 = make_adder(5)
-assert(add5(3) is 8, "closure_capture")
+assert(add5(3) == 8, "closure_capture")
 
 let inc = func(x: int) -> x + 1
-assert(inc(1) is 2, "expr_body")
+assert(inc(1) == 2, "expr_body")
 
 let dbl = func(x: int) -> int {
     let y = x * 2
     return y
 }
-assert(dbl(3) is 6, "block_body")
+assert(dbl(3) == 6, "block_body")
 
 func apply(f, x) { return f(x) }
-assert(apply(func(x: int) -> x + 2, 3) is 5, "pass_as_value")
+assert(apply(func(x: int) -> x + 2, 3) == 5, "pass_as_value")
 

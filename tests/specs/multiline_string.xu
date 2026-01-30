@@ -3,6 +3,6 @@ func assert(x) { __builtin_assert(x) }
 let s = """line1
 line2"""
 let parts = s.split("\n")
-assert(parts.length is 2)
-assert(parts[0] is "line1")
-assert(parts[1] is "line2")
+assert(parts.length == 2)
+assert(parts[0] == "line1")
+assert(parts[1] == "line2")

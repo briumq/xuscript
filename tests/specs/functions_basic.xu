@@ -4,11 +4,11 @@ func assert(x) { __builtin_assert(x) }
 func add(a: int, b: int) -> int {
     return a + b
 }
-assert(add(2, 3) is 5)
+assert(add(2, 3) == 5)
 
 // default parameter
 func greet(name: string, msg = "Hello") -> string {
     return "{msg}, {name}!"
 }
-assert(greet("Alice") is "Hello, Alice!")
-assert(greet("Bob", "Hi") is "Hi, Bob!")
+assert(greet("Alice") == "Hello, Alice!")
+assert(greet("Bob", "Hi") == "Hi, Bob!")

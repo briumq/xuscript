@@ -29,14 +29,14 @@ func main() {
   var d: {string: [int]} = {};
   d.insert("x", [1]);
   let a = d.x;
-  assert(a[0] is 1);
+  assert(a[0] == 1);
 
   d = {};
   gc();
 
   d.insert("x", [2]);
   let b = d.x;
-  assert(b[0] is 2);
+  assert(b[0] == 2);
 }
 "#;
     let module = parse_source(src);

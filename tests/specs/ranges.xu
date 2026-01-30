@@ -5,4 +5,4 @@ var sum = 0
 for i in R {
     sum += i
 }
-assert(sum is 10)
+assert(sum == 10)

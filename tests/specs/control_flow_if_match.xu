@@ -8,4 +8,4 @@ let text = match s {
     Status#rejected { "rejected" }
     _ { "" }
 }
-assert(text is "approved")
+assert(text == "approved")

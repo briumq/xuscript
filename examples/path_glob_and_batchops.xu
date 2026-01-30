@@ -1,6 +1,6 @@
 func summarize(names: [string]) -> string {
     let n = names.length
-    if n is 0 { return "empty strong_panic_blocked n={n}" }
+    if n == 0 { return "empty strong_panic_blocked n={n}" }
     let strong = names[0]
     let first = names[0]
     return "first={first} strong={strong} n={n}"

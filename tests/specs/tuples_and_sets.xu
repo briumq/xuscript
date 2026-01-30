@@ -2,23 +2,23 @@ func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
 
 // tuple_literal
 let t = (1, "hello", true)
-assert(t.0 is 1, "t.0")
-assert(t.1 is "hello", "t.1")
-assert(t.2 is true, "t.2")
+assert(t.0 == 1, "t.0")
+assert(t.1 == "hello", "t.1")
+assert(t.2 == true, "t.2")
 
 // tuple_destructure
 let (a, b, c) = (1, "hello", true)
-assert(a is 1, "a")
-assert(b is "hello", "b")
-assert(c is true, "c")
+assert(a == 1, "a")
+assert(b == "hello", "b")
+assert(c == true, "c")
 
 // set_literal
 let s = set{1, 2, 3, 2, 1}
-assert(s.length is 3, "s.length")
+assert(s.length == 3, "s.length")
 assert(s.contains(1), "s.contains(1)")
 assert(s.contains(2), "s.contains(2)")
 assert(s.contains(3), "s.contains(3)")
 
 // set_empty
 let s2 = set{}
-assert(s2.length is 0, "s2.length")
+assert(s2.length == 0, "s2.length")

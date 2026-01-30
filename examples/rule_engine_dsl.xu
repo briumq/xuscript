@@ -3,7 +3,7 @@ Rule with [ gt(k: string, v: int) | eq(k: string, s: string) ]
 func eval(r: Rule, obj: {string: any}) -> bool {
     match r {
         Rule#gt(k, v) { return parse_int(obj[k]) > v }
-        Rule#eq(k, s) { return to_text(obj[k]) is s }
+        Rule#eq(k, s) { return to_text(obj[k]) == s }
         _ { return false }
     }
 }

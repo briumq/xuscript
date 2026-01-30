@@ -2,17 +2,17 @@ func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
 
 // typed_dict_empty
 let d: {string: int} = {}
-assert(d.length is 0, "dict length")
+assert(d.length == 0, "dict length")
 
 // typed_set_empty (set is implemented as dict)
 let s = set{}
-assert(s.length is 0, "set length")
+assert(s.length == 0, "set length")
 
 // typed_tuple_return
 func divmod(a: int, b: int) -> (int, int) {
     return (a / b, a % b)
 }
 let (q, r) = divmod(10, 3)
-assert(q is 3, "q")
-assert(r is 1, "r")
+assert(q == 3, "q")
+assert(r == 1, "r")
 

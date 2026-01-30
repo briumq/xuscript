@@ -6,19 +6,19 @@ func divmod(a: int, b: int) -> (int, int) {
 }
 
 let (q, r) = divmod(10, 3)
-assert(q is 3)
-assert(r is 1)
+assert(q == 3)
+assert(r == 1)
 
 // 2. Test Tuple Creation and Access
 let t = (1, "hello", true)
-assert(t.0 is 1)
-assert(t.1 is "hello")
+assert(t.0 == 1)
+assert(t.1 == "hello")
 assert(t.2)
 
 // 3. Test Wildcard Destructuring in let binding
 let (x, _, z) = (10, 20, 30)
-assert(x is 10)
-assert(z is 30)
+assert(x == 10)
+assert(z == 30)
 
 // 4. Test Wildcard in match pattern
 // Note: In match patterns, '_' is a true wildcard
@@ -26,4 +26,4 @@ let match_res = match t {
     (1, _, _) { "starts with 1" }
     _ { "other" }
 }
-assert(match_res is "starts with 1")
+assert(match_res == "starts with 1")

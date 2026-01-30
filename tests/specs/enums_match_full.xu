@@ -8,7 +8,7 @@ let t = match s {
     Status#approved { "A" }
     _               { "R" }
 }
-assert(t is "P")
+assert(t == "P")
 
 func ok_or_err(ok: bool) {
     if ok { return Result#ok(5) }
@@ -20,4 +20,4 @@ let v = match ok_or_err(true) {
     Result#err(e) { 0 }
     _ { 0 }
 }
-assert(v is 10)
+assert(v == 10)
