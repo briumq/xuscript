@@ -1,20 +1,22 @@
 use proptest::prelude::*;
 use xu_runtime::Text;
 
+const INLINE_CAP: usize = 22;
+
 proptest! {
     #[test]
     fn text_from_str_respects_inline_boundary(s in ".*") {
         let t = Text::from_str(&s);
         prop_assert_eq!(t.len(), s.len());
-        if s.len() <= 22 {
+        if s.len() <= INLINE_CAP {
             match t {
                 Text::Inline { .. } => {},
-                _ => prop_assert!(false, "expected Inline for len<=22"),
+                _ => prop_assert!(false, "expected Inline for len<=INLINE_CAP"),
             }
         } else {
             match t {
                 Text::Heap { .. } => {},
-                _ => prop_assert!(false, "expected Heap for len>22"),
+                _ => prop_assert!(false, "expected Heap for len>INLINE_CAP"),
             }
         }
     }
@@ -29,15 +31,15 @@ proptest! {
         let expected = format!("{}{}", a, b);
         prop_assert_eq!(t.as_str(), expected.as_str());
         let total = a.len() + b.len();
-        if total <= 22 {
+        if total <= INLINE_CAP {
             match t {
                 Text::Inline { .. } => {},
-                _ => prop_assert!(false, "expected Inline for total<=22"),
+                _ => prop_assert!(false, "expected Inline for total<=INLINE_CAP"),
             }
         } else {
             match t {
                 Text::Heap { .. } => {},
-                _ => prop_assert!(false, "expected Heap for total>22"),
+                _ => prop_assert!(false, "expected Heap for total>INLINE_CAP"),
             }
         }
     }
