@@ -1,8 +1,8 @@
 use std::cell::Cell;
 use crate::{
     AssignOp, AssignStmt, DeclKind, DoesBlock, EnumDef, Expr, ForEachStmt, FuncDef, IfStmt,
-    MemberExpr, Param, Pattern, Stmt, StructDef, StructField, TypeRef, UseStmt, Visibility,
-    WhenStmt, WhileStmt,
+    MemberExpr, MatchStmt, Param, Pattern, Stmt, StructDef, StructField, TypeRef, UseStmt, Visibility,
+    WhileStmt,
 };
 use xu_syntax::{Diagnostic, DiagnosticKind, TokenKind, unquote};
 use super::Parser;
@@ -22,7 +22,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             TokenKind::KwIf => self.parse_if().map(|x| Stmt::If(Box::new(x))),
             TokenKind::KwWhile => self.parse_while().map(|x| Stmt::While(Box::new(x))),
             TokenKind::KwFor => self.parse_foreach().map(|x| Stmt::ForEach(Box::new(x))),
-            TokenKind::KwMatch => self.parse_when().map(|x| Stmt::When(Box::new(x))),
+            TokenKind::KwMatch => self.parse_match_stmt().map(|x| Stmt::Match(Box::new(x))),
             TokenKind::KwWhen => self.parse_when_bind_stmt(),
             TokenKind::KwReturn => self.parse_return(),
             TokenKind::KwBreak => self.parse_simple_kw_stmt(TokenKind::KwBreak, Stmt::Break),
@@ -476,7 +476,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         })
     }
 
-    fn parse_when(&mut self) -> Option<WhenStmt> {
+    fn parse_match_stmt(&mut self) -> Option<MatchStmt> {
         self.expect(TokenKind::KwMatch)?;
         let expr = self.parse_expr_no_struct_init(0)?;
         self.skip_trivia();
@@ -513,7 +513,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         };
         self.expect(TokenKind::RBrace)?;
         self.expect_stmt_terminator()?;
-        Some(WhenStmt {
+        Some(MatchStmt {
             expr,
             arms: arms.into_boxed_slice(),
             else_branch,
@@ -607,13 +607,13 @@ impl<'a, 'b> Parser<'a, 'b> {
                 (pat_res, inner_body.clone()),
             ]
             .into_boxed_slice();
-            let when_stmt = Stmt::When(Box::new(WhenStmt {
+            let match_stmt = Stmt::Match(Box::new(MatchStmt {
                 expr,
                 arms,
                 else_branch: Some(else_body.clone()),
             }));
-            outer_stmt = Some(when_stmt.clone());
-            inner_body = vec![when_stmt].into_boxed_slice();
+            outer_stmt = Some(match_stmt.clone());
+            inner_body = vec![match_stmt].into_boxed_slice();
         }
         outer_stmt
     }

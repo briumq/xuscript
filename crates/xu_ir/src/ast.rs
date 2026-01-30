@@ -19,7 +19,7 @@ pub enum Stmt {
     If(Box<IfStmt>),
     While(Box<WhileStmt>),
     ForEach(Box<ForEachStmt>),
-    When(Box<WhenStmt>),
+    Match(Box<MatchStmt>),
     Return(Option<Expr>),
     Break,
     Continue,
@@ -126,7 +126,7 @@ pub enum Pattern {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct WhenStmt {
+pub struct MatchStmt {
     pub expr: Expr,
     pub arms: Box<[(Pattern, Box<[Stmt]>)]>,
     pub else_branch: Option<Box<[Stmt]>>,

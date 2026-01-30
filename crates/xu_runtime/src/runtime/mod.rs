@@ -1305,7 +1305,7 @@ impl Runtime {
                     Self::precompile_expr(&s.iter)?;
                     Self::precompile_stmts(&s.body)?;
                 }
-                Stmt::When(s) => {
+                Stmt::Match(s) => {
                     Self::precompile_expr(&s.expr)?;
                     for (_, body) in s.arms.iter() {
                         Self::precompile_stmts(body)?;

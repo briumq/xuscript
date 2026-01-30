@@ -189,7 +189,7 @@ pub fn analyze_stmts(
                     terminated = true;
                 }
             }
-            Stmt::When(s) => {
+            Stmt::Match(s) => {
                 analyze_expr(&mut s.expr, funcs, scope, finder, out);
                 let mut all_arms_terminate = !s.arms.is_empty();
                 for (pat, body) in &mut s.arms {
@@ -390,7 +390,7 @@ pub(crate) fn analyze_local_stmts_shim(
                     analyze_local_stmts_shim(b, funcs, scope, finder, out);
                 }
             }
-            Stmt::When(s) => {
+            Stmt::Match(s) => {
                 analyze_expr(&mut s.expr, funcs, scope, finder, out);
                 for (pat, body) in s.arms.iter_mut() {
                     scope.push(HashMap::new());

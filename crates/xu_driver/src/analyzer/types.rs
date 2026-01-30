@@ -158,7 +158,7 @@ fn analyze_type_stmts(
                     );
                 }
             }
-            Stmt::When(s) => {
+            Stmt::Match(s) => {
                 let _ = infer_type(&s.expr, func_sigs, structs, type_env, interner);
                 for (_, body) in s.arms.iter() {
                     analyze_type_stmts(

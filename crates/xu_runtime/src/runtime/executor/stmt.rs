@@ -136,7 +136,7 @@ impl Runtime {
                 }
             },
             Stmt::If(s) => self.exec_if_branches(s.branches.as_ref(), s.else_branch.as_ref()),
-            Stmt::When(s) => {
+            Stmt::Match(s) => {
                 let v = match self.eval_expr(&s.expr) {
                     Ok(v) => v,
                     Err(e) => {

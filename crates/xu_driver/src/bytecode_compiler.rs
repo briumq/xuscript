@@ -178,7 +178,7 @@ impl Compiler {
                 self.bc.ops.push(Op::Use(path_idx, alias_idx));
                 Some(())
             }
-            Stmt::When(_) => None,
+            Stmt::Match(_) => None, // TODO: implement match stmt bytecode compilation
             Stmt::Return(v) => self.compile_return(v.as_ref()),
             Stmt::Break => self.compile_break(),
             Stmt::Continue => self.compile_continue(),
