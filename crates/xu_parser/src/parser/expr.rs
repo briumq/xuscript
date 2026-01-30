@@ -393,6 +393,8 @@ impl<'a, 'b> Parser<'a, 'b> {
                     DiagnosticKind::ExpectedExpression,
                     Some(span),
                 ));
+                // Consume the unexpected token to avoid infinite loops
+                self.bump();
                 Some(Expr::Error(span))
             }
         }

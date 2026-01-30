@@ -94,30 +94,35 @@ func main() {
     cache.put("a", 1)
     cache.put("b", 2)
     cache.put("c", 3)
-    
-    println("Get 'a': {match cache.get("a") { Option#some(v){v} _ {-1} }}") // Should be 1
-    
+
+    let val_a = match cache.get("a") { Option#some(v){v} _ {-1} }
+    println("Get 'a': {val_a}") // Should be 1
+
     println("--- LRU Eviction ---")
     cache.put("d", 4) // Should evict 'b' (since 'a' was accessed)
-    
+
     // a(1) -> b(2) -> c(3)
     // get(a) -> b(2) -> c(3) -> a(1)
     // put(d) -> c(3) -> a(1) -> d(4), evict b(2)
-    
-    println("Get 'b': {match cache.get("b") { Option#some(v){v} _ {-1} }}") // Should be -1 (miss)
-    println("Get 'c': {match cache.get("c") { Option#some(v){v} _ {-1} }}") // Should be 3
-    
+
+    let val_b = match cache.get("b") { Option#some(v){v} _ {-1} }
+    let val_c = match cache.get("c") { Option#some(v){v} _ {-1} }
+    println("Get 'b': {val_b}") // Should be -1 (miss)
+    println("Get 'c': {val_c}") // Should be 3
+
     println("--- TTL Expiry ---")
     cache.put("e", 5, 100) // TTL 100ms
-    println("Get 'e' (immediate): {match cache.get("e") { Option#some(v){v} _ {-1} }}")
-    
+    let val_e1 = match cache.get("e") { Option#some(v){v} _ {-1} }
+    println("Get 'e' (immediate): {val_e1}")
+
     // 简单的忙等待模拟 sleep
     let start = time_millis()
     while (time_millis() - start) < 200 {
         let _ = 0
     }
-    
-    println("Get 'e' (after 200ms): {match cache.get("e") { Option#some(v){v} _ {-1} }}")
+
+    let val_e2 = match cache.get("e") { Option#some(v){v} _ {-1} }
+    println("Get 'e' (after 200ms): {val_e2}")
     
     println("--- Stats ---")
     println(cache.stats_info())

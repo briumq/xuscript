@@ -1,0 +1,34 @@
+// Regression test: match expression arms cannot contain `let` statements.
+// This should report a syntax error, not hang.
+// expect_error: "Expected expression"
+
+Role with [
+    Admin |
+    User(id: int) |
+    Guest
+]
+
+func decode_token(raw: string) -> Result[Role, string] {
+    let parts = raw.split(":")
+    if parts.length() < 4 {
+        return Result#err("Invalid format")
+    }
+
+    let type_str = parts[0]
+    let id_str = parts[1]
+
+    // ERROR: match expression arms must be expressions, not statement blocks
+    let role = match type_str {
+        "admin" { let r = Role#Admin; r }
+        "user"  { Role#User(parse_int(id_str)) }
+        "guest" { let r = Role#Guest; r }
+        _       { return Result#err("Unknown role") }
+    }
+
+    return Result#ok(role)
+}
+
+func main() {
+    let r = decode_token("admin:0:2000:secret")
+    println("{r}")
+}

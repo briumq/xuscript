@@ -15,29 +15,37 @@ Token has {
     sign: string
 }
 
-// 3. 模拟解码函数 (格式: "role_type:id:exp:sign")
+// 3. 解析角色类型
+func parse_role(type_str: string, id_str: string) -> Result[Role, string] {
+    if type_str is "admin" {
+        return Result#ok(Role#Admin)
+    } else if type_str is "user" {
+        return Result#ok(Role#User(parse_int(id_str)))
+    } else if type_str is "guest" {
+        return Result#ok(Role#Guest)
+    } else {
+        return Result#err("Unknown role: {type_str}")
+    }
+}
+
+// 4. 模拟解码函数 (格式: "role_type:id:exp:sign")
 // 例如: "admin:0:1700000000:secret" 或 "user:101:1700000000:secret"
 func decode_token(raw: string) -> Result[Token, string] {
     let parts = raw.split(":")
     if parts.length() < 4 {
         return Result#err("Invalid format")
     }
-    
+
     let type_str = parts[0]
     let id_str = parts[1]
     let exp_str = parts[2]
     let sign = parts[3]
-    
+
     let exp = parse_int(exp_str)
-    
-    let role = match type_str {
-        "admin" { let r = Role#Admin; r }
-        "user"  { Role#User(parse_int(id_str)) }
-        "guest" { let r = Role#Guest; r }
-        _       { return Result#err("Unknown role: {type_str}") }
-    }
-    
-    return Result#ok(Token{ role: role, exp: exp, sign: sign })
+
+    return parse_role(type_str, id_str).map(func(role: Role) -> Token {
+        Token{ role: role, exp: exp, sign: sign }
+    })
 }
 
 // 4. 验证逻辑
@@ -81,11 +89,13 @@ func main() {
                     Role#Admin { println("✅ Access Granted (Admin)") }
                     Role#User(id) { println("✅ Access Granted (User {id})") }
                     Role#Guest { println("⚠️ Guest Access") }
+                    _ { println("Unknown role") }
                 }
             }
             Result#err(e) {
                 println("❌ Denied: {e}")
             }
+            _ { println("Unexpected result") }
         }
     }
 }

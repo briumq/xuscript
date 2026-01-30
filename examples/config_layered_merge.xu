@@ -16,8 +16,8 @@ AppConfig has {
 // 基础合并：override 覆盖 base
 func merge_dict(base: {string: any}, override: {string: any}) -> {string: any} {
     let out: {string: any} = {}
-    for k in base.keys() { out[k] = base[k] }
-    for k in override.keys() { out[k] = override[k] }
+    for k1 in base.keys() { out[k1] = base[k1] }
+    for k2 in override.keys() { out[k2] = override[k2] }
     return out
 }
 

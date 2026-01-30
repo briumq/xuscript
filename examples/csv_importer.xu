@@ -61,6 +61,7 @@ func process_data(csv_data: string) {
             Result#err(msg) {
                 println("  Row Error: {msg} [Line: {line}]")
             }
+            _ { }
         }
     }
     

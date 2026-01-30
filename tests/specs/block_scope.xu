@@ -1,0 +1,24 @@
+// Test block scope: variables declared inside a block are scoped to that block
+func test_block_scope() {
+    print("before block")
+    {
+        let x = 1
+        print("inside block x=" + to_text(x))
+    }
+    print("after block")
+}
+
+// Test block scope: outer variables can be modified inside a block
+func test_block_modify_outer() {
+    var x = 10
+    {
+        x = 20
+        print("inside block x=" + to_text(x))
+    }
+    print("after block x=" + to_text(x))
+}
+
+func main() {
+    test_block_scope()
+    test_block_modify_outer()
+}
