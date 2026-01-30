@@ -760,6 +760,7 @@ impl Runtime {
                         }
                     }
                     Stmt::While(w) => walk_stmts(ordered, seen, &w.body),
+                    Stmt::Block(stmts) => walk_stmts(ordered, seen, stmts),
                     Stmt::FuncDef(_) => {}
                     _ => {}
                 }
@@ -1367,6 +1368,7 @@ impl Runtime {
                     Self::precompile_expr(&s.value)?;
                 }
                 Stmt::Expr(e) => Self::precompile_expr(e)?,
+                Stmt::Block(stmts) => Self::precompile_stmts(stmts)?,
                 Stmt::Break | Stmt::Continue => {}
                 Stmt::Error(_) => {}
             }

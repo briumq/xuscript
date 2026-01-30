@@ -346,6 +346,20 @@ impl Runtime {
                     Flow::Throw(err_val)
                 }
             },
+            Stmt::Block(stmts) => {
+                // Execute block in a new scope
+                if self.locals.is_active() {
+                    self.push_locals();
+                    let flow = self.exec_stmts(stmts);
+                    self.pop_locals();
+                    flow
+                } else {
+                    self.env.push();
+                    let flow = self.exec_stmts(stmts);
+                    self.env.pop();
+                    flow
+                }
+            }
             Stmt::Error(_) => Flow::None,
         }
     }

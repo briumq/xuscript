@@ -246,6 +246,20 @@ fn analyze_type_stmts(
                 }
             }
             Stmt::Break | Stmt::Continue => {}
+            Stmt::Block(stmts) => {
+                type_env.push(HashMap::new());
+                analyze_type_stmts(
+                    stmts,
+                    func_sigs,
+                    structs,
+                    type_env,
+                    finder,
+                    expected_return,
+                    interner,
+                    out,
+                );
+                type_env.pop();
+            }
             Stmt::Assign(s) => {
                 if let Some(expected_id) = s.ty.as_ref().map(|t| typeref_to_typeid(interner, t)) {
                     if let Some(actual) =

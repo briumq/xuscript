@@ -243,6 +243,20 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.tokens.get(self.i + n).map(|t| t.kind)
     }
 
+    /// Peek at the token kind after `{`, skipping whitespace/newlines.
+    pub(super) fn peek_kind_after_lbrace(&self) -> Option<TokenKind> {
+        let mut j = self.i + 1; // skip the `{`
+        while j < self.tokens.len() {
+            let kind = self.tokens[j].kind;
+            if kind == TokenKind::Newline || kind == TokenKind::Indent {
+                j += 1;
+                continue;
+            }
+            return Some(kind);
+        }
+        None
+    }
+
     pub(super) fn bumped(&mut self) -> Token {
         let t = self.tokens[self.i].clone();
         self.i += 1;

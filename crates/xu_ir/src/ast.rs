@@ -20,6 +20,7 @@ pub enum Stmt {
     While(Box<WhileStmt>),
     ForEach(Box<ForEachStmt>),
     Match(Box<MatchStmt>),
+    Block(Box<[Stmt]>),
     Return(Option<Expr>),
     Break,
     Continue,

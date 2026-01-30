@@ -179,6 +179,7 @@ impl Compiler {
                 Some(())
             }
             Stmt::Match(_) => None, // TODO: implement match stmt bytecode compilation
+            Stmt::Block(_) => None, // Block statements fall back to AST execution
             Stmt::Return(v) => self.compile_return(v.as_ref()),
             Stmt::Break => self.compile_break(),
             Stmt::Continue => self.compile_continue(),

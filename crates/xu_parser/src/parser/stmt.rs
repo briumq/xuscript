@@ -31,6 +31,14 @@ impl<'a, 'b> Parser<'a, 'b> {
             }
             TokenKind::KwUse => self.parse_use_stmt(),
             TokenKind::KwLet | TokenKind::KwVar => self.parse_let_var_decl(vis),
+            TokenKind::LBrace => {
+                // Check if this is a block statement or a dict literal
+                if self.is_block_stmt() {
+                    self.parse_block_stmt()
+                } else {
+                    self.parse_assign_or_expr_stmt()
+                }
+            }
             TokenKind::Ident => {
                 if self.is_does_block_start() {
                     self.parse_does_block(vis)
@@ -50,6 +58,37 @@ impl<'a, 'b> Parser<'a, 'b> {
             }
             _ => self.parse_assign_or_expr_stmt(),
         }
+    }
+
+    /// Check if the current `{` starts a block statement (not a dict literal).
+    /// A block statement has `{` followed by a statement keyword or `}`.
+    fn is_block_stmt(&self) -> bool {
+        if !self.at(TokenKind::LBrace) {
+            return false;
+        }
+        // Look ahead to see what follows the `{`
+        let next = self.peek_kind_after_lbrace();
+        matches!(
+            next,
+            Some(TokenKind::KwLet)
+                | Some(TokenKind::KwVar)
+                | Some(TokenKind::KwIf)
+                | Some(TokenKind::KwWhile)
+                | Some(TokenKind::KwFor)
+                | Some(TokenKind::KwMatch)
+                | Some(TokenKind::KwReturn)
+                | Some(TokenKind::KwBreak)
+                | Some(TokenKind::KwContinue)
+                | Some(TokenKind::KwFunc)
+                | Some(TokenKind::KwUse)
+                | Some(TokenKind::LBrace)  // nested block
+        )
+    }
+
+    /// Parse a block statement: `{ stmts... }`
+    fn parse_block_stmt(&mut self) -> Option<Stmt> {
+        let stmts = self.parse_block()?;
+        Some(Stmt::Block(stmts))
     }
 
     /// Parse a `let` / `var` declaration.

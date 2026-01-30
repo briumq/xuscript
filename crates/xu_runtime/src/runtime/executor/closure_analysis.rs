@@ -28,6 +28,11 @@ pub(super) fn needs_env_frame(stmts: &[Stmt]) -> bool {
                     return true;
                 }
             }
+            Stmt::Block(stmts) => {
+                if needs_env_frame(stmts) {
+                    return true;
+                }
+            }
             _ => {}
         }
     }
@@ -61,6 +66,11 @@ pub(super) fn has_ident_assign(stmts: &[Stmt]) -> bool {
             }
             Stmt::ForEach(x) => {
                 if has_ident_assign(&x.body) {
+                    return true;
+                }
+            }
+            Stmt::Block(stmts) => {
+                if has_ident_assign(stmts) {
                     return true;
                 }
             }
@@ -128,6 +138,11 @@ pub(super) fn params_all_slotted(stmts: &[Stmt], params: &[xu_ir::Param]) -> boo
                 }
                 Stmt::ForEach(x) => {
                     if !check_expr(&x.iter, names) || !check_stmts(&x.body, names) {
+                        return false;
+                    }
+                }
+                Stmt::Block(inner) => {
+                    if !check_stmts(inner, names) {
                         return false;
                     }
                 }

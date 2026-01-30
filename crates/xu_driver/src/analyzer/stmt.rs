@@ -294,6 +294,28 @@ pub fn analyze_stmts(
             Stmt::Break | Stmt::Continue => {
                 terminated = true;
             }
+            Stmt::Block(stmts) => {
+                scope.push(HashMap::new());
+                def_spans.push(HashMap::new());
+                let block_terminated = analyze_stmts(
+                    stmts,
+                    funcs,
+                    structs,
+                    scope,
+                    def_spans,
+                    finder,
+                    out,
+                    base_dir,
+                    strict,
+                    cache.clone(),
+                    import_stack,
+                );
+                scope.pop();
+                def_spans.pop();
+                if block_terminated {
+                    terminated = true;
+                }
+            }
             Stmt::Assign(s) => {
                 analyze_expr(&mut s.value, funcs, scope, finder, out);
                 match &mut s.target {
@@ -457,6 +479,11 @@ pub(crate) fn analyze_local_stmts_shim(
                 }
             }
             Stmt::Expr(e) => analyze_expr(e, funcs, scope, finder, out),
+            Stmt::Block(stmts) => {
+                scope.push(HashMap::new());
+                analyze_local_stmts_shim(stmts, funcs, scope, finder, out);
+                scope.pop();
+            }
             Stmt::Break | Stmt::Continue => {}
             Stmt::FuncDef(_) => {}
             Stmt::StructDef(_) => {}
