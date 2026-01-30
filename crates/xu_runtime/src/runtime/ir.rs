@@ -2525,6 +2525,49 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                 rt.write_output(&value_to_string(&v, &rt.heap));
             }
+            Op::Dup => {
+                let v = stack.last().cloned().ok_or_else(|| "Stack underflow".to_string())?;
+                stack.push(v);
+            }
+            Op::JumpIfTrue(to) => {
+                let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+                if v.is_bool() && v.as_bool() {
+                    ip = *to;
+                    continue;
+                }
+            }
+            Op::MatchPattern(pat_idx) => {
+                // Peek the value (don't pop it, we need it for MatchBindings)
+                let v = stack.last().cloned().ok_or_else(|| "Stack underflow".to_string())?;
+                let c = rt.get_constant(*pat_idx, &bc.constants);
+                if let xu_ir::Constant::Pattern(pat) = c {
+                    let matched = super::pattern::match_pattern(rt, pat, &v).is_some();
+                    stack.push(Value::from_bool(matched));
+                } else {
+                    return Err("Expected pattern constant".into());
+                }
+            }
+            Op::MatchBindings(pat_idx) => {
+                // Pop the value that was matched
+                let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+                let c = rt.get_constant(*pat_idx, &bc.constants);
+                if let xu_ir::Constant::Pattern(pat) = c {
+                    if let Some(bindings) = super::pattern::match_pattern(rt, pat, &v) {
+                        // Push bindings onto stack in order
+                        for (_, val) in bindings {
+                            stack.push(val);
+                        }
+                    }
+                } else {
+                    return Err("Expected pattern constant".into());
+                }
+            }
+            Op::LocalsPush => {
+                rt.push_locals();
+            }
+            Op::LocalsPop => {
+                rt.pop_locals();
+            }
             Op::TryPush(_, _, _, _) | Op::TryPop | Op::SetThrown => {
                 // try/catch not supported in v1.1
                 return Err("try/catch not supported".into());

@@ -4,7 +4,7 @@
 //!
 
 use xu_ir::{
-    AssignOp, AssignStmt, BinaryOp, Bytecode, BytecodeFunction, Expr, IfStmt, Module, Op, Stmt,
+    AssignOp, AssignStmt, BinaryOp, Bytecode, BytecodeFunction, Expr, IfStmt, Module, Op, Pattern, Stmt,
     UnaryOp,
 };
 
@@ -27,6 +27,31 @@ fn infer_module_alias(path: &str) -> String {
     let last = last.trim_end_matches('/');
     let last = last.trim_end_matches('\\');
     last.strip_suffix(".xu").unwrap_or(last).to_string()
+}
+
+/// Collect all binding names from a pattern in order
+fn collect_pattern_bindings(pat: &Pattern) -> Vec<String> {
+    let mut bindings = Vec::new();
+    collect_pattern_bindings_impl(pat, &mut bindings);
+    bindings
+}
+
+fn collect_pattern_bindings_impl(pat: &Pattern, bindings: &mut Vec<String>) {
+    match pat {
+        Pattern::Wildcard => {}
+        Pattern::Bind(name) => bindings.push(name.clone()),
+        Pattern::Tuple(items) => {
+            for p in items.iter() {
+                collect_pattern_bindings_impl(p, bindings);
+            }
+        }
+        Pattern::Int(_) | Pattern::Float(_) | Pattern::Str(_) | Pattern::Bool(_) => {}
+        Pattern::EnumVariant { args, .. } => {
+            for p in args.iter() {
+                collect_pattern_bindings_impl(p, bindings);
+            }
+        }
+    }
 }
 
 struct LoopCtx {
@@ -716,7 +741,100 @@ impl Compiler {
                 }
                 Some(())
             }
-            Expr::Match(_) => None,
+            Expr::Match(m) => {
+                // Compile the match expression
+                self.compile_expr(&m.expr)?;
+
+                let mut arm_end_jumps: Vec<usize> = Vec::new();
+
+                for (i, (pat, body)) in m.arms.iter().enumerate() {
+                    let is_last = i == m.arms.len() - 1 && m.else_expr.is_none();
+
+                    // Handle pattern matching
+                    if !matches!(pat, xu_ir::Pattern::Wildcard) {
+                        // Add pattern to constants and emit match instruction
+                        // MatchPattern peeks the value and pushes bool result
+                        let pat_idx = self.add_constant(xu_ir::Constant::Pattern(pat.clone()));
+                        self.bc.ops.push(Op::MatchPattern(pat_idx));
+
+                        // Jump to next arm if pattern doesn't match
+                        let jump_pos = self.bc.ops.len();
+                        self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
+
+                        // Get bindings from pattern
+                        let bindings = collect_pattern_bindings(pat);
+                        if !bindings.is_empty() {
+                            // Push env frame for bindings
+                            self.bc.ops.push(Op::EnvPush);
+
+                            // Emit MatchBindings to pop value and push binding values onto stack
+                            self.bc.ops.push(Op::MatchBindings(pat_idx));
+
+                            // Store bindings in env (in reverse order since they're on stack)
+                            for name in bindings.iter().rev() {
+                                let name_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
+                                self.bc.ops.push(Op::StoreName(name_idx));
+                            }
+
+                            // Compile body expression
+                            self.compile_expr(body)?;
+
+                            // Pop env frame
+                            self.bc.ops.push(Op::EnvPop);
+                        } else {
+                            // No bindings, just pop the original value
+                            self.bc.ops.push(Op::Pop);
+
+                            // Compile body expression
+                            self.compile_expr(body)?;
+                        }
+
+                        // Jump to end of match
+                        let end_jump = self.bc.ops.len();
+                        self.bc.ops.push(Op::Jump(usize::MAX));
+                        arm_end_jumps.push(end_jump);
+
+                        // Patch the conditional jump to point here (next arm)
+                        let next_arm_ip = self.bc.ops.len();
+                        match self.bc.ops[jump_pos] {
+                            Op::JumpIfFalse(ref mut to) => *to = next_arm_ip,
+                            _ => return None,
+                        }
+                    } else {
+                        // Wildcard pattern - always matches
+                        // Pop the original value
+                        self.bc.ops.push(Op::Pop);
+
+                        // Compile body expression
+                        self.compile_expr(body)?;
+
+                        // Jump to end (unless this is the last arm)
+                        if !is_last {
+                            let end_jump = self.bc.ops.len();
+                            self.bc.ops.push(Op::Jump(usize::MAX));
+                            arm_end_jumps.push(end_jump);
+                        }
+                    }
+                }
+
+                // Compile else expression if present
+                if let Some(else_expr) = &m.else_expr {
+                    // Pop the original value
+                    self.bc.ops.push(Op::Pop);
+                    self.compile_expr(else_expr)?;
+                }
+
+                // Patch all end jumps to point here
+                let end_ip = self.bc.ops.len();
+                for jump_pos in arm_end_jumps {
+                    match self.bc.ops[jump_pos] {
+                        Op::Jump(ref mut to) => *to = end_ip,
+                        _ => return None,
+                    }
+                }
+
+                Some(())
+            }
             Expr::FuncLit(def) => {
                 let mut inner = Compiler::new();
                 inner.push_scope();

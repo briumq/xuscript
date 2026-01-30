@@ -3,7 +3,7 @@
 //!
 //!
 
-use crate::{AssignOp, EnumDef, FuncDef, StructDef};
+use crate::{AssignOp, EnumDef, FuncDef, Pattern, StructDef};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BytecodeFunction {
@@ -21,6 +21,7 @@ pub enum Constant {
     Enum(EnumDef),
     Func(BytecodeFunction),
     Names(Vec<String>),
+    Pattern(Pattern),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -31,6 +32,7 @@ pub enum Op {
     ConstNull,
     Const(u32), // Index into constant pool
     Pop,
+    Dup,        // Duplicate top of stack
     Add,
     AddAssignName(u32), // Index into constant pool (String)
     AddAssignLocal(usize),
@@ -55,6 +57,7 @@ pub enum Op {
     Not,
     Jump(usize),
     JumpIfFalse(usize),
+    JumpIfTrue(usize),
     LoadName(u32), // Index into constant pool (String)
     LoadLocal(usize),
     StoreName(u32), // Index into constant pool (String)
@@ -104,6 +107,11 @@ pub enum Op {
     ListAppend(usize),
     Print,
     Halt,
+    // Match pattern ops
+    MatchPattern(u32),          // Index to Pattern constant, pushes bool (match result)
+    MatchBindings(u32),         // Index to Pattern constant, pushes bindings count then values
+    LocalsPush,                 // Push a new locals frame
+    LocalsPop,                  // Pop locals frame
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
