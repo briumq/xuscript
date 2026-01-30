@@ -163,9 +163,9 @@ func bench_string_scan(N: int) -> float {
   func logic() {
     let _c1 = contains(str, "999")
     let _c2 = starts_with(str, "0,1")
-    let _c3 = ends_with(str, to_text(N - 1))
+    let _c3 = ends_with(str, to_text(N - 1))  // Same as Python/Node: str(n-1) inside timing
   }
-  return run_min_ms(7, logic)
+  return run_min_ms(1, logic)  // Run once like Python/Node
 }
 
 func main() {
