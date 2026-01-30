@@ -84,8 +84,9 @@ pub(super) fn match_pattern(
                 return None;
             }
             let payload_vals: Vec<Value> =
-                if let crate::gc::ManagedObject::Enum(ety, ev, payload) = rt.heap.get(v.as_obj_id())
+                if let crate::gc::ManagedObject::Enum(e) = rt.heap.get(v.as_obj_id())
                 {
+                    let (ety, ev, payload) = e.as_ref();
                     if ety.as_str() != ty.as_str() || ev.as_str() != variant.as_str() {
                         return None;
                     }

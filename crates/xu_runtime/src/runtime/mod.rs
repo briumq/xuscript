@@ -238,11 +238,11 @@ impl Runtime {
         }
         static OPTION: &str = "Option";
         static NONE: &str = "none";
-        let v = Value::enum_obj(self.heap.alloc(crate::gc::ManagedObject::Enum(
+        let v = Value::enum_obj(self.heap.alloc(crate::gc::ManagedObject::Enum(Box::new((
             crate::Text::from_str(OPTION),
             crate::Text::from_str(NONE),
             Box::new([]),
-        )));
+        )))));
         self.cached_option_none = Some(v);
         v
     }
@@ -316,11 +316,11 @@ impl Runtime {
                 )));
             }
         }
-        let id = self.heap.alloc(crate::gc::ManagedObject::Enum(
+        let id = self.heap.alloc(crate::gc::ManagedObject::Enum(Box::new((
             ty.to_string().into(),
             variant.to_string().into(),
             payload,
-        ));
+        ))));
         Ok(Value::enum_obj(id))
     }
 
@@ -333,15 +333,18 @@ impl Runtime {
             return Err(self.error(xu_syntax::DiagnosticKind::Raw("Non-enum object".into())));
         }
         match self.heap.get(v.as_obj_id()) {
-            crate::gc::ManagedObject::Enum(ty, variant, payload) => Ok((
-                ty.clone(),
-                variant.clone(),
-                payload
-                    .iter()
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice(),
-            )),
+            crate::gc::ManagedObject::Enum(e) => {
+                let (ty, variant, payload) = e.as_ref();
+                Ok((
+                    ty.clone(),
+                    variant.clone(),
+                    payload
+                        .iter()
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                ))
+            }
             _ => Err(self.error(xu_syntax::DiagnosticKind::Raw("Non-enum object".into()))),
         }
     }
@@ -809,9 +812,10 @@ impl Runtime {
                         }
                     } else if tag == crate::value::TAG_ENUM {
                         let id = recv.as_obj_id();
-                        if let crate::gc::ManagedObject::Enum(ty, _variant, _payload) =
+                        if let crate::gc::ManagedObject::Enum(e) =
                             self.heap.get(id)
                         {
+                            let (ty, _variant, _payload) = e.as_ref();
                             let ty_hash = xu_ir::stable_hash64(ty.as_str());
                             if slot.struct_ty_hash == ty_hash {
                                 if let Some(f) = slot.cached_bytecode.as_ref() {
@@ -958,9 +962,10 @@ impl Runtime {
         } else if tag == crate::value::TAG_ENUM {
             let id = recv.as_obj_id();
             let (callee, ty_hash) =
-                match if let crate::gc::ManagedObject::Enum(ty, _variant, _payload) =
+                match if let crate::gc::ManagedObject::Enum(e) =
                     self.heap.get(id)
                 {
+                    let (ty, _variant, _payload) = e.as_ref();
                     let ty_str = ty.as_str();
                     let hash = {
                         let mut h = self.method_cache.hasher().build_hasher();
@@ -1229,9 +1234,11 @@ impl Runtime {
                     crate::gc::ManagedObject::Range(b1, b2, bi),
                 ) => a1 == b1 && a2 == b2 && ai == bi,
                 (
-                    crate::gc::ManagedObject::Enum(ta, va, pa),
-                    crate::gc::ManagedObject::Enum(tb, vb, pb),
+                    crate::gc::ManagedObject::Enum(ea),
+                    crate::gc::ManagedObject::Enum(eb),
                 ) => {
+                    let (ta, va, pa) = ea.as_ref();
+                    let (tb, vb, pb) = eb.as_ref();
                     if ta != tb || va != vb || pa.len() != pb.len() {
                         return false;
                     }

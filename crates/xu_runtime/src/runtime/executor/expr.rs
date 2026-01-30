@@ -322,12 +322,12 @@ impl Runtime {
                     }
                 }
                 Ok(Value::struct_obj(self.heap.alloc(
-                    crate::gc::ManagedObject::Struct(StructInstance {
+                    crate::gc::ManagedObject::Struct(Box::new(StructInstance {
                         ty: s.ty.clone(),
                         ty_hash: xu_ir::stable_hash64(s.ty.as_str()),
                         fields: values.into_boxed_slice(),
                         field_names: layout.clone(),
-                    }),
+                    })),
                 )))
             }
             Expr::EnumCtor { ty, variant, args } => {

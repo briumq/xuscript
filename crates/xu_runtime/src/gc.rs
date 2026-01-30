@@ -12,12 +12,12 @@ pub enum ManagedObject {
     Tuple(Vec<Value>),
     Dict(Dict),
     DictStr(DictStr),
-    File(FileHandle),
+    File(Box<FileHandle>),
     Builder(String),
-    Struct(StructInstance),
+    Struct(Box<StructInstance>),
     Module(ModuleInstance),
     Range(i64, i64, bool),
-    Enum(crate::Text, crate::Text, Box<[Value]>),
+    Enum(Box<(crate::Text, crate::Text, Box<[Value]>)>),
     OptionSome(Value), // Optimized Option::some with single value
     Function(Function),
     Str(crate::Text),
@@ -75,7 +75,8 @@ impl ManagedObject {
                     * (std::mem::size_of::<String>() + std::mem::size_of::<Value>() + 16)
                     + 1024 // Module overhead
             }
-            ManagedObject::Enum(ty, variant, payload) => {
+            ManagedObject::Enum(e) => {
+                let (ty, variant, payload) = e.as_ref();
                 ty.as_str().len()
                     + variant.as_str().len()
                     + payload.len() * std::mem::size_of::<Value>()
@@ -255,8 +256,9 @@ impl Heap {
                                                 pending_values.push(value.clone());
                                             }
                                         }
-                                        ManagedObject::Enum(_, _, payload) => {
-                                            for item in payload {
+                                        ManagedObject::Enum(e) => {
+                                            let (_, _, payload) = e.as_ref();
+                                            for item in payload.iter() {
                                                 pending_values.push(item.clone());
                                             }
                                         }

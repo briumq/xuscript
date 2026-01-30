@@ -121,7 +121,8 @@ impl Runtime {
             }
         } else if tag == crate::value::TAG_ENUM && (field == "has" || field == "none") {
             let id = obj.as_obj_id();
-            if let crate::gc::ManagedObject::Enum(ty, variant, _) = self.heap.get(id) {
+            if let crate::gc::ManagedObject::Enum(e) = self.heap.get(id) {
+                let (ty, variant, _) = e.as_ref();
                 if ty.as_str() != "Option" {
                     return Err(self.error(xu_syntax::DiagnosticKind::UnknownMember(
                         field.to_string(),

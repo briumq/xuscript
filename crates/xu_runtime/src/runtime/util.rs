@@ -109,7 +109,8 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                 }
             }
             crate::value::TAG_ENUM => {
-                if let crate::gc::ManagedObject::Enum(ty, variant, _) = heap.get(id) {
+                if let crate::gc::ManagedObject::Enum(e) = heap.get(id) {
+                    let (ty, variant, _) = e.as_ref();
                     format!("{}#{}", ty, variant)
                 } else {
                     "enum".to_string()
@@ -176,7 +177,8 @@ pub(super) fn type_matches(ty: &str, v: &Value, heap: &Heap) -> bool {
                     false
                 }
             } else if tag == crate::value::TAG_ENUM {
-                if let crate::gc::ManagedObject::Enum(ety, _, _) = heap.get(v.as_obj_id()) {
+                if let crate::gc::ManagedObject::Enum(e) = heap.get(v.as_obj_id()) {
+                    let (ety, _, _) = e.as_ref();
                     ety.as_str() == ty
                 } else {
                     false

@@ -1175,12 +1175,12 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
 
                 let id = rt
                     .heap
-                    .alloc(ManagedObject::Struct(crate::value::StructInstance {
+                    .alloc(ManagedObject::Struct(Box::new(crate::value::StructInstance {
                         ty: ty.clone(),
                         ty_hash: xu_ir::stable_hash64(&ty),
                         fields: values.into_boxed_slice(),
                         field_names: layout.clone(),
-                    }));
+                    })));
                 stack.push(Value::struct_obj(id));
             }
             Op::EnumCtor(t_idx, v_idx) => {

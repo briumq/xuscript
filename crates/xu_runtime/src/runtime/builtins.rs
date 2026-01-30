@@ -46,11 +46,11 @@ pub(super) fn builtin_open(rt: &mut Runtime, args: &[Value]) -> Result<Value, St
     };
     rt.fs_metadata(&path)?;
     Ok(Value::file(rt.heap.alloc(crate::gc::ManagedObject::File(
-        FileHandle {
+        Box::new(FileHandle {
             path,
             open: true,
             content: "".to_string(),
-        },
+        }),
     ))))
 }
 
