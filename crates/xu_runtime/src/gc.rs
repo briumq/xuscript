@@ -329,6 +329,18 @@ impl Heap {
             }
         }
 
+        // Truncate trailing empty slots to reduce memory usage
+        while self.objects.last().map_or(false, |o| o.is_none()) {
+            self.objects.pop();
+        }
+        // Remove truncated indices from free_list
+        let new_len = self.objects.len();
+        self.free_list.retain(|&i| i < new_len);
+        // Shrink capacity if significantly oversized
+        if self.objects.capacity() > self.objects.len() * 4 && self.objects.capacity() > 4096 {
+            self.objects.shrink_to(self.objects.len() * 2);
+        }
+
         self.marks.clear();
         self.marked_frames.clear();
 
