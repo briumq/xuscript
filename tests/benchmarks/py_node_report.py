@@ -3,10 +3,37 @@ import json
 import math
 import os
 import platform
+import resource
+import signal
 import statistics
 import subprocess
 import sys
 import time
+
+# 防护配置
+MAX_MEMORY_MB = int(os.environ.get("BENCH_MAX_MEMORY_MB", "2048"))  # 默认 2GB 内存上限
+SINGLE_RUN_TIMEOUT = int(os.environ.get("BENCH_SINGLE_TIMEOUT", "120"))  # 单次运行超时 120 秒
+TOTAL_TIMEOUT = int(os.environ.get("BENCH_TOTAL_TIMEOUT", "1800"))  # 总超时 30 分钟
+
+
+def set_memory_limit():
+    """设置内存使用上限，防止系统卡死"""
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+        limit_bytes = MAX_MEMORY_MB * 1024 * 1024
+        resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, hard))
+        print(f"[Guard] Memory limit set to {MAX_MEMORY_MB} MB", file=sys.stderr)
+    except (ValueError, resource.error) as e:
+        print(f"[Guard] Warning: Could not set memory limit: {e}", file=sys.stderr)
+
+
+class TimeoutError(Exception):
+    pass
+
+
+def timeout_handler(signum, frame):
+    raise TimeoutError("Total benchmark timeout exceeded")
+
 
 def ensure_xu_bin():
     subprocess.run(["cargo","build","-q","-p","xu_cli","--bin","xu","--release"], check=True)
@@ -16,13 +43,18 @@ def ensure_xu_bin():
 CASES = None
 
 
-def run(cmd):
-    p = subprocess.run(cmd, capture_output=True, text=True)
-    if p.returncode != 0:
-        raise RuntimeError(
-            f"command failed ({p.returncode}): {' '.join(cmd)}\n{p.stdout}\n{p.stderr}"
-        )
-    return p.stdout
+def run(cmd, timeout=SINGLE_RUN_TIMEOUT):
+    """运行命令，带超时保护"""
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        if p.returncode != 0:
+            raise RuntimeError(
+                f"command failed ({p.returncode}): {' '.join(cmd)}\n{p.stdout}\n{p.stderr}"
+            )
+        return p.stdout
+    except subprocess.TimeoutExpired:
+        print(f"[Guard] Command timed out after {timeout}s: {' '.join(cmd)}", file=sys.stderr)
+        raise RuntimeError(f"Command timed out: {' '.join(cmd)}")
 
 
 def version_of(cmd):
@@ -43,7 +75,12 @@ def parse_jsonl(out):
 
 
 def bench_once(scale):
-    out = run(["bash", "scripts/run_cross_lang_bench.sh", str(scale)])
+    """运行一次 benchmark，带错误恢复"""
+    try:
+        out = run(["bash", "scripts/run_cross_lang_bench.sh", str(scale)], timeout=SINGLE_RUN_TIMEOUT)
+    except RuntimeError as e:
+        print(f"[Guard] bench_once failed: {e}", file=sys.stderr)
+        return ({}, {}, {}, {}, {}, {})  # 返回空结果，继续下一轮
     py = {}
     nd = {}
     xu = {}
@@ -88,12 +125,16 @@ def bench_once(scale):
         env = os.environ.copy()
         env["BENCH_SCALE"] = str(scale)
         env["BENCH_SMOKE"] = "0"
-        p = subprocess.run([xu_bin, "run", "--no-diags", "tests/benchmarks/xu/suite_fixed.xu"], capture_output=True, text=True, env=env)
-        for line in p.stdout.splitlines():
-            line = line.strip()
-            if line.startswith("{"):
-                obj = json.loads(line)
-                xu[obj["case"]] = float(obj["duration_ms"])
+        try:
+            p = subprocess.run([xu_bin, "run", "--no-diags", "tests/benchmarks/xu/suite_fixed.xu"],
+                             capture_output=True, text=True, env=env, timeout=SINGLE_RUN_TIMEOUT)
+            for line in p.stdout.splitlines():
+                line = line.strip()
+                if line.startswith("{"):
+                    obj = json.loads(line)
+                    xu[obj["case"]] = float(obj["duration_ms"])
+        except subprocess.TimeoutExpired:
+            print(f"[Guard] Xu fallback timed out", file=sys.stderr)
     return (py, nd, xu, pym, ndm, xum)
 
 
@@ -128,7 +169,28 @@ def main():
     ap.add_argument("--scales", default="5000,10000")
     ap.add_argument("--runs", type=int, default=10)
     ap.add_argument("--out", default="tests/benchmarks/report.md")
+    ap.add_argument("--no-memory-limit", action="store_true", help="Disable memory limit protection")
     args = ap.parse_args()
+
+    # 设置防护
+    if not args.no_memory_limit:
+        set_memory_limit()
+
+    # 设置总超时
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(TOTAL_TIMEOUT)
+    print(f"[Guard] Total timeout set to {TOTAL_TIMEOUT}s ({TOTAL_TIMEOUT // 60} min)", file=sys.stderr)
+
+    try:
+        _run_benchmarks(args)
+    except TimeoutError as e:
+        print(f"[Guard] {e}", file=sys.stderr)
+        sys.exit(1)
+    finally:
+        signal.alarm(0)  # 取消超时
+
+
+def _run_benchmarks(args):
 
     scales = [int(x.strip()) for x in args.scales.split(",") if x.strip()]
     if not scales:
