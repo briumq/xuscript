@@ -79,7 +79,7 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                         .iter()
                         .map(|(k, v)| {
                             let ks = match k {
-                                DictKey::Str(s) => s.to_string(),
+                                DictKey::Str { data, .. } => data.to_string(),
                                 DictKey::Int(i) => i.to_string(),
                             };
                             format!("\"{}\":{}", ks, value_to_string_impl(v, heap, visited))

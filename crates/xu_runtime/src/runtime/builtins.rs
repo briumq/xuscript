@@ -577,7 +577,7 @@ pub(super) fn builtin_set_from_list(rt: &mut Runtime, args: &[Value]) -> Result<
     for item in items {
         let key = if item.get_tag() == crate::value::TAG_STR {
             if let crate::gc::ManagedObject::Str(s) = rt.heap.get(item.as_obj_id()) {
-                crate::value::DictKey::Str(s.clone())
+                crate::value::DictKey::from_text(s)
             } else {
                 return Err("Invalid set item".into());
             }

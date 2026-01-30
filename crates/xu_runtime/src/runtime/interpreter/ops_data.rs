@@ -122,7 +122,7 @@ pub(super) fn op_dict_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) ->
         let k = stack.pop().ok_or("Stack underflow")?;
         let key = if k.get_tag() == TAG_STR {
             if let ManagedObject::Str(s) = rt.heap.get(k.as_obj_id()) {
-                DictKey::Str(s.clone())
+                DictKey::from_text(s)
             } else {
                 return Err("Not a string".into());
             }
@@ -149,7 +149,7 @@ pub(super) fn op_set_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -> 
     for v in items {
         let key = if v.get_tag() == TAG_STR {
             if let ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
-                DictKey::Str(s.clone())
+                DictKey::from_text(s)
             } else {
                 return Err("Not a string".into());
             }

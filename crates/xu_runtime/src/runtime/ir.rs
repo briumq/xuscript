@@ -4,6 +4,7 @@ use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
 
 use super::appendable::Appendable;
+use crate::Text;
 use crate::Value;
 use crate::gc::ManagedObject;
 use crate::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_STR};
@@ -1481,7 +1482,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                 use hashbrown::hash_map::RawEntryMut;
                                 match me.map.raw_entry_mut().from_hash(key_hash, |kk| {
                                     match kk {
-                                        DictKey::Str(s) => s.as_str() == key_str,
+                                        DictKey::Str { data, .. } => data.as_str() == key_str,
                                         _ => false,
                                     }
                                 }) {
@@ -1490,7 +1491,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                     }
                                     RawEntryMut::Vacant(vac) => {
                                         // Only allocate key when inserting new entry
-                                        let key = DictKey::Str(key_str.to_string().into());
+                                        let key = DictKey::from_str(key_str);
                                         vac.insert(key, value);
                                     }
                                 }
@@ -2147,7 +2148,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         continue;
                     }
                     let keys: Vec<Value> = raw_keys.into_iter().map(|k| match k {
-                        DictKey::Str(s) => Value::str(rt.heap.alloc(ManagedObject::Str(s))),
+                        DictKey::Str { data, .. } => Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(&data)))),
                         DictKey::Int(i) => Value::from_i64(i),
                     }).collect();
                     let first = keys[0];
@@ -2305,7 +2306,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     let k = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                     let key = if k.get_tag() == TAG_STR {
                         if let ManagedObject::Str(s) = rt.heap.get(k.as_obj_id()) {
-                            DictKey::Str(s.clone())
+                            DictKey::from_text(s)
                         } else {
                             return Err("Not a string".into());
                         }
@@ -2444,7 +2445,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                             if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
                                 match d.map.raw_entry_mut().from_hash(*k_hash, |key| {
                                     match key {
-                                        DictKey::Str(s) => s.as_str() == k,
+                                        DictKey::Str { data, .. } => data.as_str() == k,
                                         _ => false,
                                     }
                                 }) {
@@ -2468,7 +2469,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         // Avoid creating DictKey for comparison - use closure with str comparison
                         match d.map.raw_entry_mut().from_hash(internal_hash, |key| {
                             match key {
-                                DictKey::Str(s) => s.as_str() == k,
+                                DictKey::Str { data, .. } => data.as_str() == k,
                                 _ => false,
                             }
                         }) {
@@ -2477,7 +2478,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                             }
                             hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
                                 // Only allocate key when actually inserting new entry
-                                let key = DictKey::Str(k.to_string().into());
+                                let key = DictKey::from_str(k);
                                 vac.insert(key, v);
                             }
                         }

@@ -323,7 +323,7 @@ impl Runtime {
         me.map
             .raw_entry()
             .from_hash(hash, |k| match k {
-                DictKey::Str(s) => s.as_str() == key,
+                DictKey::Str { data, .. } => data.as_str() == key,
                 _ => false,
             })
             .map(|(_, v)| v.clone())

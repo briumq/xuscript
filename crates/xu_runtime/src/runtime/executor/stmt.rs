@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use xu_ir::{AssignOp, AssignStmt, BinaryOp, Expr, Stmt};
 
+use crate::Text;
 use crate::Value;
 use crate::value::{DictKey, Function, UserFunction};
 
@@ -255,8 +256,8 @@ impl Runtime {
                     let mut items = Vec::with_capacity(raw_keys.len());
                     for k in raw_keys {
                         match k {
-                            DictKey::Str(s) => items.push(Value::str(
-                                self.heap.alloc(crate::gc::ManagedObject::Str(s)),
+                            DictKey::Str { data, .. } => items.push(Value::str(
+                                self.heap.alloc(crate::gc::ManagedObject::Str(Text::from_str(&data))),
                             )),
                             DictKey::Int(i) => items.push(Value::from_i64(i)),
                         }
@@ -559,7 +560,7 @@ impl Runtime {
                 } else {
                     return Err("Not a string".to_string());
                 };
-                DictKey::Str(s)
+                DictKey::from_text(&s)
             } else if idx.is_int() {
                 DictKey::Int(idx.as_i64())
             } else {

@@ -77,7 +77,7 @@ pub(super) fn dispatch(
             let value = args[1].clone();
             let key = if k_val.get_tag() == crate::value::TAG_STR {
                 if let crate::gc::ManagedObject::Str(s) = rt.heap.get(k_val.as_obj_id()) {
-                    crate::value::DictKey::Str(s.clone())
+                    crate::value::DictKey::from_text(s)
                 } else {
                     return Err(rt.error(xu_syntax::DiagnosticKind::InsertKeyRequired));
                 }
@@ -266,7 +266,7 @@ pub(super) fn dispatch(
                         }
                     }
                 }
-                Ok(Value::from_bool(me.map.contains_key(&DictKey::Str(key))))
+                Ok(Value::from_bool(me.map.contains_key(&DictKey::from_text(&key))))
             } else {
                 Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())))
             }
@@ -296,7 +296,7 @@ pub(super) fn dispatch(
                     };
                     let found = me.map.raw_entry().from_hash(hash, |k| {
                         match k {
-                            DictKey::Str(s) => s.as_str() == key_ptr,
+                            DictKey::Str { data, .. } => data.as_str() == key_ptr,
                             _ => false,
                         }
                     }).is_some();
@@ -328,7 +328,7 @@ pub(super) fn dispatch(
             }
             let key = if args[0].get_tag() == crate::value::TAG_STR {
                 if let crate::gc::ManagedObject::Str(s) = rt.heap.get(args[0].as_obj_id()) {
-                    DictKey::Str(s.clone())
+                    DictKey::from_text(s)
                 } else {
                     return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a text".into())));
                 }
@@ -387,8 +387,8 @@ pub(super) fn dispatch(
             let mut keys = Vec::with_capacity(keys_raw.len());
             for k in keys_raw {
                 match k {
-                    crate::value::DictKey::Str(s) => {
-                        keys.push(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(s))))
+                    crate::value::DictKey::Str { data, .. } => {
+                        keys.push(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(crate::Text::from_str(&data)))))
                     }
                     crate::value::DictKey::Int(i) => keys.push(Value::from_i64(i)),
                 }

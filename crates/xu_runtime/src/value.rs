@@ -11,9 +11,12 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use xu_ir::{Bytecode, FuncDef};
 
+/// Compact dict key representation.
+/// Str variant uses pre-computed hash + Rc<String> for memory efficiency.
+/// This reduces DictKey from 24 bytes (with Text) to 16 bytes.
 #[derive(Clone, Debug)]
 pub enum DictKey {
-    Str(Text),
+    Str { hash: u64, data: Rc<String> },
     Int(i64),
 }
 
@@ -82,7 +85,18 @@ pub(crate) fn i64_to_text_fast(i: i64) -> Text {
 impl PartialEq for DictKey {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (DictKey::Str(a), DictKey::Str(b)) => a == b,
+            (DictKey::Str { hash: h1, data: d1 }, DictKey::Str { hash: h2, data: d2 }) => {
+                // Fast path: compare hash first
+                if h1 != h2 {
+                    return false;
+                }
+                // Fast path: same Rc pointer means same string
+                if Rc::ptr_eq(d1, d2) {
+                    return true;
+                }
+                // Slow path: compare string content (hash collision)
+                d1.as_str() == d2.as_str()
+            }
             (DictKey::Int(a), DictKey::Int(b)) => a == b,
             _ => false,
         }
@@ -93,16 +107,52 @@ impl Eq for DictKey {}
 
 impl DictKey {
     pub fn is_str(&self) -> bool {
-        matches!(self, DictKey::Str(_))
+        matches!(self, DictKey::Str { .. })
+    }
+
+    /// Create a new string key with pre-computed hash
+    pub fn from_str(s: &str) -> Self {
+        let hash = Self::hash_str(s);
+        DictKey::Str { hash, data: Rc::new(s.to_string()) }
+    }
+
+    /// Create a new string key from Rc<String> with pre-computed hash
+    pub fn from_rc(data: Rc<String>) -> Self {
+        let hash = Self::hash_str(&data);
+        DictKey::Str { hash, data }
+    }
+
+    /// Create a new string key from Text
+    pub fn from_text(t: &Text) -> Self {
+        Self::from_str(t.as_str())
+    }
+
+    /// Compute hash for a string (used for fast equality comparison)
+    #[inline]
+    pub fn hash_str(s: &str) -> u64 {
+        use std::hash::Hasher;
+        // Use a simple fast hash for equality comparison
+        let mut hasher = ahash::AHasher::default();
+        hasher.write(s.as_bytes());
+        hasher.finish()
+    }
+
+    /// Get the string content (panics if not a string key)
+    pub fn as_str(&self) -> &str {
+        match self {
+            DictKey::Str { data, .. } => data.as_str(),
+            DictKey::Int(_) => panic!("DictKey::as_str called on Int"),
+        }
     }
 }
 
 impl Hash for DictKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            DictKey::Str(s) => {
+            DictKey::Str { data, .. } => {
                 state.write_u8(0);
-                s.as_str().as_bytes().hash(state);
+                // Hash the actual string content for HashMap compatibility
+                data.as_bytes().hash(state);
             }
             DictKey::Int(i) => {
                 state.write_u8(1);
@@ -115,7 +165,7 @@ impl Hash for DictKey {
 impl fmt::Display for DictKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DictKey::Str(s) => write!(f, "{}", s),
+            DictKey::Str { data, .. } => write!(f, "{}", data),
             DictKey::Int(i) => write!(f, "{}", i),
         }
     }

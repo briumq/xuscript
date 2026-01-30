@@ -239,7 +239,7 @@ impl Runtime {
                 let mut map: Dict = crate::value::dict_with_capacity(entries.len());
                 for (k, v) in entries {
                     map.map
-                        .insert(DictKey::Str(k.clone().into()), self.eval_expr(v)?);
+                        .insert(DictKey::from_str(k), self.eval_expr(v)?);
                 }
                 Ok(Value::dict(self.heap.alloc(crate::gc::ManagedObject::Dict(map))))
             }

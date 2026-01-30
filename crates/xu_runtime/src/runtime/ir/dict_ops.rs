@@ -15,7 +15,7 @@ pub(super) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
         let id = dict.as_obj_id();
         let key = if k.get_tag() == TAG_STR {
             if let ManagedObject::Str(s) = rt.heap.get(k.as_obj_id()) {
-                DictKey::Str(s.clone())
+                DictKey::from_text(s)
             } else {
                 return Err("Not a string".into());
             }

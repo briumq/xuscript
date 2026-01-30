@@ -74,7 +74,7 @@ pub(super) fn dispatch(
             if let crate::gc::ManagedObject::Dict(db) = rt.heap.get(dict_id) {
                 for (k, v) in db.map.iter() {
                     let key = match k {
-                        crate::value::DictKey::Str(x) => x.clone(),
+                        crate::value::DictKey::Str { data, .. } => crate::Text::from_str(data),
                         crate::value::DictKey::Int(i) => crate::value::i64_to_text_fast(*i),
                     };
                     let needle = format!("{{{}}}", key);
