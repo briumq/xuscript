@@ -27,11 +27,30 @@ pub(super) fn dispatch(
                 }));
             }
             let i = to_i64(&args[0])?;
-            let total = s.as_str().chars().count();
-            if i < 0 || (i as usize) >= total {
+            if i < 0 {
+                return Ok(rt.option_none());
+            }
+            let idx = i as usize;
+            let str_ref = s.as_str();
+
+            // Fast path for ASCII strings - direct byte indexing
+            if s.is_ascii() {
+                if idx >= str_ref.len() {
+                    return Ok(rt.option_none());
+                }
+                let ch = &str_ref[idx..idx + 1];
+                let str_val = Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+                    crate::Text::from_str(ch),
+                )));
+                return Ok(rt.option_some(str_val));
+            }
+
+            // Slow path for non-ASCII strings
+            let total = str_ref.chars().count();
+            if idx >= total {
                 Ok(rt.option_none())
             } else {
-                let ch: String = s.as_str().chars().skip(i as usize).take(1).collect();
+                let ch: String = str_ref.chars().skip(idx).take(1).collect();
                 let str_val = Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
                     crate::Text::from_string(ch),
                 )));

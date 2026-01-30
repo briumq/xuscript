@@ -162,6 +162,40 @@ impl Text {
         out.push_str(b.as_str());
         Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
     }
+
+    /// Concatenate multiple strings efficiently by pre-calculating total length
+    pub fn concat_many(parts: &[&str]) -> Text {
+        let total: usize = parts.iter().map(|s| s.len()).sum();
+        if total == 0 {
+            return Text::new();
+        }
+        if total <= INLINE_CAP {
+            let mut buf = [0u8; INLINE_CAP];
+            let mut pos = 0;
+            for s in parts {
+                buf[pos..pos + s.len()].copy_from_slice(s.as_bytes());
+                pos += s.len();
+            }
+            return Text::Inline {
+                len: total as u8,
+                buf,
+            };
+        }
+        let mut out = String::with_capacity(total);
+        for s in parts {
+            out.push_str(s);
+        }
+        Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
+    }
+
+    /// Check if the string is ASCII-only (fast path for many operations)
+    #[inline]
+    pub fn is_ascii(&self) -> bool {
+        match self {
+            Text::Inline { len, buf } => buf[..*len as usize].iter().all(|&b| b < 128),
+            Text::Heap { data, .. } => data.is_ascii(),
+        }
+    }
 }
 
 fn write_i64_to_buf(i: i64, buf: &mut [u8; 32]) -> &[u8] {

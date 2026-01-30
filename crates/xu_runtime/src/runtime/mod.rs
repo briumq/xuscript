@@ -302,27 +302,6 @@ impl Runtime {
             .map(|(_, v)| v.clone())
     }
 
-    #[allow(dead_code)]
-    fn dict_remove_by_str(me: &mut Dict, key: &str) -> Option<Value> {
-        let hash = Self::hash_bytes(me.map.hasher(), key.as_bytes());
-        Self::dict_remove_by_str_with_hash(me, key, hash)
-    }
-
-    #[allow(dead_code)]
-    fn dict_remove_by_str_with_hash(me: &mut Dict, key: &str, hash: u64) -> Option<Value> {
-        match me.map.raw_entry_mut().from_hash(hash, |k| match k {
-            DictKey::Str(s) => s.as_str() == key,
-            _ => false,
-        }) {
-            RawEntryMut::Occupied(o) => {
-                let (_, v) = o.remove_entry();
-                me.ver += 1;
-                Some(v)
-            }
-            RawEntryMut::Vacant(_) => None,
-        }
-    }
-
     pub(crate) fn enum_new_checked(
         &mut self,
         ty: &str,
@@ -506,11 +485,6 @@ impl Runtime {
             return true;
         }
         false
-    }
-
-    #[allow(dead_code)]
-    fn set_local_by_depth_index(&mut self, depth_from_top: usize, idx: usize, value: Value) -> bool {
-        self.locals.set_by_depth_index(depth_from_top, idx, value)
     }
 
     fn define_local(&mut self, name: String, value: Value) {

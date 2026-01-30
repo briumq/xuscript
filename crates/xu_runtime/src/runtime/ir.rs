@@ -17,6 +17,45 @@ mod fast;
 
 pub(super) use fast::{run_bytecode_fast, run_bytecode_fast_params_only};
 
+/// Macro to handle throwing an error and continuing execution.
+/// Returns from the function if the throw results in a flow, otherwise continues the loop.
+macro_rules! try_throw {
+    ($rt:expr, $ip:expr, $handlers:expr, $stack:expr, $iters:expr, $pending:expr, $thrown:expr, $err:expr) => {{
+        let err_val = Value::str($rt.heap.alloc(ManagedObject::Str($err.into())));
+        if let Some(flow) = throw_value(
+            $rt, $ip, $handlers, $stack, $iters, $pending, $thrown, err_val,
+        ) {
+            return Ok(flow);
+        }
+        *$ip += 1;
+        continue;
+    }};
+    // Variant without ip increment (for cases that don't need it)
+    ($rt:expr, $ip:expr, $handlers:expr, $stack:expr, $iters:expr, $pending:expr, $thrown:expr, $err:expr, no_inc) => {{
+        let err_val = Value::str($rt.heap.alloc(ManagedObject::Str($err.into())));
+        if let Some(flow) = throw_value(
+            $rt, $ip, $handlers, $stack, $iters, $pending, $thrown, err_val,
+        ) {
+            return Ok(flow);
+        }
+        continue;
+    }};
+}
+
+/// Macro to pop a value from the stack or return a stack underflow error.
+macro_rules! pop_or_underflow {
+    ($stack:expr, $ip:expr, $op:expr) => {
+        $stack.pop().ok_or_else(|| stack_underflow($ip, $op))?
+    };
+}
+
+/// Macro to get the last element of the stack mutably or return a stack underflow error.
+macro_rules! last_mut_or_underflow {
+    ($stack:expr, $ip:expr, $op:expr) => {
+        $stack.last_mut().ok_or_else(|| stack_underflow($ip, $op))?
+    };
+}
+
 pub(super) enum IterState {
     List {
         id: crate::gc::ObjectId,
@@ -45,8 +84,6 @@ pub(super) struct Handler {
 
 #[allow(dead_code)]
 pub(super) enum Pending {
-    Jump(usize),
-    Return(Value),
     Throw(Value),
 }
 
@@ -189,7 +226,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             Op::ConstBool(b) => stack.push(Value::from_bool(*b)),
             Op::ConstNull => stack.push(Value::VOID),
             Op::Pop => {
-                let _ = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
+                let _ = pop_or_underflow!(stack, ip, op);
             }
             Op::LoadLocal(idx) => {
                 let Some(val) = rt.get_local_by_index(*idx) else {
@@ -198,7 +235,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 stack.push(val);
             }
             Op::StoreLocal(idx) => {
-                let val = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
+                let val = pop_or_underflow!(stack, ip, op);
                 if !rt.set_local_by_index(*idx, val) {
                     // Define up to idx if not exist
                     while rt.get_local_by_index(*idx).is_none() {
@@ -215,27 +252,13 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         rt.env.define(alias.to_string(), module_obj);
                     }
                     Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
-                        }
-                        ip += 1;
-                        continue;
+                        try_throw!(rt, &mut ip, &mut handlers, &mut stack, &mut iters, &mut pending, &mut thrown, e);
                     }
                 }
             }
             Op::Add => {
-                let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let a = stack.last_mut().ok_or_else(|| stack_underflow(ip, op))?;
+                let b = pop_or_underflow!(stack, ip, op);
+                let a = last_mut_or_underflow!(stack, ip, op);
                 if a.is_int() && b.is_int() {
                     let res = a.as_i64().wrapping_add(b.as_i64());
                     *a = Value::from_i64(res);
@@ -243,21 +266,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     match add_with_heap(rt, *a, b) {
                         Ok(r) => *a = r,
                         Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            ip += 1;
-                            continue;
+                            try_throw!(rt, &mut ip, &mut handlers, &mut stack, &mut iters, &mut pending, &mut thrown, e);
                         }
                     }
                     ip += 1;
@@ -265,7 +274,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::AddAssignName(idx) => {
-                let rhs = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
+                let rhs = pop_or_underflow!(stack, ip, op);
                 let name = rt.get_const_str(*idx, &bc.constants);
                 let mut handled = false;
 
@@ -445,7 +454,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::AddAssignLocal(idx) => {
-                let rhs = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
+                let rhs = pop_or_underflow!(stack, ip, op);
                 let Some(mut cur) = rt.get_local_by_index(*idx) else {
                     return Err(format!("Undefined local variable index: {}", idx));
                 };
@@ -501,8 +510,8 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::Sub => {
-                let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let a = stack.last_mut().ok_or_else(|| stack_underflow(ip, op))?;
+                let b = pop_or_underflow!(stack, ip, op);
+                let a = last_mut_or_underflow!(stack, ip, op);
                 match a.bin_op(xu_ir::BinaryOp::Sub, b) {
                     Ok(r) => *a = r,
                     Err(e) => {
@@ -524,8 +533,8 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::Mul => {
-                let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let a = stack.last_mut().ok_or_else(|| stack_underflow(ip, op))?;
+                let b = pop_or_underflow!(stack, ip, op);
+                let a = last_mut_or_underflow!(stack, ip, op);
                 match a.bin_op(xu_ir::BinaryOp::Mul, b) {
                     Ok(r) => *a = r,
                     Err(e) => {
@@ -547,8 +556,8 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::Div => {
-                let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let a = stack.last_mut().ok_or_else(|| stack_underflow(ip, op))?;
+                let b = pop_or_underflow!(stack, ip, op);
+                let a = last_mut_or_underflow!(stack, ip, op);
                 match a.bin_op(xu_ir::BinaryOp::Div, b) {
                     Ok(r) => *a = r,
                     Err(e) => {
@@ -570,8 +579,8 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::Mod => {
-                let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let a = stack.last_mut().ok_or_else(|| stack_underflow(ip, op))?;
+                let b = pop_or_underflow!(stack, ip, op);
+                let a = last_mut_or_underflow!(stack, ip, op);
                 // Fast path for integers
                 if a.is_int() && b.is_int() {
                     let bv = b.as_i64();
@@ -616,8 +625,8 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::StrAppend => {
-                let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let a = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
+                let b = pop_or_underflow!(stack, ip, op);
+                let a = pop_or_underflow!(stack, ip, op);
                 if a.get_tag() == TAG_STR {
                     let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
                         s.clone()
@@ -649,7 +658,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::StrAppendNull => {
-                let a = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
+                let a = pop_or_underflow!(stack, ip, op);
                 if a.get_tag() == TAG_STR {
                     let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
                         s.clone()
@@ -1057,7 +1066,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             }
             Op::StoreName(idx) => {
                 let name = rt.get_const_str(*idx, &bc.constants);
-                let v = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
+                let v = pop_or_underflow!(stack, ip, op);
                 if rt.locals.is_active() {
                     if !rt.set_local(name, v) {
                         rt.define_local(name.to_string(), v);

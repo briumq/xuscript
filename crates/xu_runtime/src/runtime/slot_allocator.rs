@@ -28,13 +28,6 @@ impl LocalSlots {
         self.free_values.clear();
     }
 
-    /// Clear only the free pools to release references for GC
-    #[allow(dead_code)]
-    pub fn clear_pools(&mut self) {
-        self.free_maps.clear();
-        self.free_values.clear();
-    }
-
     pub fn is_active(&self) -> bool {
         !self.maps.is_empty()
     }
@@ -115,21 +108,6 @@ impl LocalSlots {
 
     pub fn set_by_index(&mut self, idx: usize, value: Value) -> bool {
         if let Some(values) = self.values.last_mut() {
-            if idx < values.len() {
-                values[idx] = value;
-                return true;
-            }
-        }
-        false
-    }
-
-    #[allow(dead_code)]
-    pub fn set_by_depth_index(&mut self, depth_from_top: usize, idx: usize, value: Value) -> bool {
-        if depth_from_top >= self.values.len() {
-            return false;
-        }
-        let frame_idx = self.values.len() - 1 - depth_from_top;
-        if let Some(values) = self.values.get_mut(frame_idx) {
             if idx < values.len() {
                 values[idx] = value;
                 return true;
