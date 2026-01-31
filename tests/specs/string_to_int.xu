@@ -1,0 +1,13 @@
+// 测试字符串 to_int 方法
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+let s1 = "123"
+assert(s1.to_int() == 123, "s1.to_int() should be 123")
+
+let s2 = "-456"
+assert(s2.to_int() == -456, "s2.to_int() should be -456")
+
+let s3 = "0"
+assert(s3.to_int() == 0, "s3.to_int() should be 0")
+
+println("string_to_int: all tests passed")

@@ -1,0 +1,23 @@
+// 测试顶层元组解构
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+// 多返回值函数
+func div(a: int, b: int) -> (int, int) {
+    return (a / b, a % b)
+}
+
+// 顶层解构 - 应该正常工作
+let (q, r) = div(10, 3)
+assert(q == 3, "q should be 3")
+assert(r == 1, "r should be 1")
+
+// 顶层元组解构
+let (x, y) = (100, 200)
+assert(x == 100, "x should be 100")
+assert(y == 200, "y should be 200")
+
+// 带忽略的解构
+let (first, _) = (42, 99)
+assert(first == 42, "first should be 42")
+
+println("tuple_destructure_toplevel: all tests passed")
