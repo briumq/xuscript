@@ -2,12 +2,14 @@ use crate::Value;
 
 use super::Runtime;
 
+mod common;
 mod dict;
 mod enum_;
 mod file;
 mod list;
 mod str;
-mod common;
+
+use common::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MethodKind {
@@ -123,8 +125,8 @@ impl MethodKind {
             "str_find" => Self::StrFind,
             "substr" => Self::StrSubstr,
             "match" => Self::StrMatch,
-            "to_string" => Self::IntToString,  // 也用于 float
-            "abs" => Self::IntAbs,  // 也用于 float
+            "to_string" => Self::IntToString, // 也用于 float 和 bool
+            "abs" => Self::IntAbs,            // 也用于 float
             "to_base" => Self::IntToBase,
             "is_even" => Self::IntIsEven,
             "is_odd" => Self::IntIsOdd,
@@ -147,227 +149,218 @@ impl MethodKind {
 }
 
 pub(super) fn dispatch_builtin_method(
-    rt: &mut Runtime,
-    recv: Value,
-    kind: MethodKind,
-    args: &[Value],
-    method: &str,
+    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
 ) -> Result<Value, String> {
     let tag = recv.get_tag();
-    if tag == crate::value::TAG_LIST {
-        return list::dispatch(rt, recv, kind, args, method);
+    
+    // 根据接收者类型分发到不同的处理函数
+    match tag {
+        crate::value::TAG_LIST => list::dispatch(rt, recv, kind, args, method),
+        crate::value::TAG_DICT => dict::dispatch(rt, recv, kind, args, method),
+        crate::value::TAG_FILE => file::dispatch(rt, recv, kind, args, method),
+        crate::value::TAG_STR => str::dispatch(rt, recv, kind, args, method),
+        crate::value::TAG_ENUM => enum_::dispatch(rt, recv, kind, args, method),
+        crate::value::TAG_OPTION => dispatch_option_some(rt, recv, kind, args, method),
+        _ => dispatch_primitive_methods(rt, recv, kind, args, method),
     }
-    if tag == crate::value::TAG_DICT {
-        return dict::dispatch(rt, recv, kind, args, method);
-    }
-    if tag == crate::value::TAG_FILE {
-        return file::dispatch(rt, recv, kind, args, method);
-    }
-    if tag == crate::value::TAG_STR {
-        return str::dispatch(rt, recv, kind, args, method);
-    }
-    if tag == crate::value::TAG_ENUM {
-        return enum_::dispatch(rt, recv, kind, args, method);
-    }
-    if tag == crate::value::TAG_OPTION {
-        // Handle optimized Option#some variant
-        return dispatch_option_some(rt, recv, kind, args, method);
-    }
-    // 处理整数的 to_string() 方法
-    if recv.is_int() && kind == MethodKind::IntToString {
-        let s = recv.as_i64().to_string();
-        return Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(crate::Text::from_string(s)))));
-    }
-    // 处理浮点数的 to_string() 方法
-    if recv.is_f64() && kind == MethodKind::IntToString {
-        let s = recv.as_f64().to_string();
-        return Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(crate::Text::from_string(s)))));
-    }
-    // 处理浮点数的 to_int() 方法
-    if recv.is_f64() && kind == MethodKind::StrToInt {
-        let i = recv.as_f64() as i64;
-        return Ok(Value::from_i64(i));
+}
+
+fn dispatch_primitive_methods(
+    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
+) -> Result<Value, String> {
+    // 处理整数方法
+    if recv.is_int() {
+        return dispatch_int_methods(rt, recv, kind, args, method);
     }
     
-    // 处理整数的 abs() 方法
-    if recv.is_int() && kind == MethodKind::IntAbs {
-        let i = recv.as_i64().abs();
-        return Ok(Value::from_i64(i));
+    // 处理浮点数方法
+    if recv.is_f64() {
+        return dispatch_float_methods(rt, recv, kind, args, method);
     }
     
-    // 处理浮点数的 abs() 方法
-    if recv.is_f64() && kind == MethodKind::IntAbs {
-        let f = recv.as_f64().abs();
-        return Ok(Value::from_f64(f));
+    // 处理布尔值方法
+    if recv.is_bool() {
+        return dispatch_bool_methods(rt, recv, kind, args, method);
     }
     
-    // 处理整数的 to_base() 方法
-    if recv.is_int() && kind == MethodKind::IntToBase {
-        if args.len() != 1 {
-            return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
-                expected_min: 1,
-                expected_max: 1,
-                actual: args.len(),
-            }));
+    Err(err(
+        rt,
+        xu_syntax::DiagnosticKind::UnsupportedReceiver(recv.type_name().to_string()),
+    ))
+}
+
+fn dispatch_int_methods(
+    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
+) -> Result<Value, String> {
+    let i = recv.as_i64();
+    
+    match kind {
+        MethodKind::IntToString => {
+            let s = i.to_string();
+            Ok(create_str_value(rt, &s))
         }
-        let base = args[0].as_i64();
-        if base < 2 || base > 36 {
-            return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Base must be between 2 and 36".into())));
+        MethodKind::IntAbs => {
+            let abs = i.abs();
+            Ok(Value::from_i64(abs))
         }
-        let num = recv.as_i64();
-        let s = if num == 0 {
-            "0".to_string()
-        } else {
-            let mut result = String::new();
-            let mut n = num.abs();
-            let digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-            while n > 0 {
-                let digit = (n % base) as usize;
-                result.push(digits.chars().nth(digit).unwrap());
-                n /= base;
+        MethodKind::IntToBase => {
+            validate_arity(rt, method, args.len(), 1, 1)?;
+            
+            let base = args[0].as_i64();
+            if base < 2 || base > 36 {
+                return Err(err(
+                    rt,
+                    xu_syntax::DiagnosticKind::Raw("Base must be between 2 and 36".into()),
+                ));
             }
-            if num < 0 {
-                result.push('-');
-            }
-            result.chars().rev().collect()
-        };
-        return Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(crate::Text::from_string(s)))));
+            
+            let s = if i == 0 {
+                "0".to_string()
+            } else {
+                let mut result = String::new();
+                let mut n = i.abs();
+                let digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                while n > 0 {
+                    let digit = (n % base) as usize;
+                    result.push(digits.chars().nth(digit).unwrap());
+                    n /= base;
+                }
+                if i < 0 {
+                    result.push('-');
+                }
+                result.chars().rev().collect()
+            };
+            Ok(create_str_value(rt, &s))
+        }
+        MethodKind::IntIsEven => {
+            validate_arity(rt, method, args.len(), 0, 0)?;
+            Ok(Value::from_bool(i % 2 == 0))
+        }
+        MethodKind::IntIsOdd => {
+            validate_arity(rt, method, args.len(), 0, 0)?;
+            Ok(Value::from_bool(i % 2 != 0))
+        }
+        _ => Err(err(
+            rt,
+            xu_syntax::DiagnosticKind::UnsupportedMethod {
+                method: method.to_string(),
+                ty: "int".to_string(),
+            },
+        )),
     }
+}
+
+fn dispatch_float_methods(
+    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
+) -> Result<Value, String> {
+    let f = recv.as_f64();
     
-    // 处理整数的 is_even() 方法
-    if recv.is_int() && kind == MethodKind::IntIsEven {
-        let i = recv.as_i64();
-        return Ok(Value::from_bool(i % 2 == 0));
+    match kind {
+        MethodKind::IntToString => {
+            let s = f.to_string();
+            Ok(create_str_value(rt, &s))
+        }
+        MethodKind::IntAbs => {
+            let abs = f.abs();
+            Ok(Value::from_f64(abs))
+        }
+        MethodKind::StrToInt => {
+            let i = f as i64;
+            Ok(Value::from_i64(i))
+        }
+        MethodKind::FloatRound => {
+            validate_arity(rt, method, args.len(), 0, 1)?;
+            
+            let rounded = if args.len() == 1 {
+                let digits = args[0].as_i64();
+                let factor = 10.0_f64.powi(digits as i32);
+                (f * factor).round() / factor
+            } else {
+                f.round()
+            };
+            Ok(Value::from_f64(rounded))
+        }
+        MethodKind::FloatFloor => {
+            validate_arity(rt, method, args.len(), 0, 0)?;
+            let floor = f.floor();
+            Ok(Value::from_f64(floor))
+        }
+        MethodKind::FloatCeil => {
+            validate_arity(rt, method, args.len(), 0, 0)?;
+            let ceil = f.ceil();
+            Ok(Value::from_f64(ceil))
+        }
+        _ => Err(err(
+            rt,
+            xu_syntax::DiagnosticKind::UnsupportedMethod {
+                method: method.to_string(),
+                ty: "float".to_string(),
+            },
+        )),
     }
+}
+
+fn dispatch_bool_methods(
+    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
+) -> Result<Value, String> {
+    let b = recv.as_bool();
     
-    // 处理整数的 is_odd() 方法
-    if recv.is_int() && kind == MethodKind::IntIsOdd {
-        let i = recv.as_i64();
-        return Ok(Value::from_bool(i % 2 != 0));
+    match kind {
+        MethodKind::IntToString => {
+            validate_arity(rt, method, args.len(), 0, 0)?;
+            let s = b.to_string();
+            Ok(create_str_value(rt, &s))
+        }
+        MethodKind::BoolNot => {
+            validate_arity(rt, method, args.len(), 0, 0)?;
+            let not_b = !b;
+            Ok(Value::from_bool(not_b))
+        }
+        _ => Err(err(
+            rt,
+            xu_syntax::DiagnosticKind::UnsupportedMethod {
+                method: method.to_string(),
+                ty: "bool".to_string(),
+            },
+        )),
     }
-    
-    // 处理浮点数的 round() 方法
-    if recv.is_f64() && kind == MethodKind::FloatRound {
-        let f = recv.as_f64();
-        let rounded = if args.len() == 1 {
-            let digits = args[0].as_i64();
-            let factor = 10.0_f64.powi(digits as i32);
-            (f * factor).round() / factor
-        } else {
-            f.round()
-        };
-        return Ok(Value::from_f64(rounded));
-    }
-    
-    // 处理浮点数的 floor() 方法
-    if recv.is_f64() && kind == MethodKind::FloatFloor {
-        let f = recv.as_f64().floor();
-        return Ok(Value::from_f64(f));
-    }
-    
-    // 处理浮点数的 ceil() 方法
-    if recv.is_f64() && kind == MethodKind::FloatCeil {
-        let f = recv.as_f64().ceil();
-        return Ok(Value::from_f64(f));
-    }
-    
-    // 处理布尔值的 to_string() 方法
-    if recv.is_bool() && kind == MethodKind::IntToString {
-        let s = recv.as_bool().to_string();
-        return Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(crate::Text::from_string(s)))));
-    }
-    
-    // 处理布尔值的 not() 方法
-    if recv.is_bool() && kind == MethodKind::BoolNot {
-        let b = !recv.as_bool();
-        return Ok(Value::from_bool(b));
-    }
-    
-    Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedReceiver(
-        recv.type_name().to_string(),
-    )))
 }
 
 fn dispatch_option_some(
-    rt: &mut Runtime,
-    recv: Value,
-    kind: MethodKind,
-    args: &[Value],
-    method: &str,
+    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
 ) -> Result<Value, String> {
-    let id = recv.as_obj_id();
-    let inner = if let crate::gc::ManagedObject::OptionSome(v) = rt.heap.get(id) {
-        *v
-    } else {
-        return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Invalid OptionSome".into())));
-    };
+    let inner = expect_option_some(rt, recv)?;
 
     match kind {
         MethodKind::OptHas => Ok(Value::from_bool(true)),
         MethodKind::OptNone => Ok(Value::from_bool(false)),
         MethodKind::OptOr => {
-            if args.len() != 1 {
-                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
-                    expected_min: 1,
-                    expected_max: 1,
-                    actual: args.len(),
-                }));
-            }
+            validate_arity(rt, method, args.len(), 1, 1)?;
             Ok(inner)
         }
         MethodKind::OptOrElse => {
-            if args.len() != 1 {
-                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
-                    expected_min: 1,
-                    expected_max: 1,
-                    actual: args.len(),
-                }));
-            }
+            validate_arity(rt, method, args.len(), 1, 1)?;
             Ok(inner)
         }
         MethodKind::OptMap => {
-            if args.len() != 1 {
-                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
-                    expected_min: 1,
-                    expected_max: 1,
-                    actual: args.len(),
-                }));
-            }
+            validate_arity(rt, method, args.len(), 1, 1)?;
             let f = args[0];
             let mapped = rt.call_function(f, &[inner])?;
             Ok(rt.option_some(mapped))
         }
         MethodKind::OptThen => {
-            if args.len() != 1 {
-                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
-                    expected_min: 1,
-                    expected_max: 1,
-                    actual: args.len(),
-                }));
-            }
+            validate_arity(rt, method, args.len(), 1, 1)?;
             let f = args[0];
             rt.call_function(f, &[inner])
         }
         MethodKind::OptEach => {
-            if args.len() != 1 {
-                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
-                    expected_min: 1,
-                    expected_max: 1,
-                    actual: args.len(),
-                }));
-            }
+            validate_arity(rt, method, args.len(), 1, 1)?;
             let f = args[0];
             let _ = rt.call_function(f, &[inner])?;
             Ok(Value::VOID)
         }
         MethodKind::OptFilter => {
-            if args.len() != 1 {
-                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
-                    expected_min: 1,
-                    expected_max: 1,
-                    actual: args.len(),
-                }));
-            }
+            validate_arity(rt, method, args.len(), 1, 1)?;
             let pred = args[0];
             let keep = rt.call_function(pred, &[inner])?;
             if keep.is_bool() && keep.as_bool() {
@@ -376,9 +369,12 @@ fn dispatch_option_some(
                 Ok(rt.option_none())
             }
         }
-        _ => Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
-            method: method.to_string(),
-            ty: "Option".to_string(),
-        })),
+        _ => Err(err(
+            rt,
+            xu_syntax::DiagnosticKind::UnsupportedMethod {
+                method: method.to_string(),
+                ty: "Option".to_string(),
+            },
+        )),
     }
 }
