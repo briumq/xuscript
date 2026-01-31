@@ -1,9 +1,9 @@
 func assert(x) { __builtin_assert(x) }
 
 let l: [int] = []
-l.add(1)
-l.add(2)
-l.add(3)
+l.push(1)
+l.push(2)
+l.push(3)
 assert(l.length() == 3)
 assert(l.contains(2))
 let v = l.pop()

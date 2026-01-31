@@ -575,12 +575,6 @@ func load_config() -> Result[Config, string] {
 |`.each(func)`|有值则执行|
 |`.filter(pred)`|不满足则变为 none|
 
-```xu
-let name = users.first
-    .map(func(u) -> u.name)
-    .or("匿名")
-```
-
 ### 10.3 Result 组合子
 
 同 Option，额外有：
@@ -595,6 +589,70 @@ let config = file.read("config.json")
     .map_err(func(e) -> "配置加载失败: {e}")
     .or(default_config)
 ```
+
+### 10.4 字符串方法
+
+|方法|说明|示例|
+|---|---|---|
+|`.length()`|获取字符串长度|`"hello".length() // 返回 5`|
+|`.starts_with(prefix)`|检查是否以指定前缀开头|`"hello".starts_with("he") // 返回 true`|
+|`.ends_with(suffix)`|检查是否以指定后缀结尾|`"hello".ends_with("lo") // 返回 true`|
+|`.split(separator)`|按分隔符分割字符串|`"a,b,c".split(",") // 返回 ["a", "b", "c"]`|
+|`.trim()`|去除首尾空白|`"  hello  ".trim() // 返回 "hello"`|
+|`.to_upper()`|转换为大写|`"hello".to_upper() // 返回 "HELLO"`|
+|`.to_lower()`|转换为小写|`"HELLO".to_lower() // 返回 "hello"`|
+
+### 10.5 整数方法
+
+|方法|说明|示例|
+|---|---|---|
+|`.to_string()`|将整数转换为字符串|`42.to_string() // 返回 "42"`|
+|`.abs()`|获取绝对值|`(-10).abs() // 返回 10`|
+|`.to_base(base)`|转换为指定进制|`255.to_base(16) // 返回 "FF"`|
+|`.is_even()`|检查是否为偶数|`42.is_even() // 返回 true`|
+|`.is_odd()`|检查是否为奇数|`43.is_odd() // 返回 true`|
+
+### 10.6 浮点数方法
+
+|方法|说明|示例|
+|---|---|---|
+|`.to_string()`|将浮点数转换为字符串|`3.14.to_string() // 返回 "3.14"`|
+|`.to_int()`|将浮点数转换为整数（截断小数部分）|`3.99.to_int() // 返回 3`|
+|`.abs()`|获取绝对值|`(-3.14).abs() // 返回 3.14`|
+|`.round()`|四舍五入|`3.14.round() // 返回 3`|
+|`.floor()`|向下取整|`3.99.floor() // 返回 3`|
+|`.ceil()`|向上取整|`3.01.ceil() // 返回 4`|
+
+### 10.7 布尔值方法
+
+|方法|说明|示例|
+|---|---|---|
+|`.to_string()`|将布尔值转换为字符串|`true.to_string() // 返回 "true"`|
+|`.not()`|逻辑非操作|`true.not() // 返回 false`|
+
+### 10.8 列表方法
+
+|方法|说明|示例|
+|---|---|---|
+|`.length()`|获取列表长度|`[1, 2, 3].length() // 返回 3`|
+|`.push(item)`|向列表追加元素|`let list = [1, 2]; list.push(3); // 现在 list 为 [1, 2, 3]`|
+|`.pop()`|移除并返回最后一个元素|`let list = [1, 2, 3]; list.pop(); // 返回 3，list 变为 [1, 2]`|
+|`.reverse()`|反转列表|`let list = [1, 2, 3]; list.reverse(); // 现在 list 为 [3, 2, 1]`|
+|`.join(separator)`|用分隔符连接列表元素|`["a", "b", "c"].join(",") // 返回 "a,b,c"`|
+|`.contains(item)`|检查列表是否包含指定元素|`[1, 2, 3].contains(2) // 返回 true`|
+|`.clear()`|清空列表|`let list = [1, 2, 3]; list.clear(); // 现在 list 为 []`|
+|`.remove(index)`|按索引删除元素并返回|`let list = [1, 2, 3]; list.remove(0); // 返回 1，list 变为 [2, 3]`|
+
+### 10.9 字典方法
+
+|方法|说明|示例|
+|---|---|---|
+|`.length()`|获取字典长度|`{"a": 1, "b": 2}.length() // 返回 2`|
+|`.insert(key, value)`|插入键值对|`let dict = {"a": 1}; dict.insert("b", 2); // 现在 dict 为 {"a": 1, "b": 2}`|
+|`.get(key)`|获取指定键的值|`{"a": 1}.get("a") // 返回 Option.some(1)`|
+|`.keys()`|获取所有键|`{"a": 1, "b": 2}.keys() // 返回 ["a", "b"]`|
+|`.values()`|获取所有值|`{"a": 1, "b": 2}.values() // 返回 [1, 2]`|
+|`.merge(other)`|合并另一个字典|`{"a": 1}.merge({"b": 2}) // 返回 {"a": 1, "b": 2}`|
 
 ---
 

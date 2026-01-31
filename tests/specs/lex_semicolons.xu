@@ -16,7 +16,7 @@ name == "Tom")
 
 let list1 = [1,
     2, 3]
-assert(list1.len() == 3)
+assert(list1.length() == 3)
 
 let x = 1 +
     2
@@ -29,7 +29,7 @@ assert(s == 7)
 
 let names = ["a", "b", "c"]
 let len = names
-    .len()
+    .length()
 assert(len == 3)
 
 let y = sum(1
@@ -44,4 +44,4 @@ let list2 = [
     1,
     2
 ]
-assert(list2.len() == 2)
+assert(list2.length() == 2)

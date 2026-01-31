@@ -1,0 +1,646 @@
+// Data Filter Module
+// Defines various data filters for the pipeline
+
+// Threshold filter
+ThresholdFilter has {
+    threshold: number
+    operator: string
+
+    init(threshold: number, operator: string = ">=") {
+        self.threshold = threshold
+        self.operator = operator
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        if typeof(item) == "number" {
+            switch self.operator {
+                case ">":
+                    return item > self.threshold
+                case ">=":
+                    return item >= self.threshold
+                case "<":
+                    return item < self.threshold
+                case "<=":
+                    return item <= self.threshold
+                case "==":
+                    return item == self.threshold
+                case "!=":
+                    return item != self.threshold
+                default:
+                    return false
+            }
+        } else if typeof(item) == "object" {
+            // For objects, assume we're filtering based on numeric properties
+            for key in Object.keys(item) {
+                if typeof(item[key]) == "number" {
+                    if self._match(item[key]) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    static func create(threshold: number, operator: string = ">=") -> ThresholdFilter {
+        return ThresholdFilter{ threshold: threshold, operator: operator }
+    }
+}
+
+// Pattern filter
+PatternFilter has {
+    pattern: string
+    flags: string
+
+    init(pattern: string, flags: string = "") {
+        self.pattern = pattern
+        self.flags = flags
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        if typeof(item) == "string" {
+            let regex = new RegExp(self.pattern, self.flags)
+            return regex.test(item)
+        } else if typeof(item) == "object" {
+            // For objects, check string properties
+            for key in Object.keys(item) {
+                if typeof(item[key]) == "string" {
+                    if self._match(item[key]) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    static func create(pattern: string, flags: string = "") -> PatternFilter {
+        return PatternFilter{ pattern: pattern, flags: flags }
+    }
+}
+
+// Range filter
+RangeFilter has {
+    min: number
+    max: number
+    inclusive: bool
+
+    init(min: number, max: number, inclusive: bool = true) {
+        self.min = min
+        self.max = max
+        self.inclusive = inclusive
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        if typeof(item) == "number" {
+            if self.inclusive {
+                return item >= self.min && item <= self.max
+            } else {
+                return item > self.min && item < self.max
+            }
+        } else if typeof(item) == "object" {
+            // For objects, check numeric properties
+            for key in Object.keys(item) {
+                if typeof(item[key]) == "number" {
+                    if self._match(item[key]) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    static func create(min: number, max: number, inclusive: bool = true) -> RangeFilter {
+        return RangeFilter{ min: min, max: max, inclusive: inclusive }
+    }
+}
+
+// Exists filter
+ExistsFilter has {
+    field: string
+
+    init(field: string) {
+        self.field = field
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        if typeof(item) == "object" {
+            return item.hasOwnProperty(self.field)
+        }
+        return false
+    }
+
+    static func create(field: string) -> ExistsFilter {
+        return ExistsFilter{ field: field }
+    }
+}
+
+// Null filter
+NullFilter has {
+    field: string
+    allow_null: bool
+
+    init(field: string, allow_null: bool = false) {
+        self.field = field
+        self.allow_null = allow_null
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        if typeof(item) == "object" {
+            if item.hasOwnProperty(self.field) {
+                let value = item[self.field]
+                if self.allow_null {
+                    return value != null
+                } else {
+                    return value == null
+                }
+            }
+        }
+        return false
+    }
+
+    static func create(field: string, allow_null: bool = false) -> NullFilter {
+        return NullFilter{ field: field, allow_null: allow_null }
+    }
+}
+
+// Boolean filter
+BooleanFilter has {
+    field: string
+    value: bool
+
+    init(field: string, value: bool = true) {
+        self.field = field
+        self.value = value
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        if typeof(item) == "object" {
+            if item.hasOwnProperty(self.field) {
+                return item[self.field] == self.value
+            }
+        } else if typeof(item) == "boolean" {
+            return item == self.value
+        }
+        return false
+    }
+
+    static func create(field: string, value: bool = true) -> BooleanFilter {
+        return BooleanFilter{ field: field, value: value }
+    }
+}
+
+// String length filter
+StringLengthFilter has {
+    min_length: int
+    max_length: int
+
+    init(min_length: int = 0, max_length: int = 1000) {
+        self.min_length = min_length
+        self.max_length = max_length
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        if typeof(item) == "string" {
+            let length = item.length
+            return length >= self.min_length && length <= self.max_length
+        } else if typeof(item) == "object" {
+            // For objects, check string properties
+            for key in Object.keys(item) {
+                if typeof(item[key]) == "string" {
+                    if self._match(item[key]) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    static func create(min_length: int = 0, max_length: int = 1000) -> StringLengthFilter {
+        return StringLengthFilter{ min_length: min_length, max_length: max_length }
+    }
+}
+
+// Array length filter
+ArrayLengthFilter has {
+    min_length: int
+    max_length: int
+
+    init(min_length: int = 0, max_length: int = 1000) {
+        self.min_length = min_length
+        self.max_length = max_length
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        if typeof(item) == "array" {
+            let length = item.length
+            return length >= self.min_length && length <= self.max_length
+        } else if typeof(item) == "object" {
+            // For objects, check array properties
+            for key in Object.keys(item) {
+                if typeof(item[key]) == "array" {
+                    if self._match(item[key]) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    static func create(min_length: int = 0, max_length: int = 1000) -> ArrayLengthFilter {
+        return ArrayLengthFilter{ min_length: min_length, max_length: max_length }
+    }
+}
+
+// In filter
+InFilter has {
+    values: [any]
+
+    init(values: [any]) {
+        self.values = values
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        for value in self.values {
+            if item == value {
+                return true
+            }
+        }
+        return false
+    }
+
+    static func create(values: [any]) -> InFilter {
+        return InFilter{ values: values }
+    }
+}
+
+// Not in filter
+NotInFilter has {
+    values: [any]
+
+    init(values: [any]) {
+        self.values = values
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        for value in self.values {
+            if item == value {
+                return false
+            }
+        }
+        return true
+    }
+
+    static func create(values: [any]) -> NotInFilter {
+        return NotInFilter{ values: values }
+    }
+}
+
+// Type filter
+TypeFilter has {
+    types: [string]
+
+    init(types: [string]) {
+        self.types = types
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        let item_type = typeof(item)
+        for type in self.types {
+            if item_type == type {
+                return true
+            }
+        }
+        return false
+    }
+
+    static func create(types: [string]) -> TypeFilter {
+        return TypeFilter{ types: types }
+    }
+}
+
+// Composite filter
+CompositeFilter has {
+    filters: [any]
+    operator: string
+
+    init(filters: [any], operator: string = "AND") {
+        self.filters = filters
+        self.operator = operator
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        if self.operator == "AND" {
+            for filter in self.filters {
+                let filtered = filter.apply(item)
+                if filtered == null {
+                    return false
+                }
+            }
+            return true
+        } else if self.operator == "OR" {
+            for filter in self.filters {
+                let filtered = filter.apply(item)
+                if filtered != null {
+                    return true
+                }
+            }
+            return false
+        }
+        return false
+    }
+
+    static func create(filters: [any], operator: string = "AND") -> CompositeFilter {
+        return CompositeFilter{ filters: filters, operator: operator }
+    }
+}
+
+// Regular expression filter
+RegexFilter has {
+    pattern: string
+    flags: string
+
+    init(pattern: string, flags: string = "") {
+        self.pattern = pattern
+        self.flags = flags
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        if typeof(item) == "string" {
+            let regex = new RegExp(self.pattern, self.flags)
+            return regex.test(item)
+        } else if typeof(item) == "object" {
+            // For objects, check string properties
+            for key in Object.keys(item) {
+                if typeof(item[key]) == "string" {
+                    if self._match(item[key]) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    static func create(pattern: string, flags: string = "") -> RegexFilter {
+        return RegexFilter{ pattern: pattern, flags: flags }
+    }
+}
+
+// Date filter
+DateFilter has {
+    start_date: string
+    end_date: string
+
+    init(start_date: string, end_date: string) {
+        self.start_date = start_date
+        self.end_date = end_date
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self._match(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self._match(data) ? data : null
+        }
+    }
+
+    func _match(item: any) -> bool {
+        if typeof(item) == "string" {
+            // Assume date string format: YYYY-MM-DD
+            return item >= self.start_date && item <= self.end_date
+        } else if typeof(item) == "object" {
+            // For objects, check date string properties
+            for key in Object.keys(item) {
+                if typeof(item[key]) == "string" {
+                    if self._match(item[key]) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    static func create(start_date: string, end_date: string) -> DateFilter {
+        return DateFilter{ start_date: start_date, end_date: end_date }
+    }
+}
+
+// Custom filter
+CustomFilter has {
+    predicate: function(any) -> bool
+
+    init(predicate: function(any) -> bool) {
+        self.predicate = predicate
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self.predicate(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self.predicate(data) ? data : null
+        }
+    }
+
+    static func create(predicate: function(any) -> bool) -> CustomFilter {
+        return CustomFilter{ predicate: predicate }
+    }
+}

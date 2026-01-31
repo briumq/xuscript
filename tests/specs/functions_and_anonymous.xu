@@ -24,7 +24,7 @@ let users = [
 
 func is_adult(u: User) -> bool { return u.age >= 18 }
 let adults = users.filter(is_adult)
-assert(adults.len() == 2)
+assert(adults.length() == 2)
 func name_of(u: User) -> string { return u.name }
 let names = adults.map(name_of)
 assert(names[0] == "Alice")

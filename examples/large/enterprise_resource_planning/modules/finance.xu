@@ -1,0 +1,369 @@
+// Finance Module
+// Implements financial management functionality for ERP system
+
+// Account type enum
+AccountType with [ asset | liability | equity | revenue | expense ]
+
+// Account status enum
+AccountStatus with [ active | inactive | archived ]
+
+// Journal entry type enum
+JournalEntryType with [ debit | credit ]
+
+// Journal status enum
+JournalStatus with [ draft | posted | reversed ]
+
+// Financial period enum
+FinancialPeriod with [ monthly | quarterly | yearly ]
+
+// Account struct
+Account has {
+    id: string
+    name: string
+    code: string
+    account_type: AccountType
+    status: AccountStatus
+    balance: float
+    parent_account_id: string
+    description: string
+
+    init(id: string, name: string, code: string, account_type: AccountType) {
+        self.id = id
+        self.name = name
+        self.code = code
+        self.account_type = account_type
+        self.status = AccountStatus#active
+        self.balance = 0.0
+        self.parent_account_id = ""
+        self.description = ""
+    }
+
+    func get_full_code() -> string {
+        return self.code
+    }
+
+    func is_active() -> bool {
+        return self.status == AccountStatus#active
+    }
+
+    func update_balance(amount: float) {
+        self.balance += amount
+    }
+
+    static func create(id: string, name: string, code: string, account_type: AccountType) -> Account {
+        return Account{ id: id, name: name, code: code, account_type: account_type }
+    }
+}
+
+// Journal line struct
+JournalLine has {
+    id: string
+    journal_id: string
+    account_id: string
+    amount: float
+    entry_type: JournalEntryType
+    description: string
+    reference: string
+
+    init(id: string, journal_id: string, account_id: string, amount: float, entry_type: JournalEntryType) {
+        self.id = id
+        self.journal_id = journal_id
+        self.account_id = account_id
+        self.amount = amount
+        self.entry_type = entry_type
+        self.description = ""
+        self.reference = ""
+    }
+
+    func get_amount() -> float {
+        if self.entry_type == JournalEntryType#debit {
+            return self.amount
+        } else {
+            return -self.amount
+        }
+    }
+
+    static func create(id: string, journal_id: string, account_id: string, amount: float, entry_type: JournalEntryType) -> JournalLine {
+        return JournalLine{ id: id, journal_id: journal_id, account_id: account_id, amount: amount, entry_type: entry_type }
+    }
+}
+
+// Journal struct
+Journal has {
+    id: string
+    date: string
+    reference: string
+    description: string
+    status: JournalStatus
+    lines: [JournalLine]
+    total_debit: float
+    total_credit: float
+    balanced: bool
+
+    init(id: string, date: string, reference: string = "", description: string = "") {
+        self.id = id
+        self.date = date
+        self.reference = reference
+        self.description = description
+        self.status = JournalStatus#draft
+        self.lines = []
+        self.total_debit = 0.0
+        self.total_credit = 0.0
+        self.balanced = false
+    }
+
+    func add_line(line: JournalLine) {
+        self.lines.push(line)
+        self._update_totals()
+    }
+
+    func remove_line(line_id: string) {
+        var new_lines = []
+        for line in self.lines {
+            if line.id != line_id {
+                new_lines.push(line)
+            }
+        }
+        self.lines = new_lines
+        self._update_totals()
+    }
+
+    func _update_totals() {
+        self.total_debit = 0.0
+        self.total_credit = 0.0
+        for line in self.lines {
+            if line.entry_type == JournalEntryType#debit {
+                self.total_debit += line.amount
+            } else {
+                self.total_credit += line.amount
+            }
+        }
+        self.balanced = self.total_debit == self.total_credit
+    }
+
+    func is_balanced() -> bool {
+        return self.balanced
+    }
+
+    func post() -> bool {
+        if !self.is_balanced() {
+            return false
+        }
+        self.status = JournalStatus#posted
+        return true
+    }
+
+    func reverse() -> bool {
+        if self.status != JournalStatus#posted {
+            return false
+        }
+        self.status = JournalStatus#reversed
+        return true
+    }
+
+    static func create(id: string, date: string, reference: string = "", description: string = "") -> Journal {
+        return Journal{ id: id, date: date, reference: reference, description: description }
+    }
+}
+
+// Financial statement struct
+FinancialStatement has {
+    id: string
+    name: string
+    type: string
+    period: FinancialPeriod
+    start_date: string
+    end_date: string
+    data: any
+    generated_at: string
+
+    init(id: string, name: string, type: string, period: FinancialPeriod, start_date: string, end_date: string) {
+        self.id = id
+        self.name = name
+        self.type = type
+        self.period = period
+        self.start_date = start_date
+        self.end_date = end_date
+        self.data = {}
+        self.generated_at = System.current_datetime()
+    }
+
+    func generate() {
+        // Simulate statement generation
+        self.data = {
+            "header": {
+                "name": self.name,
+                "period": self.period,
+                "start_date": self.start_date,
+                "end_date": self.end_date,
+                "generated_at": self.generated_at
+            },
+            "sections": []
+        }
+    }
+
+    func export_to_pdf() -> string {
+        return "PDF export of {self.name}"
+    }
+
+    static func create(id: string, name: string, type: string, period: FinancialPeriod, start_date: string, end_date: string) -> FinancialStatement {
+        return FinancialStatement{ id: id, name: name, type: type, period: period, start_date: start_date, end_date: end_date }
+    }
+}
+
+// Chart of accounts struct
+ChartOfAccounts has {
+    accounts: [Account]
+    account_map: {string: Account}
+
+    init() {
+        self.accounts = []
+        self.account_map = {}
+    }
+
+    func add_account(account: Account) {
+        self.accounts.push(account)
+        self.account_map[account.id] = account
+    }
+
+    func get_account(id: string) -> Account {
+        return self.account_map[id]
+    }
+
+    func get_accounts_by_type(account_type: AccountType) -> [Account] {
+        var result = []
+        for account in self.accounts {
+            if account.account_type == account_type {
+                result.push(account)
+            }
+        }
+        return result
+    }
+
+    func get_accounts_by_status(status: AccountStatus) -> [Account] {
+        var result = []
+        for account in self.accounts {
+            if account.status == status {
+                result.push(account)
+            }
+        }
+        return result
+    }
+
+    func get_active_accounts() -> [Account] {
+        return self.get_accounts_by_status(AccountStatus#active)
+    }
+
+    static func create() -> ChartOfAccounts {
+        return ChartOfAccounts{}
+    }
+}
+
+// General ledger struct
+GeneralLedger has {
+    journals: [Journal]
+    journal_map: {string: Journal}
+
+    init() {
+        self.journals = []
+        self.journal_map = {}
+    }
+
+    func add_journal(journal: Journal) {
+        self.journals.push(journal)
+        self.journal_map[journal.id] = journal
+    }
+
+    func get_journal(id: string) -> Journal {
+        return self.journal_map[id]
+    }
+
+    func get_journals_by_status(status: JournalStatus) -> [Journal] {
+        var result = []
+        for journal in self.journals {
+            if journal.status == status {
+                result.push(journal)
+            }
+        }
+        return result
+    }
+
+    func get_posted_journals() -> [Journal] {
+        return self.get_journals_by_status(JournalStatus#posted)
+    }
+
+    func get_journals_by_date_range(start_date: string, end_date: string) -> [Journal] {
+        var result = []
+        for journal in self.journals {
+            if journal.date >= start_date && journal.date <= end_date {
+                result.push(journal)
+            }
+        }
+        return result
+    }
+
+    static func create() -> GeneralLedger {
+        return GeneralLedger{}
+    }
+}
+
+// Financial report service
+FinancialReportService has {
+    chart_of_accounts: ChartOfAccounts
+    general_ledger: GeneralLedger
+
+    init(chart_of_accounts: ChartOfAccounts, general_ledger: GeneralLedger) {
+        self.chart_of_accounts = chart_of_accounts
+        self.general_ledger = general_ledger
+    }
+
+    func generate_balance_sheet(start_date: string, end_date: string) -> FinancialStatement {
+        let statement = FinancialStatement.create(
+            "bs_" + System.current_datetime(),
+            "Balance Sheet",
+            "balance_sheet",
+            FinancialPeriod#monthly,
+            start_date,
+            end_date
+        )
+        
+        // Simulate balance sheet generation
+        statement.data = {
+            "header": {
+                "name": "Balance Sheet",
+                "period": "Monthly",
+                "date": end_date
+            },
+            "assets": [
+                { "account": "Cash", "amount": 100000.0 },
+                { "account": "Accounts Receivable", "amount": 50000.0 },
+                { "account": "Inventory", "amount": 150000.0 },
+                { "account": "Fixed Assets", "amount": 500000.0 }
+            ],
+            "liabilities": [
+                { "account": "Accounts Payable", "amount": 80000.0 },
+                { "account": "Loans Payable", "amount": 200000.0 }
+            ],
+            "equity": [
+                { "account": "Common Stock", "amount": 400000.0 },
+                { "account": "Retained Earnings", "amount": 120000.0 }
+            ]
+        }
+        
+        return statement
+    }
+
+    func generate_income_statement(start_date: string, end_date: string) -> FinancialStatement {
+        let statement = FinancialStatement.create(
+            "is_" + System.current_datetime(),
+            "Income Statement",
+            "income_statement",
+            FinancialPeriod#monthly,
+            start_date,
+            end_date
+        )
+        
+        // Simulate income statement generation
+        statement.data = {
+            "header": {
+                "name": "Income Statement",

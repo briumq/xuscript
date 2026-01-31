@@ -1,0 +1,105 @@
+// 测试简单数据类型的方法
+
+func assert_eq(a, b) {
+    if a != b {
+        println("Assertion failed: " + a + " != " + b)
+        panic("assertion failed")
+    }
+}
+
+func assert_true(b) {
+    if !b {
+        println("Assertion failed: expected true")
+        panic("assertion failed")
+    }
+}
+
+func assert_false(b) {
+    if b {
+        println("Assertion failed: expected false")
+        panic("assertion failed")
+    }
+}
+
+println("=== 测试整数方法 ===");
+
+// 测试整数的 abs() 方法
+let num1 = -42;
+let abs1 = num1.abs();
+assert_eq(abs1, 42);
+
+let num2 = 123;
+let abs2 = num2.abs();
+assert_eq(abs2, 123);
+
+// 测试整数的 to_base() 方法
+let num3 = 42;
+let base2 = num3.to_base(2);
+assert_eq(base2, "101010");
+
+let base16 = num3.to_base(16);
+assert_eq(base16, "2A");
+
+let num4 = 0;
+let base10 = num4.to_base(10);
+assert_eq(base10, "0");
+
+// 测试整数的 is_even() 方法
+let even_num = 42;
+assert_true(even_num.is_even());
+
+let odd_num = 43;
+assert_false(odd_num.is_even());
+
+// 测试整数的 is_odd() 方法
+assert_false(even_num.is_odd());
+assert_true(odd_num.is_odd());
+
+println("=== 测试浮点数方法 ===");
+
+// 测试浮点数的 abs() 方法
+let float1 = -3.14;
+let float_abs1 = float1.abs();
+assert_eq(float_abs1, 3.14);
+
+let float2 = 2.718;
+let float_abs2 = float2.abs();
+assert_eq(float_abs2, 2.718);
+
+// 测试浮点数的 round() 方法
+let float3 = 3.14159;
+let rounded1 = float3.round();
+assert_eq(rounded1, 3.0);
+
+let rounded2 = float3.round(2);
+assert_eq(rounded2, 3.14);
+
+// 测试浮点数的 floor() 方法
+let float4 = 3.999;
+let floored = float4.floor();
+assert_eq(floored, 3.0);
+
+// 测试浮点数的 ceil() 方法
+let float5 = 3.001;
+let ceiled = float5.ceil();
+assert_eq(ceiled, 4.0);
+
+println("=== 测试布尔值方法 ===");
+
+// 测试布尔值的 to_string() 方法
+let bool_true = true;
+let str_true = bool_true.to_string();
+assert_eq(str_true, "true");
+
+let bool_false = false;
+let str_false = bool_false.to_string();
+assert_eq(str_false, "false");
+
+// 测试布尔值的 not() 方法
+let not_true = bool_true.not();
+assert_false(not_true);
+
+let not_false = bool_false.not();
+assert_true(not_false);
+
+println("所有测试通过!");

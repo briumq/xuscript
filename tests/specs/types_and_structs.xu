@@ -23,10 +23,10 @@ assert(b_true)
 assert(!b_false)
 
 let list_ok = [1, 2, 3]
-assert(list_ok.len() == 3)
+assert(list_ok.length() == 3)
 
 let list_empty: [int] = []
-assert(list_empty.len() == 0)
+assert(list_empty.length() == 0)
 
 let dict_ok = {"a": 1}
 assert(dict_ok["a"] == 1)

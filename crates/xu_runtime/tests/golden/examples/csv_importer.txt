@@ -1,1 +1,11 @@
-parsed=2
+Processing 7 lines...
+  Row OK: Alice (ID:1)
+  Row OK: Bob (ID:2)
+  Row Error: Invalid score: invalid [Line:     3, Charlie, invalid, true]
+  Row OK:  (ID:4)
+  Row OK: Dave (ID:5)
+
+Summary:
+- Valid Records: 4
+- Average Score: 83.425
+- Active Users : 3

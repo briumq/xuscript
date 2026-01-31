@@ -1,1 +1,10 @@
-has_a=false has_b=true
+--- Basic Operations ---
+Get 'a': 1
+--- LRU Eviction ---
+Get 'b': -1
+Get 'c': 3
+--- TTL Expiry ---
+Get 'e' (immediate): 5
+Get 'e' (after 200ms): -1
+--- Stats ---
+Hits: 3, Misses: 2, Ratio: 60%

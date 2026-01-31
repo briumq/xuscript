@@ -1,0 +1,339 @@
+// 客户和供应商模块
+
+// 客户结构体
+Customer has {
+    id: string
+    name: string
+    email: string
+    phone: string
+    fax: string
+    website: string
+    tax_id: string
+    address_id: string
+    billing_address_id: string
+    shipping_address_id: string
+    payment_terms: string
+    currency: Currency = Currency#USD
+    created_by: string
+    created_at: string
+    updated_at: string
+    
+    func validate() -> bool {
+        return !self.id.none && !self.name.none
+    }
+    
+    func to_json() -> string {
+        return """{
+            "id": "{self.id}",
+            "name": "{self.name}",
+            "email": "{self.email}",
+            "phone": "{self.phone}",
+            "fax": "{self.fax}",
+            "website": "{self.website}",
+            "tax_id": "{self.tax_id}",
+            "address_id": "{self.address_id}",
+            "billing_address_id": "{self.billing_address_id}",
+            "shipping_address_id": "{self.shipping_address_id}",
+            "payment_terms": "{self.payment_terms}",
+            "currency": "{self.currency}",
+            "created_by": "{self.created_by}",
+            "created_at": "{self.created_at}",
+            "updated_at": "{self.updated_at}"
+        }"""
+    }
+    
+    static func create(id: string, name: string, email: string, phone: string, created_by: string) -> Customer {
+        let now = DateTimeUtil.now()
+        
+        return Customer{
+            id: id,
+            name: name,
+            email: email,
+            phone: phone,
+            fax: "",
+            website: "",
+            tax_id: "",
+            address_id: "",
+            billing_address_id: "",
+            shipping_address_id: "",
+            payment_terms: "",
+            currency: Currency#USD,
+            created_by: created_by,
+            created_at: now,
+            updated_at: now
+        }
+    }
+}
+
+// 供应商结构体
+Supplier has {
+    id: string
+    name: string
+    email: string
+    phone: string
+    fax: string
+    website: string
+    tax_id: string
+    address_id: string
+    payment_terms: string
+    currency: Currency = Currency#USD
+    created_by: string
+    created_at: string
+    updated_at: string
+    
+    func validate() -> bool {
+        return !self.id.none && !self.name.none
+    }
+    
+    func to_json() -> string {
+        return """{
+            "id": "{self.id}",
+            "name": "{self.name}",
+            "email": "{self.email}",
+            "phone": "{self.phone}",
+            "fax": "{self.fax}",
+            "website": "{self.website}",
+            "tax_id": "{self.tax_id}",
+            "address_id": "{self.address_id}",
+            "payment_terms": "{self.payment_terms}",
+            "currency": "{self.currency}",
+            "created_by": "{self.created_by}",
+            "created_at": "{self.created_at}",
+            "updated_at": "{self.updated_at}"
+        }"""
+    }
+    
+    static func create(id: string, name: string, email: string, phone: string, created_by: string) -> Supplier {
+        let now = DateTimeUtil.now()
+        
+        return Supplier{
+            id: id,
+            name: name,
+            email: email,
+            phone: phone,
+            fax: "",
+            website: "",
+            tax_id: "",
+            address_id: "",
+            payment_terms: "",
+            currency: Currency#USD,
+            created_by: created_by,
+            created_at: now,
+            updated_at: now
+        }
+    }
+}
+
+// 客户服务
+CustomerService has {
+    customers: {string: Customer}
+    core_service: CoreService
+    
+    func create_customer(name: string, email: string, phone: string, created_by: string) -> Result[Customer, string] {
+        let customer_id = "CUST-" + Math.random().to_string()
+        let customer = Customer.create(customer_id, name, email, phone, created_by)
+        
+        if !customer.validate() {
+            return Result#err("Invalid customer")
+        }
+        
+        self.customers[customer_id] = customer
+        return Result#ok(customer)
+    }
+    
+    func get_customer(id: string) -> Option[Customer] {
+        return self.customers.get(id)
+    }
+    
+    func update_customer(id: string, updates: {string: any}) -> Result[Customer, string] {
+        when customer = self.customers.get(id) {
+            if updates.contains("name") {
+                customer.name = updates["name"] as string
+            }
+            if updates.contains("email") {
+                customer.email = updates["email"] as string
+            }
+            if updates.contains("phone") {
+                customer.phone = updates["phone"] as string
+            }
+            if updates.contains("fax") {
+                customer.fax = updates["fax"] as string
+            }
+            if updates.contains("website") {
+                customer.website = updates["website"] as string
+            }
+            if updates.contains("tax_id") {
+                customer.tax_id = updates["tax_id"] as string
+            }
+            if updates.contains("address_id") {
+                customer.address_id = updates["address_id"] as string
+            }
+            if updates.contains("billing_address_id") {
+                customer.billing_address_id = updates["billing_address_id"] as string
+            }
+            if updates.contains("shipping_address_id") {
+                customer.shipping_address_id = updates["shipping_address_id"] as string
+            }
+            if updates.contains("payment_terms") {
+                customer.payment_terms = updates["payment_terms"] as string
+            }
+            if updates.contains("currency") {
+                customer.currency = updates["currency"] as Currency
+            }
+            
+            customer.updated_at = DateTimeUtil.now()
+            
+            if !customer.validate() {
+                return Result#err("Invalid customer")
+            }
+            
+            self.customers[id] = customer
+            return Result#ok(customer)
+        } else {
+            return Result#err("Customer not found")
+        }
+    }
+    
+    func delete_customer(id: string) -> Result[bool, string] {
+        if self.customers.contains(id) {
+            delete self.customers[id]
+            return Result#ok(true)
+        }
+        return Result#err("Customer not found")
+    }
+    
+    func list_customers() -> [Customer] {
+        let result: [Customer] = []
+        for (_, customer) in self.customers {
+            result.push(customer)
+        }
+        return result
+    }
+    
+    func search_customers(query: string) -> [Customer] {
+        let result: [Customer] = []
+        let lower_query = query.to_lower()
+        
+        for (_, customer) in self.customers {
+            if customer.name.to_lower().contains(lower_query) || 
+               customer.email.to_lower().contains(lower_query) || 
+               customer.phone.to_lower().contains(lower_query) || 
+               customer.tax_id.to_lower().contains(lower_query) {
+                result.push(customer)
+            }
+        }
+        
+        return result
+    }
+    
+    static func new(core_service: CoreService) -> CustomerService {
+        return CustomerService{
+            customers: {},
+            core_service: core_service
+        }
+    }
+}
+
+// 供应商服务
+SupplierService has {
+    suppliers: {string: Supplier}
+    core_service: CoreService
+    
+    func create_supplier(name: string, email: string, phone: string, created_by: string) -> Result[Supplier, string] {
+        let supplier_id = "SUPP-" + Math.random().to_string()
+        let supplier = Supplier.create(supplier_id, name, email, phone, created_by)
+        
+        if !supplier.validate() {
+            return Result#err("Invalid supplier")
+        }
+        
+        self.suppliers[supplier_id] = supplier
+        return Result#ok(supplier)
+    }
+    
+    func get_supplier(id: string) -> Option[Supplier] {
+        return self.suppliers.get(id)
+    }
+    
+    func update_supplier(id: string, updates: {string: any}) -> Result[Supplier, string] {
+        when supplier = self.suppliers.get(id) {
+            if updates.contains("name") {
+                supplier.name = updates["name"] as string
+            }
+            if updates.contains("email") {
+                supplier.email = updates["email"] as string
+            }
+            if updates.contains("phone") {
+                supplier.phone = updates["phone"] as string
+            }
+            if updates.contains("fax") {
+                supplier.fax = updates["fax"] as string
+            }
+            if updates.contains("website") {
+                supplier.website = updates["website"] as string
+            }
+            if updates.contains("tax_id") {
+                supplier.tax_id = updates["tax_id"] as string
+            }
+            if updates.contains("address_id") {
+                supplier.address_id = updates["address_id"] as string
+            }
+            if updates.contains("payment_terms") {
+                supplier.payment_terms = updates["payment_terms"] as string
+            }
+            if updates.contains("currency") {
+                supplier.currency = updates["currency"] as Currency
+            }
+            
+            supplier.updated_at = DateTimeUtil.now()
+            
+            if !supplier.validate() {
+                return Result#err("Invalid supplier")
+            }
+            
+            self.suppliers[id] = supplier
+            return Result#ok(supplier)
+        } else {
+            return Result#err("Supplier not found")
+        }
+    }
+    
+    func delete_supplier(id: string) -> Result[bool, string] {
+        if self.suppliers.contains(id) {
+            delete self.suppliers[id]
+            return Result#ok(true)
+        }
+        return Result#err("Supplier not found")
+    }
+    
+    func list_suppliers() -> [Supplier] {
+        let result: [Supplier] = []
+        for (_, supplier) in self.suppliers {
+            result.push(supplier)
+        }
+        return result
+    }
+    
+    func search_suppliers(query: string) -> [Supplier] {
+        let result: [Supplier] = []
+        let lower_query = query.to_lower()
+        
+        for (_, supplier) in self.suppliers {
+            if supplier.name.to_lower().contains(lower_query) || 
+               supplier.email.to_lower().contains(lower_query) || 
+               supplier.phone.to_lower().contains(lower_query) || 
+               supplier.tax_id.to_lower().contains(lower_query) {
+                result.push(supplier)
+            }
+        }
+        
+        return result
+    }
+    
+    static func new(core_service: CoreService) -> SupplierService {
+        return SupplierService{
+            suppliers: {},
+            core_service: core_service
+        }
+    }
+}

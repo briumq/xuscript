@@ -9,9 +9,9 @@ func test_push_alias() {
 
     // 测试1: 使用add方法添加元素
     println("\n测试1: 使用add方法添加元素")
-    list.add(1)
-    list.add(2)
-    list.add(3)
+    list.push(1)
+    list.push(2)
+    list.push(3)
     println("List after add: {list}")
 
     // 测试2: 使用push方法添加元素（应该与add方法效果相同）
@@ -23,9 +23,9 @@ func test_push_alias() {
 
     // 测试3: 混合使用add和push方法
     println("\n测试3: 混合使用add和push方法")
-    list.add(7)
+    list.push(7)
     list.push(8)
-    list.add(9)
+    list.push(9)
     println("List after mixed: {list}")
 }
 

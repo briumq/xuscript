@@ -11,6 +11,6 @@ vx += 5
 assert(vx == 25)
 
 let list = [1, 2, 3]
-list.add(4)
-assert(list.len() == 4)
+list.push(4)
+assert(list.length() == 4)
 assert(list[3] == 4)

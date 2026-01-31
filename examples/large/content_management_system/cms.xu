@@ -1,0 +1,236 @@
+// 内容管理系统主文件
+
+// 导入模块
+use "modules/content.xu";
+use "modules/user.xu";
+use "modules/comment.xu";
+
+// 主应用
+CMSApp has {
+    user_service: UserService
+    content_service: ContentService
+    comment_service: CommentService
+}
+
+// 初始化方法
+func (self: CMSApp) init() {
+    // 初始化服务
+    self.user_service = UserService.new()
+    self.content_service = ContentService.new(self.user_service)
+    self.comment_service = CommentService.new(self.content_service, self.user_service)
+    
+    // 初始化示例数据
+    self.initialize_sample_data()
+}
+
+// 初始化示例数据方法
+func (self: CMSApp) initialize_sample_data() {
+    // 添加示例用户
+    let users = [
+        self.user_service.register("admin", "admin@example.com", "admin123", "Admin", "User", "admin"),
+        self.user_service.register("editor", "editor@example.com", "editor123", "Editor", "User", "editor"),
+        self.user_service.register("author", "author@example.com", "author123", "Author", "User", "author"),
+        self.user_service.register("contributor", "contributor@example.com", "contributor123", "Contributor", "User", "contributor"),
+        self.user_service.register("reader", "reader@example.com", "reader123", "Reader", "User", "reader")
+    ]
+    
+    println("Sample users registered:")
+    for user_result in users {
+        match user_result {
+            Result#ok(user) {
+                println("- {user.username} ({user.role})")
+            }
+            Result#err(error) {
+                println("Error registering user: {error}")
+            }
+            _ {
+                println("Unknown error registering user")
+            }
+        }
+    }
+    
+    // 添加示例内容
+    let contents = [
+        self.content_service.create_content(
+            "Getting Started with CMS",
+            "Welcome to our content management system. This is a comprehensive guide to help you get started.",
+            ContentType#article,
+            "USER-1", // admin
+            ["cms", "guide", "getting-started"],
+            ["Documentation", "Guides"]
+        ),
+        self.content_service.create_content(
+            "Creating Your First Article",
+            "Follow these steps to create your first article in the CMS.",
+            ContentType#article,
+            "USER-2", // editor
+            ["article", "guide", "beginner"],
+            ["Guides", "Content Creation"]
+        ),
+        self.content_service.create_content(
+            "Advanced Content Management",
+            "Learn advanced techniques for managing your content effectively.",
+            ContentType#article,
+            "USER-3", // author
+            ["advanced", "content-management"],
+            ["Advanced", "Content Management"]
+        ),
+        self.content_service.create_content(
+            "About Us",
+            "Learn more about our company and team.",
+            ContentType#page,
+            "USER-1", // admin
+            ["about", "company"],
+            ["About"]
+        ),
+        self.content_service.create_content(
+            "Contact Information",
+            "How to get in touch with us.",
+            ContentType#page,
+            "USER-1", // admin
+            ["contact", "information"],
+            ["Contact"]
+        )
+    ]
+    
+    println("\nSample content created:")
+    for content_result in contents {
+        match content_result {
+            Result#ok(content) {
+                println("- {content.title} ({content.type})")
+                // 发布内容
+                self.content_service.publish_content(content.id)
+            }
+            Result#err(error) {
+                println("Error creating content: {error}")
+            }
+            _ {
+                println("Unknown error creating content")
+            }
+        }
+    }
+    
+    // 添加示例评论
+    let comments = [
+        self.comment_service.create_comment(
+            "CONT-1", // Getting Started with CMS
+            "USER-4", // contributor
+            "Great guide! Very helpful for beginners.",
+            "approved"
+        ),
+        self.comment_service.create_comment(
+            "CONT-1", // Getting Started with CMS
+            "USER-5", // reader
+            "Thanks for putting this together!",
+            "approved"
+        ),
+        self.comment_service.create_comment(
+            "CONT-2", // Creating Your First Article
+            "USER-4", // contributor
+            "Clear and concise instructions.",
+            "approved"
+        )
+    ]
+    
+    println("\nSample comments added:")
+    for comment_result in comments {
+        match comment_result {
+            Result#ok(comment) {
+                println("- Comment on content {comment.content_id}")
+            }
+            Result#err(error) {
+                println("Error adding comment: {error}")
+            }
+            _ {
+                println("Unknown error adding comment")
+            }
+        }
+    }
+    
+    println("\nSample data initialized successfully!")
+}
+
+// 运行方法
+func (self: CMSApp) run() {
+    println("=== Content Management System Initialized ===")
+    println("\nAvailable services:")
+    println("1. User Service")
+    println("2. Content Service")
+    println("3. Comment Service")
+    println("\nCMS ready for use!")
+    
+    // 测试功能
+    self.test_features()
+}
+
+// 测试功能方法
+func (self: CMSApp) test_features() {
+    println("\n=== Testing CMS Features ===")
+    
+    // 测试内容搜索
+    println("\n1. Testing Content Search:")
+    let search_results = self.content_service.search_contents("guide")
+    println("Search results for 'guide': {search_results.length}")
+    for content in search_results {
+        println("- {content.title}")
+    }
+    
+    // 测试内容列表
+    println("\n2. Testing Content List:")
+    let articles = self.content_service.list_contents(type: ContentType#article)
+    println("Articles: {articles.length}")
+    for article in articles {
+        println("- {article.title} ({article.status})")
+    }
+    
+    // 测试用户列表
+    println("\n3. Testing User List:")
+    let editors = self.user_service.list_users(role: "editor")
+    println("Editors: {editors.length}")
+    for editor in editors {
+        println("- {editor.username}")
+    }
+    
+    // 测试评论列表
+    println("\n4. Testing Comment List:")
+    let comments = self.comment_service.list_comments(content_id: "CONT-1")
+    println("Comments on CONT-1: {comments.length}")
+    for comment in comments {
+        println("- {comment.body}")
+    }
+    
+    // 测试统计信息
+    println("\n5. Testing Statistics:")
+    let content_stats = self.content_service.get_content_statistics()
+    let user_stats = self.user_service.get_user_statistics()
+    let comment_stats = self.comment_service.get_comment_statistics()
+    
+    println("Content Statistics:")
+    println("- Total: {content_stats.get("total").unwrap_or(0)}")
+    
+    println("User Statistics:")
+    println("- Total: {user_stats.get("total").unwrap_or(0)}")
+    
+    println("Comment Statistics:")
+    println("- Total: {comment_stats.get("total").unwrap_or(0)}")
+}
+
+// 静态方法
+func CMSApp.new() -> CMSApp {
+    var app = CMSApp{}
+    app.init()
+    return app
+}
+
+// 主函数
+func main() {
+    println("=== Content Management System Starting ===");
+    
+    let app = CMSApp.new();
+    app.run();
+    
+    println("\n=== Content Management System Ready ===");
+}
+
+// 调用主函数
+main();

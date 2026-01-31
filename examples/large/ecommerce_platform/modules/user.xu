@@ -1,0 +1,188 @@
+// 用户模块
+
+User has {
+    id: string
+    username: string
+    email: string
+    password: string
+    first_name: string
+    last_name: string
+    address: string
+    phone: string
+    is_admin: bool = false
+    created_at: string
+    updated_at: string
+    
+    func validate() -> bool {
+        return !self.id.none && !self.username.none && !self.email.none && !self.password.none
+    }
+    
+    func to_json() -> string {
+        return """{
+            "id": "{self.id}",
+            "username": "{self.username}",
+            "email": "{self.email}",
+            "first_name": "{self.first_name}",
+            "last_name": "{self.last_name}",
+            "address": "{self.address}",
+            "phone": "{self.phone}",
+            "is_admin": {self.is_admin},
+            "created_at": "{self.created_at}",
+            "updated_at": "{self.updated_at}"
+        }"""
+    }
+    
+    func update_profile(updates: {string: any}) -> Result[User, string] {
+        if updates.contains("username") {
+            self.username = updates["username"] as string
+        }
+        if updates.contains("email") {
+            self.email = updates["email"] as string
+        }
+        if updates.contains("first_name") {
+            self.first_name = updates["first_name"] as string
+        }
+        if updates.contains("last_name") {
+            self.last_name = updates["last_name"] as string
+        }
+        if updates.contains("address") {
+            self.address = updates["address"] as string
+        }
+        if updates.contains("phone") {
+            self.phone = updates["phone"] as string
+        }
+        if updates.contains("password") {
+            self.password = updates["password"] as string
+        }
+        self.updated_at = "2023-12-01 10:30:00" // 模拟时间
+        if !self.validate() {
+            return Result#err("Invalid user after update")
+        }
+        return Result#ok(self)
+    }
+    
+    static func create(id: string, username: string, email: string, password: string, first_name: string, last_name: string, address: string, phone: string, is_admin: bool = false) -> User {
+        let now = "2023-12-01 10:30:00" // 模拟时间
+        return User{
+            id: id,
+            username: username,
+            email: email,
+            password: password,
+            first_name: first_name,
+            last_name: last_name,
+            address: address,
+            phone: phone,
+            is_admin: is_admin,
+            created_at: now,
+            updated_at: now
+        }
+    }
+}
+
+UserService has {
+    users: {string: User}
+    
+    func register(user: User) -> Result[User, string] {
+        if self.users.contains(user.id) {
+            return Result#err("User already exists")
+        }
+        if !user.validate() {
+            return Result#err("Invalid user")
+        }
+        // 检查邮箱是否已被使用
+        for (_, existing_user) in self.users {
+            if existing_user.email == user.email {
+                return Result#err("Email already in use")
+            }
+        }
+        // 检查用户名是否已被使用
+        for (_, existing_user) in self.users {
+            if existing_user.username == user.username {
+                return Result#err("Username already in use")
+            }
+        }
+        self.users[user.id] = user
+        return Result#ok(user)
+    }
+    
+    func login(email: string, password: string) -> Result[User, string] {
+        for (_, user) in self.users {
+            if user.email == email && user.password == password {
+                return Result#ok(user)
+            }
+        }
+        return Result#err("Invalid email or password")
+    }
+    
+    func get_user(id: string) -> Option[User] {
+        return self.users.get(id)
+    }
+    
+    func get_user_by_email(email: string) -> Option[User] {
+        for (_, user) in self.users {
+            if user.email == email {
+                return Some(user)
+            }
+        }
+        return none
+    }
+    
+    func get_user_by_username(username: string) -> Option[User] {
+        for (_, user) in self.users {
+            if user.username == username {
+                return Some(user)
+            }
+        }
+        return none
+    }
+    
+    func update_user(id: string, updates: {string: any}) -> Result[User, string] {
+        when user = self.users.get(id) {
+            let result = user.update_profile(updates)
+            match result {
+                Result#ok(updated_user) {
+                    self.users[id] = updated_user
+                    return Result#ok(updated_user)
+                }
+                Result#err(error) {
+                    return Result#err(error)
+                }
+                _ {
+                    return Result#err("Unknown error")
+                }
+            }
+        } else {
+            return Result#err("User not found")
+        }
+    }
+    
+    func delete_user(id: string) -> Result[bool, string] {
+        if self.users.contains(id) {
+            delete self.users[id]
+            return Result#ok(true)
+        }
+        return Result#err("User not found")
+    }
+    
+    func list_users() -> [User] {
+        let result: [User] = []
+        for (_, user) in self.users {
+            result.push(user)
+        }
+        return result
+    }
+    
+    func list_admins() -> [User] {
+        let result: [User] = []
+        for (_, user) in self.users {
+            if user.is_admin {
+                result.push(user)
+            }
+        }
+        return result
+    }
+    
+    static func new() -> UserService {
+        return UserService{ users: {} }
+    }
+}

@@ -18,6 +18,14 @@ Lru has {
     stats: Stats
 }
 
+// 辅助函数：解包 Option 或返回默认值
+func unwrap_or(opt: Option[int], default: int) -> int {
+    match opt {
+        Option#some(v) { return v }
+        _ { return default }
+    }
+}
+
 Lru does {
     // 获取当前时间戳 (毫秒)
     inner func now() -> int {
@@ -26,44 +34,44 @@ Lru does {
 
     func put(k: string, v: int, ttl_ms: int = 0) {
         let exp = if ttl_ms > 0 { self.now() + ttl_ms } else { 0 }
-        
+
         // 1. 查找已存在
-        for i in 0..self.data.length() {
+        for i in 0..self.data.length {
             if self.data[i].k == k {
                 // 更新值和过期时间
                 // 简单的 LRU 移动策略：删除再添加
                 self.data.remove(i)
-                self.data.add(Entry{ k: k, v: v, expire_at: exp })
+                self.data.push(Entry{ k: k, v: v, expire_at: exp })
                 return ()
             }
         }
-        
+
         // 2. 插入新值
-        self.data.add(Entry{ k: k, v: v, expire_at: exp })
-        
+        self.data.push(Entry{ k: k, v: v, expire_at: exp })
+
         // 3. 检查容量
-        if self.data.length() > self.cap {
+        if self.data.length > self.cap {
             self.data.remove(0) // 移除最旧的（第一个）
         }
     }
 
     func get(k: string) -> Option[int] {
-        for i in 0..self.data.length() {
+        for i in 0..self.data.length {
             if self.data[i].k == k {
                 let e = self.data[i]
-                
+
                 // 检查过期
                 if e.expire_at > 0 && e.expire_at < self.now() {
                     self.data.remove(i) // 惰性删除
                     self.stats.misses += 1
                     return Option#none
                 }
-                
+
                 // 命中：刷新位置 (LRU)
                 // 移除当前位置，添加到末尾
                 self.data.remove(i)
-                self.data.add(e)
-                
+                self.data.push(e)
+
                 self.stats.hits += 1
                 return Option#some(e.v)
             }
@@ -71,11 +79,13 @@ Lru does {
         self.stats.misses += 1
         return Option#none
     }
-    
+
     func stats_info() -> string {
         let total = self.stats.hits + self.stats.misses
+        let hits_f = self.stats.hits * 1.0
+        let total_f = total * 1.0
         let ratio = if total > 0 {
-            (self.stats.hits.to_float() / total.to_float()) * 100.0
+            (hits_f / total_f) * 100.0
         } else {
             0.0
         }
@@ -89,13 +99,13 @@ func main() {
         data: [],
         stats: Stats{}
     }
-    
+
     println("--- Basic Operations ---")
     cache.put("a", 1)
     cache.put("b", 2)
     cache.put("c", 3)
 
-    let val_a = match cache.get("a") { Option#some(v){v} _ {-1} }
+    let val_a = unwrap_or(cache.get("a"), -1)
     println("Get 'a': {val_a}") // Should be 1
 
     println("--- LRU Eviction ---")
@@ -105,14 +115,14 @@ func main() {
     // get(a) -> b(2) -> c(3) -> a(1)
     // put(d) -> c(3) -> a(1) -> d(4), evict b(2)
 
-    let val_b = match cache.get("b") { Option#some(v){v} _ {-1} }
-    let val_c = match cache.get("c") { Option#some(v){v} _ {-1} }
+    let val_b = unwrap_or(cache.get("b"), -1)
+    let val_c = unwrap_or(cache.get("c"), -1)
     println("Get 'b': {val_b}") // Should be -1 (miss)
     println("Get 'c': {val_c}") // Should be 3
 
     println("--- TTL Expiry ---")
     cache.put("e", 5, 100) // TTL 100ms
-    let val_e1 = match cache.get("e") { Option#some(v){v} _ {-1} }
+    let val_e1 = unwrap_or(cache.get("e"), -1)
     println("Get 'e' (immediate): {val_e1}")
 
     // 简单的忙等待模拟 sleep
@@ -121,9 +131,11 @@ func main() {
         let _ = 0
     }
 
-    let val_e2 = match cache.get("e") { Option#some(v){v} _ {-1} }
+    let val_e2 = unwrap_or(cache.get("e"), -1)
     println("Get 'e' (after 200ms): {val_e2}")
-    
+
     println("--- Stats ---")
     println(cache.stats_info())
 }
+
+main()

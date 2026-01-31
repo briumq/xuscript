@@ -1,1 +1,5 @@
-cfg=localhost:9090 secure=true
+Loading configurations...
+Configuration Loaded:
+  Env  : production
+  Debug: false
+  DB   : 192.168.1.10:5432 (Pool: 20)

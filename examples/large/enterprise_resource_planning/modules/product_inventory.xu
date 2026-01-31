@@ -1,0 +1,523 @@
+// 产品和库存模块
+
+// 产品分类
+ProductCategory has {
+    id: string
+    name: string
+    description: string
+    parent_id: string
+    created_by: string
+    created_at: string
+    updated_at: string
+    
+    func validate() -> bool {
+        return !self.id.none && !self.name.none
+    }
+    
+    func to_json() -> string {
+        return """{
+            "id": "{self.id}",
+            "name": "{self.name}",
+            "description": "{self.description}",
+            "parent_id": "{self.parent_id}",
+            "created_by": "{self.created_by}",
+            "created_at": "{self.created_at}",
+            "updated_at": "{self.updated_at}"
+        }"""
+    }
+    
+    static func create(id: string, name: string, description: string, parent_id: string, created_by: string) -> ProductCategory {
+        let now = DateTimeUtil.now()
+        
+        return ProductCategory{
+            id: id,
+            name: name,
+            description: description,
+            parent_id: parent_id,
+            created_by: created_by,
+            created_at: now,
+            updated_at: now
+        }
+    }
+}
+
+// 产品结构体
+Product has {
+    id: string
+    name: string
+    description: string
+    category_id: string
+    brand: string
+    model: string
+    sku: string
+    barcode: string
+    unit: Unit
+    cost_price: float
+    sale_price: float
+    tax_rate: float
+    supplier_id: string
+    stock: float
+    min_stock: float
+    max_stock: float
+    reorder_point: float
+    active: bool = true
+    created_by: string
+    created_at: string
+    updated_at: string
+    
+    func validate() -> bool {
+        return !self.id.none && !self.name.none && self.cost_price >= 0.0 && self.sale_price >= 0.0
+    }
+    
+    func to_json() -> string {
+        return """{
+            "id": "{self.id}",
+            "name": "{self.name}",
+            "description": "{self.description}",
+            "category_id": "{self.category_id}",
+            "brand": "{self.brand}",
+            "model": "{self.model}",
+            "sku": "{self.sku}",
+            "barcode": "{self.barcode}",
+            "unit": "{self.unit}",
+            "cost_price": {self.cost_price},
+            "sale_price": {self.sale_price},
+            "tax_rate": {self.tax_rate},
+            "supplier_id": "{self.supplier_id}",
+            "stock": {self.stock},
+            "min_stock": {self.min_stock},
+            "max_stock": {self.max_stock},
+            "reorder_point": {self.reorder_point},
+            "active": {self.active},
+            "created_by": "{self.created_by}",
+            "created_at": "{self.created_at}",
+            "updated_at": "{self.updated_at}"
+        }"""
+    }
+    
+    func update_stock(quantity: float) -> Result[Product, string] {
+        let new_stock = self.stock + quantity
+        if new_stock < 0 {
+            return Result#err("Insufficient stock")
+        }
+        
+        self.stock = new_stock
+        self.updated_at = DateTimeUtil.now()
+        return Result#ok(self)
+    }
+    
+    static func create(id: string, name: string, description: string, category_id: string, unit: Unit, cost_price: float, sale_price: float, created_by: string) -> Product {
+        let now = DateTimeUtil.now()
+        
+        return Product{
+            id: id,
+            name: name,
+            description: description,
+            category_id: category_id,
+            brand: "",
+            model: "",
+            sku: "",
+            barcode: "",
+            unit: unit,
+            cost_price: cost_price,
+            sale_price: sale_price,
+            tax_rate: 0.0,
+            supplier_id: "",
+            stock: 0.0,
+            min_stock: 0.0,
+            max_stock: 0.0,
+            reorder_point: 0.0,
+            active: true,
+            created_by: created_by,
+            created_at: now,
+            updated_at: now
+        }
+    }
+}
+
+// 库存移动
+InventoryMovement has {
+    id: string
+    product_id: string
+    quantity: float
+    unit: Unit
+    type: string // IN | OUT | ADJUSTMENT
+    reference: string
+    reason: string
+    created_by: string
+    created_at: string
+    
+    func validate() -> bool {
+        return !self.id.none && !self.product_id.none && self.quantity != 0.0
+    }
+    
+    func to_json() -> string {
+        return """{
+            "id": "{self.id}",
+            "product_id": "{self.product_id}",
+            "quantity": {self.quantity},
+            "unit": "{self.unit}",
+            "type": "{self.type}",
+            "reference": "{self.reference}",
+            "reason": "{self.reason}",
+            "created_by": "{self.created_by}",
+            "created_at": "{self.created_at}"
+        }"""
+    }
+    
+    static func create(id: string, product_id: string, quantity: float, unit: Unit, movement_type: string, reference: string, reason: string, created_by: string) -> InventoryMovement {
+        let now = DateTimeUtil.now()
+        
+        return InventoryMovement{
+            id: id,
+            product_id: product_id,
+            quantity: quantity,
+            unit: unit,
+            type: movement_type,
+            reference: reference,
+            reason: reason,
+            created_by: created_by,
+            created_at: now
+        }
+    }
+}
+
+// 产品分类服务
+ProductCategoryService has {
+    categories: {string: ProductCategory}
+    
+    func create_category(name: string, description: string, parent_id: string = "", created_by: string) -> Result[ProductCategory, string] {
+        let category_id = "CAT-" + Math.random().to_string()
+        let category = ProductCategory.create(category_id, name, description, parent_id, created_by)
+        
+        if !category.validate() {
+            return Result#err("Invalid category")
+        }
+        
+        self.categories[category_id] = category
+        return Result#ok(category)
+    }
+    
+    func get_category(id: string) -> Option[ProductCategory] {
+        return self.categories.get(id)
+    }
+    
+    func update_category(id: string, updates: {string: any}) -> Result[ProductCategory, string] {
+        when category = self.categories.get(id) {
+            if updates.contains("name") {
+                category.name = updates["name"] as string
+            }
+            if updates.contains("description") {
+                category.description = updates["description"] as string
+            }
+            if updates.contains("parent_id") {
+                category.parent_id = updates["parent_id"] as string
+            }
+            
+            category.updated_at = DateTimeUtil.now()
+            
+            if !category.validate() {
+                return Result#err("Invalid category")
+            }
+            
+            self.categories[id] = category
+            return Result#ok(category)
+        } else {
+            return Result#err("Category not found")
+        }
+    }
+    
+    func delete_category(id: string) -> Result[bool, string] {
+        if self.categories.contains(id) {
+            delete self.categories[id]
+            return Result#ok(true)
+        }
+        return Result#err("Category not found")
+    }
+    
+    func list_categories() -> [ProductCategory] {
+        let result: [ProductCategory] = []
+        for (_, category) in self.categories {
+            result.push(category)
+        }
+        return result
+    }
+    
+    static func new() -> ProductCategoryService {
+        return ProductCategoryService{ categories: {} }
+    }
+}
+
+// 产品服务
+ProductService has {
+    products: {string: Product}
+    category_service: ProductCategoryService
+    
+    func create_product(name: string, description: string, category_id: string, unit: Unit, cost_price: float, sale_price: float, created_by: string) -> Result[Product, string] {
+        // 验证分类是否存在
+        when category = self.category_service.get_category(category_id) {
+            let product_id = "PROD-" + Math.random().to_string()
+            let product = Product.create(product_id, name, description, category_id, unit, cost_price, sale_price, created_by)
+            
+            if !product.validate() {
+                return Result#err("Invalid product")
+            }
+            
+            self.products[product_id] = product
+            return Result#ok(product)
+        } else {
+            return Result#err("Category not found")
+        }
+    }
+    
+    func get_product(id: string) -> Option[Product] {
+        return self.products.get(id)
+    }
+    
+    func update_product(id: string, updates: {string: any}) -> Result[Product, string] {
+        when product = self.products.get(id) {
+            if updates.contains("name") {
+                product.name = updates["name"] as string
+            }
+            if updates.contains("description") {
+                product.description = updates["description"] as string
+            }
+            if updates.contains("category_id") {
+                product.category_id = updates["category_id"] as string
+            }
+            if updates.contains("brand") {
+                product.brand = updates["brand"] as string
+            }
+            if updates.contains("model") {
+                product.model = updates["model"] as string
+            }
+            if updates.contains("sku") {
+                product.sku = updates["sku"] as string
+            }
+            if updates.contains("barcode") {
+                product.barcode = updates["barcode"] as string
+            }
+            if updates.contains("unit") {
+                product.unit = updates["unit"] as Unit
+            }
+            if updates.contains("cost_price") {
+                product.cost_price = updates["cost_price"] as float
+            }
+            if updates.contains("sale_price") {
+                product.sale_price = updates["sale_price"] as float
+            }
+            if updates.contains("tax_rate") {
+                product.tax_rate = updates["tax_rate"] as float
+            }
+            if updates.contains("supplier_id") {
+                product.supplier_id = updates["supplier_id"] as string
+            }
+            if updates.contains("min_stock") {
+                product.min_stock = updates["min_stock"] as float
+            }
+            if updates.contains("max_stock") {
+                product.max_stock = updates["max_stock"] as float
+            }
+            if updates.contains("reorder_point") {
+                product.reorder_point = updates["reorder_point"] as float
+            }
+            if updates.contains("active") {
+                product.active = updates["active"] as bool
+            }
+            
+            product.updated_at = DateTimeUtil.now()
+            
+            if !product.validate() {
+                return Result#err("Invalid product")
+            }
+            
+            self.products[id] = product
+            return Result#ok(product)
+        } else {
+            return Result#err("Product not found")
+        }
+    }
+    
+    func delete_product(id: string) -> Result[bool, string] {
+        if self.products.contains(id) {
+            delete self.products[id]
+            return Result#ok(true)
+        }
+        return Result#err("Product not found")
+    }
+    
+    func list_products(active: bool = true) -> [Product] {
+        let result: [Product] = []
+        for (_, product) in self.products {
+            if product.active == active || !active {
+                result.push(product)
+            }
+        }
+        return result
+    }
+    
+    func search_products(query: string) -> [Product] {
+        let result: [Product] = []
+        let lower_query = query.to_lower()
+        
+        for (_, product) in self.products {
+            if product.name.to_lower().contains(lower_query) || 
+               product.description.to_lower().contains(lower_query) || 
+               product.sku.to_lower().contains(lower_query) || 
+               product.barcode.to_lower().contains(lower_query) || 
+               product.brand.to_lower().contains(lower_query) || 
+               product.model.to_lower().contains(lower_query) {
+                result.push(product)
+            }
+        }
+        
+        return result
+    }
+    
+    func get_low_stock_products() -> [Product] {
+        let result: [Product] = []
+        for (_, product) in self.products {
+            if product.stock <= product.reorder_point {
+                result.push(product)
+            }
+        }
+        return result
+    }
+    
+    static func new(category_service: ProductCategoryService) -> ProductService {
+        return ProductService{
+            products: {},
+            category_service: category_service
+        }
+    }
+}
+
+// 库存服务
+InventoryService has {
+    movements: {string: InventoryMovement}
+    product_service: ProductService
+    
+    func add_inventory(product_id: string, quantity: float, reference: string, reason: string, created_by: string) -> Result[InventoryMovement, string] {
+        when product = self.product_service.get_product(product_id) {
+            let movement_id = "MOV-" + Math.random().to_string()
+            let movement = InventoryMovement.create(movement_id, product_id, quantity, product.unit, "IN", reference, reason, created_by)
+            
+            if !movement.validate() {
+                return Result#err("Invalid movement")
+            }
+            
+            // 更新产品库存
+            let stock_update = product.update_stock(quantity)
+            match stock_update {
+                Result#ok(updated_product) {
+                    self.product_service.update_product(product_id, {"stock": updated_product.stock})
+                }
+                Result#err(error) {
+                    return Result#err(error)
+                }
+                _ {
+                    return Result#err("Unknown error updating stock")
+                }
+            }
+            
+            self.movements[movement_id] = movement
+            return Result#ok(movement)
+        } else {
+            return Result#err("Product not found")
+        }
+    }
+    
+    func remove_inventory(product_id: string, quantity: float, reference: string, reason: string, created_by: string) -> Result[InventoryMovement, string] {
+        when product = self.product_service.get_product(product_id) {
+            let movement_id = "MOV-" + Math.random().to_string()
+            let movement = InventoryMovement.create(movement_id, product_id, -quantity, product.unit, "OUT", reference, reason, created_by)
+            
+            if !movement.validate() {
+                return Result#err("Invalid movement")
+            }
+            
+            // 更新产品库存
+            let stock_update = product.update_stock(-quantity)
+            match stock_update {
+                Result#ok(updated_product) {
+                    self.product_service.update_product(product_id, {"stock": updated_product.stock})
+                }
+                Result#err(error) {
+                    return Result#err(error)
+                }
+                _ {
+                    return Result#err("Unknown error updating stock")
+                }
+            }
+            
+            self.movements[movement_id] = movement
+            return Result#ok(movement)
+        } else {
+            return Result#err("Product not found")
+        }
+    }
+    
+    func adjust_inventory(product_id: string, quantity: float, reason: string, created_by: string) -> Result[InventoryMovement, string] {
+        when product = self.product_service.get_product(product_id) {
+            let movement_id = "MOV-" + Math.random().to_string()
+            let movement = InventoryMovement.create(movement_id, product_id, quantity, product.unit, "ADJUSTMENT", "", reason, created_by)
+            
+            if !movement.validate() {
+                return Result#err("Invalid movement")
+            }
+            
+            // 更新产品库存
+            let stock_update = product.update_stock(quantity)
+            match stock_update {
+                Result#ok(updated_product) {
+                    self.product_service.update_product(product_id, {"stock": updated_product.stock})
+                }
+                Result#err(error) {
+                    return Result#err(error)
+                }
+                _ {
+                    return Result#err("Unknown error updating stock")
+                }
+            }
+            
+            self.movements[movement_id] = movement
+            return Result#ok(movement)
+        } else {
+            return Result#err("Product not found")
+        }
+    }
+    
+    func get_movement(id: string) -> Option[InventoryMovement] {
+        return self.movements.get(id)
+    }
+    
+    func list_movements(product_id: Option[string] = none, movement_type: Option[string] = none) -> [InventoryMovement] {
+        let result: [InventoryMovement] = []
+        
+        for (_, movement) in self.movements {
+            let match_product = product_id.none || movement.product_id == product_id.unwrap()
+            let match_type = movement_type.none || movement.type == movement_type.unwrap()
+            
+            if match_product && match_type {
+                result.push(movement)
+            }
+        }
+        
+        return result
+    }
+    
+    func get_inventory_value() -> float {
+        let total_value = 0.0
+        for (_, product) in self.product_service.products {
+            total_value += product.stock * product.cost_price
+        }
+        return total_value
+    }
+    
+    static func new(product_service: ProductService) -> InventoryService {
+        return InventoryService{
+            movements: {},
+            product_service: product_service
+        }
+    }
+}

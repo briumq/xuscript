@@ -32,7 +32,7 @@ pub(super) fn dispatch(
                 Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())))
             }
         }
-        MethodKind::ListAdd | MethodKind::ListPush => {
+        MethodKind::ListPush => {
             if args.len() != 1 {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
                     expected_min: 1,

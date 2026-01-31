@@ -24,7 +24,7 @@ Cart has {
 
 Cart does {
     func add(product: Product) {
-        self.items.add(product)
+        self.items.push(product)
     }
 
     func remove(product_id: string) {

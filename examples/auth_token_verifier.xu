@@ -20,7 +20,7 @@ func parse_role(type_str: string, id_str: string) -> Result[Role, string] {
     if type_str == "admin" {
         return Result#ok(Role#Admin)
     } else if type_str == "user" {
-        return Result#ok(Role#User(parse_int(id_str)))
+        return Result#ok(Role#User(id_str.to_int()))
     } else if type_str == "guest" {
         return Result#ok(Role#Guest)
     } else {
@@ -32,7 +32,7 @@ func parse_role(type_str: string, id_str: string) -> Result[Role, string] {
 // 例如: "admin:0:1700000000:secret" 或 "user:101:1700000000:secret"
 func decode_token(raw: string) -> Result[Token, string] {
     let parts = raw.split(":")
-    if parts.length() < 4 {
+    if parts.length < 4 {
         return Result#err("Invalid format")
     }
 
@@ -41,31 +41,42 @@ func decode_token(raw: string) -> Result[Token, string] {
     let exp_str = parts[2]
     let sign = parts[3]
 
-    let exp = parse_int(exp_str)
+    let exp = exp_str.to_int()
 
-    return parse_role(type_str, id_str).map(func(role: Role) -> Token {
-        Token{ role: role, exp: exp, sign: sign }
-    })
+    match parse_role(type_str, id_str) {
+        Result#ok(role) {
+            return Result#ok(Token{ role: role, exp: exp, sign: sign })
+        }
+        Result#err(e) {
+            return Result#err(e)
+        }
+        _ {
+            return Result#err("Unknown error")
+        }
+    }
 }
 
-// 4. 验证逻辑
+// 5. 验证逻辑
 func verify_token(raw: string, now: int) -> Result[Role, string] {
-    return decode_token(raw)
-        .and_then(func(t: Token) -> Result[Token, string] {
+    match decode_token(raw) {
+        Result#ok(t) {
             // 模拟验签
             if t.sign != "secret" {
                 return Result#err("Invalid signature")
             }
-            return Result#ok(t)
-        })
-        .and_then(func(t: Token) -> Result[Token, string] {
             // 检查过期
             if t.exp < now {
                 return Result#err("Token expired")
             }
-            return Result#ok(t)
-        })
-        .map(func(t: Token) -> t.role)
+            return Result#ok(t.role)
+        }
+        Result#err(e) {
+            return Result#err(e)
+        }
+        _ {
+            return Result#err("Unknown error")
+        }
+    }
 }
 
 func main() {
@@ -99,3 +110,5 @@ func main() {
         }
     }
 }
+
+main()

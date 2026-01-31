@@ -120,7 +120,7 @@ func bench_branch_heavy(N: int) -> float {
 func bench_list_push_pop(N: int) -> float {
   func logic() {
     let l: [int] = []
-    for i in [0..N-1] { l.add(i) }
+    for i in [0..N-1] { l.push(i) }
     for _ in [0..N-1] { let _ = l.pop() }
   }
   return run_min_ms(7, logic)

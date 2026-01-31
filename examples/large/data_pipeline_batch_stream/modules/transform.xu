@@ -1,0 +1,612 @@
+// Data Transform Module
+// Defines various data transformations for the pipeline
+
+// Map transform
+MapTransform has {
+    mapper: function(any) -> any
+
+    init(mapper: function(any) -> any) {
+        self.mapper = mapper
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                result.add(self.mapper(item))
+            }
+            return result
+        } else {
+            return self.mapper(data)
+        }
+    }
+
+    static func create(mapper: function(any) -> any) -> MapTransform {
+        return MapTransform{ mapper: mapper }
+    }
+}
+
+// Filter transform
+FilterTransform has {
+    predicate: function(any) -> bool
+
+    init(predicate: function(any) -> bool) {
+        self.predicate = predicate
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                if self.predicate(item) {
+                    result.add(item)
+                }
+            }
+            return result
+        } else {
+            return self.predicate(data) ? data : null
+        }
+    }
+
+    static func create(predicate: function(any) -> bool) -> FilterTransform {
+        return FilterTransform{ predicate: predicate }
+    }
+}
+
+// Flatten transform
+FlattenTransform has {
+    depth: int
+
+    init(depth: int = 1) {
+        self.depth = depth
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            return self._flatten(data, self.depth)
+        }
+        return data
+    }
+
+    func _flatten(arr: [any], depth: int) -> [any] {
+        if depth == 0 {
+            return arr
+        }
+        let result = []
+        for item in arr {
+            if typeof(item) == "array" {
+                let flattened = self._flatten(item, depth - 1)
+                for subitem in flattened {
+                    result.add(subitem)
+                }
+            } else {
+                result.add(item)
+            }
+        }
+        return result
+    }
+
+    static func create(depth: int = 1) -> FlattenTransform {
+        return FlattenTransform{ depth: depth }
+    }
+}
+
+// Normalize transform
+NormalizeTransform has {
+    fields: [string]
+
+    init(fields: [string] = []) {
+        self.fields = fields
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                result.add(self._normalize_item(item))
+            }
+            return result
+        } else {
+            return self._normalize_item(data)
+        }
+    }
+
+    func _normalize_item(item: any) -> any {
+        if typeof(item) == "object" {
+            let normalized = {}
+            for key in Object.keys(item) {
+                let normalized_key = self._normalize_key(key)
+                let value = item[key]
+                if typeof(value) == "string" {
+                    normalized[normalized_key] = value.trim().toLowerCase()
+                } else if typeof(value) == "number" {
+                    normalized[normalized_key] = value
+                } else if typeof(value) == "boolean" {
+                    normalized[normalized_key] = value
+                } else if typeof(value) == "array" {
+                    normalized[normalized_key] = value
+                } else if typeof(value) == "object" {
+                    normalized[normalized_key] = self._normalize_item(value)
+                } else {
+                    normalized[normalized_key] = value
+                }
+            }
+            return normalized
+        }
+        return item
+    }
+
+    func _normalize_key(key: string) -> string {
+        return key.trim().toLowerCase().replace(/\s+/g, "_")
+    }
+
+    static func create(fields: [string] = []) -> NormalizeTransform {
+        return NormalizeTransform{ fields: fields }
+    }
+}
+
+// Project transform
+ProjectTransform has {
+    fields: [string]
+
+    init(fields: [string]) {
+        self.fields = fields
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                result.add(self._project_item(item))
+            }
+            return result
+        } else {
+            return self._project_item(data)
+        }
+    }
+
+    func _project_item(item: any) -> any {
+        if typeof(item) == "object" {
+            let projected = {}
+            for field in self.fields {
+                if item.hasOwnProperty(field) {
+                    projected[field] = item[field]
+                }
+            }
+            return projected
+        }
+        return item
+    }
+
+    static func create(fields: [string]) -> ProjectTransform {
+        return ProjectTransform{ fields: fields }
+    }
+}
+
+// Rename transform
+RenameTransform has {
+    mappings: {string: string}
+
+    init(mappings: {string: string}) {
+        self.mappings = mappings
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                result.add(self._rename_item(item))
+            }
+            return result
+        } else {
+            return self._rename_item(data)
+        }
+    }
+
+    func _rename_item(item: any) -> any {
+        if typeof(item) == "object" {
+            let renamed = {}
+            for key in Object.keys(item) {
+                let new_key = self.mappings[key] || key
+                renamed[new_key] = item[key]
+            }
+            return renamed
+        }
+        return item
+    }
+
+    static func create(mappings: {string: string}) -> RenameTransform {
+        return RenameTransform{ mappings: mappings }
+    }
+}
+
+// Sort transform
+SortTransform has {
+    comparator: function(any, any) -> int
+
+    init(comparator: function(any, any) -> int) {
+        self.comparator = comparator
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            return data.sort(self.comparator)
+        }
+        return data
+    }
+
+    static func create(comparator: function(any, any) -> int) -> SortTransform {
+        return SortTransform{ comparator: comparator }
+    }
+}
+
+// Limit transform
+LimitTransform has {
+    limit: int
+
+    init(limit: int) {
+        self.limit = limit
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            return data.slice(0, self.limit)
+        }
+        return data
+    }
+
+    static func create(limit: int) -> LimitTransform {
+        return LimitTransform{ limit: limit }
+    }
+}
+
+// Offset transform
+OffsetTransform has {
+    offset: int
+
+    init(offset: int) {
+        self.offset = offset
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            return data.slice(self.offset)
+        }
+        return data
+    }
+
+    static func create(offset: int) -> OffsetTransform {
+        return OffsetTransform{ offset: offset }
+    }
+}
+
+// Distinct transform
+DistinctTransform has {
+    key: string
+
+    init(key: string = null) {
+        self.key = key
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            if self.key {
+                return self._distinct_by_key(data)
+            } else {
+                return self._distinct(data)
+            }
+        }
+        return [data]
+    }
+
+    func _distinct(data: [any]) -> [any] {
+        let seen = new Set()
+        let result = []
+        for item in data {
+            let stringified = JSON.stringify(item)
+            if !seen.has(stringified) {
+                seen.add(stringified)
+                result.add(item)
+            }
+        }
+        return result
+    }
+
+    func _distinct_by_key(data: [any]) -> [any] {
+        let seen = new Set()
+        let result = []
+        for item in data {
+            if typeof(item) == "object" && item.hasOwnProperty(self.key) {
+                let key_value = item[self.key]
+                if !seen.has(key_value) {
+                    seen.add(key_value)
+                    result.add(item)
+                }
+            }
+        }
+        return result
+    }
+
+    static func create(key: string = null) -> DistinctTransform {
+        return DistinctTransform{ key: key }
+    }
+}
+
+// Join transform
+JoinTransform has {
+    join_data: [any]
+    left_key: string
+    right_key: string
+
+    init(join_data: [any], left_key: string, right_key: string) {
+        self.join_data = join_data
+        self.left_key = left_key
+        self.right_key = right_key
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                let joined_item = self._join_item(item)
+                if joined_item {
+                    result.add(joined_item)
+                }
+            }
+            return result
+        } else {
+            return self._join_item(data)
+        }
+    }
+
+    func _join_item(item: any) -> any {
+        if typeof(item) == "object" && item.hasOwnProperty(self.left_key) {
+            let left_value = item[self.left_key]
+            for join_item in self.join_data {
+                if typeof(join_item) == "object" && join_item.hasOwnProperty(self.right_key) {
+                    if join_item[self.right_key] == left_value {
+                        let joined = {}
+                        for key in Object.keys(item) {
+                            joined[key] = item[key]
+                        }
+                        for key in Object.keys(join_item) {
+                            if key != self.right_key {
+                                joined[key] = join_item[key]
+                            }
+                        }
+                        return joined
+                    }
+                }
+            }
+        }
+        return item
+    }
+
+    static func create(join_data: [any], left_key: string, right_key: string) -> JoinTransform {
+        return JoinTransform{ join_data: join_data, left_key: left_key, right_key: right_key }
+    }
+}
+
+// Split transform
+SplitTransform has {
+    split_key: string
+    split_value: any
+
+    init(split_key: string, split_value: any) {
+        self.split_key = split_key
+        self.split_value = split_value
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = {}
+            result["matched"] = []
+            result["unmatched"] = []
+            for item in data {
+                if typeof(item) == "object" && item.hasOwnProperty(self.split_key) {
+                    if item[self.split_key] == self.split_value {
+                        result["matched"].add(item)
+                    } else {
+                        result["unmatched"].add(item)
+                    }
+                } else {
+                    result["unmatched"].add(item)
+                }
+            }
+            return result
+        }
+        return data
+    }
+
+    static func create(split_key: string, split_value: any) -> SplitTransform {
+        return SplitTransform{ split_key: split_key, split_value: split_value }
+    }
+}
+
+// Combine transform
+CombineTransform has {
+    combine_key: string
+
+    init(combine_key: string) {
+        self.combine_key = combine_key
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = {}
+            for item in data {
+                if typeof(item) == "object" && item.hasOwnProperty(self.combine_key) {
+                    let key = item[self.combine_key]
+                    if !result[key] {
+                        result[key] = []
+                    }
+                    result[key].add(item)
+                }
+            }
+            return result
+        }
+        return data
+    }
+
+    static func create(combine_key: string) -> CombineTransform {
+        return CombineTransform{ combine_key: combine_key }
+    }
+}
+
+// Type transform
+TypeTransform has {
+    type_mappings: {string: string}
+
+    init(type_mappings: {string: string}) {
+        self.type_mappings = type_mappings
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                result.add(self._transform_types(item))
+            }
+            return result
+        } else {
+            return self._transform_types(data)
+        }
+    }
+
+    func _transform_types(item: any) -> any {
+        if typeof(item) == "object" {
+            let transformed = {}
+            for key in Object.keys(item) {
+                if self.type_mappings[key] {
+                    let type = self.type_mappings[key]
+                    let value = item[key]
+                    transformed[key] = self._convert_type(value, type)
+                } else {
+                    transformed[key] = item[key]
+                }
+            }
+            return transformed
+        }
+        return item
+    }
+
+    func _convert_type(value: any, type: string) -> any {
+        switch type {
+            case "string":
+                return String(value)
+            case "number":
+                return Number(value)
+            case "boolean":
+                return Boolean(value)
+            case "int":
+                return parseInt(value)
+            case "float":
+                return parseFloat(value)
+            default:
+                return value
+        }
+    }
+
+    static func create(type_mappings: {string: string}) -> TypeTransform {
+        return TypeTransform{ type_mappings: type_mappings }
+    }
+}
+
+// Date parse transform
+DateParseTransform has {
+    date_fields: [string]
+    format: string
+
+    init(date_fields: [string], format: string = "ISO") {
+        self.date_fields = date_fields
+        self.format = format
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                result.add(self._parse_dates(item))
+            }
+            return result
+        } else {
+            return self._parse_dates(data)
+        }
+    }
+
+    func _parse_dates(item: any) -> any {
+        if typeof(item) == "object" {
+            let parsed = {}
+            for key in Object.keys(item) {
+                if self.date_fields.includes(key) {
+                    parsed[key] = self._parse_date(item[key])
+                } else {
+                    parsed[key] = item[key]
+                }
+            }
+            return parsed
+        }
+        return item
+    }
+
+    func _parse_date(date_string: string) -> any {
+        // Simulate date parsing
+        return {
+            original: date_string,
+            timestamp: System.currentTimeMillis(),
+            year: 2024,
+            month: 1,
+            day: 1
+        }
+    }
+
+    static func create(date_fields: [string], format: string = "ISO") -> DateParseTransform {
+        return DateParseTransform{ date_fields: date_fields, format: format }
+    }
+}
+
+// JSON transform
+JsonTransform has {
+    direction: string // "parse" or "stringify"
+
+    init(direction: string = "parse") {
+        self.direction = direction
+    }
+
+    func apply(data: any) -> any {
+        if typeof(data) == "array" {
+            let result = []
+            for item in data {
+                result.add(self._transform_json(item))
+            }
+            return result
+        } else {
+            return self._transform_json(data)
+        }
+    }
+
+    func _transform_json(item: any) -> any {
+        if self.direction == "parse" {
+            if typeof(item) == "string" {
+                try {
+                    return JSON.parse(item)
+                } catch (e) {
+                    return item
+                }
+            }
+        } else if self.direction == "stringify" {
+            if typeof(item) == "object" {
+                try {
+                    return JSON.stringify(item)
+                } catch (e) {
+                    return item
+                }
+            }
+        }
+        return item
+    }
+
+    static func create(direction: string = "parse") -> JsonTransform {
+        return JsonTransform{ direction: direction }
+    }
+}

@@ -1,15 +1,237 @@
-func run_batch(xs: [int]) -> int {
-    var s: int = 0
-    for x in xs { s = s + x }
-    return s
+// Data Processing Pipeline Project
+// Comprehensive data processing system with batch and stream processing capabilities
+
+// Import modules
+use "modules/pipeline"
+use "modules/transform"
+use "modules/filter"
+use "modules/aggregate"
+use "modules/sink"
+use "modules/source"
+
+// Pipeline configuration
+PipelineConfig has {
+    batch_size: int
+    parallelism: int
+    retry_count: int
+    timeout_ms: int
 }
 
-func run_stream(xs: [int]) -> int {
-    return run_batch(xs)
+// Pipeline metrics
+PipelineMetrics has {
+    processed_count: int
+    error_count: int
+    latency_ms: int
+    throughput: float
 }
 
+// Main pipeline orchestrator
+DataPipeline has {
+    config: PipelineConfig
+    metrics: PipelineMetrics
+    sources: [any]
+    transforms: [any]
+    filters: [any]
+    aggregators: [any]
+    sinks: [any]
+
+    init(config: PipelineConfig) {
+        self.config = config
+        self.metrics = PipelineMetrics{
+            processed_count: 0,
+            error_count: 0,
+            latency_ms: 0,
+            throughput: 0.0
+        }
+        self.sources = []
+        self.transforms = []
+        self.filters = []
+        self.aggregators = []
+        self.sinks = []
+    }
+
+    func add_source(source: any) {
+        self.sources.add(source)
+    }
+
+    func add_transform(transform: any) {
+        self.transforms.add(transform)
+    }
+
+    func add_filter(filter: any) {
+        self.filters.add(filter)
+    }
+
+    func add_aggregator(aggregator: any) {
+        self.aggregators.add(aggregator)
+    }
+
+    func add_sink(sink: any) {
+        self.sinks.add(sink)
+    }
+
+    func run_batch() -> bool {
+        let start_time = System.currentTimeMillis()
+        var success = true
+
+        for source in self.sources {
+            let data = source.read_batch()
+            var processed_data = data
+
+            // Apply transforms
+            for transform in self.transforms {
+                processed_data = transform.apply(processed_data)
+            }
+
+            // Apply filters
+            for filter in self.filters {
+                processed_data = filter.apply(processed_data)
+            }
+
+            // Apply aggregators
+            for aggregator in self.aggregators {
+                processed_data = aggregator.apply(processed_data)
+            }
+
+            // Write to sinks
+            for sink in self.sinks {
+                if !sink.write(processed_data) {
+                    success = false
+                    self.metrics.error_count = self.metrics.error_count + 1
+                }
+            }
+
+            self.metrics.processed_count = self.metrics.processed_count + processed_data.length
+        }
+
+        let end_time = System.currentTimeMillis()
+        self.metrics.latency_ms = end_time - start_time
+        self.metrics.throughput = float(self.metrics.processed_count) / float(self.metrics.latency_ms) * 1000.0
+
+        return success
+    }
+
+    func run_stream() -> bool {
+        let start_time = System.currentTimeMillis()
+        var success = true
+
+        for source in self.sources {
+            while source.has_more() {
+                let data = source.read_stream()
+                var processed_data = data
+
+                // Apply transforms
+                for transform in self.transforms {
+                    processed_data = transform.apply(processed_data)
+                }
+
+                // Apply filters
+                for filter in self.filters {
+                    processed_data = filter.apply(processed_data)
+                }
+
+                // Apply aggregators
+                for aggregator in self.aggregators {
+                    processed_data = aggregator.apply(processed_data)
+                }
+
+                // Write to sinks
+                for sink in self.sinks {
+                    if !sink.write(processed_data) {
+                        success = false
+                        self.metrics.error_count = self.metrics.error_count + 1
+                    }
+                }
+
+                self.metrics.processed_count = self.metrics.processed_count + 1
+            }
+        }
+
+        let end_time = System.currentTimeMillis()
+        self.metrics.latency_ms = end_time - start_time
+        self.metrics.throughput = float(self.metrics.processed_count) / float(self.metrics.latency_ms) * 1000.0
+
+        return success
+    }
+
+    func get_metrics() -> PipelineMetrics {
+        return self.metrics
+    }
+}
+
+// Main function
 func main() {
-    let xs = [1, 2, 0]
-    let s = run_stream(xs)
-    println("processed={s}")
+    // Create pipeline configuration
+    let config = PipelineConfig{
+        batch_size: 1000,
+        parallelism: 4,
+        retry_count: 3,
+        timeout_ms: 30000
+    }
+
+    // Create pipeline
+    let pipeline = DataPipeline{ config: config }
+
+    // Add sources
+    let file_source = FileDataSource.create("data/input.csv")
+    let api_source = ApiDataSource.create("https://api.example.com/data")
+    pipeline.add_source(file_source)
+    pipeline.add_source(api_source)
+
+    // Add transforms
+    let map_transform = MapTransform.create((x) => x * 2)
+    let flatten_transform = FlattenTransform.create()
+    let normalize_transform = NormalizeTransform.create()
+    pipeline.add_transform(map_transform)
+    pipeline.add_transform(flatten_transform)
+    pipeline.add_transform(normalize_transform)
+
+    // Add filters
+    let threshold_filter = ThresholdFilter.create(10)
+    let pattern_filter = PatternFilter.create("^[A-Za-z0-9]+$")
+    pipeline.add_filter(threshold_filter)
+    pipeline.add_filter(pattern_filter)
+
+    // Add aggregators
+    let sum_aggregator = SumAggregator.create()
+    let count_aggregator = CountAggregator.create()
+    let average_aggregator = AverageAggregator.create()
+    pipeline.add_aggregator(sum_aggregator)
+    pipeline.add_aggregator(count_aggregator)
+    pipeline.add_aggregator(average_aggregator)
+
+    // Add sinks
+    let file_sink = FileDataSink.create("data/output.csv")
+    let database_sink = DatabaseDataSink.create("postgres://localhost:5432/data")
+    let kafka_sink = KafkaDataSink.create("localhost:9092", "processed_data")
+    pipeline.add_sink(file_sink)
+    pipeline.add_sink(database_sink)
+    pipeline.add_sink(kafka_sink)
+
+    // Run batch processing
+    println("Running batch processing...")
+    let batch_success = pipeline.run_batch()
+    let batch_metrics = pipeline.get_metrics()
+    println("Batch processing completed: {batch_success}")
+    println("Batch metrics - Processed: {batch_metrics.processed_count}, Errors: {batch_metrics.error_count}, Latency: {batch_metrics.latency_ms}ms, Throughput: {batch_metrics.throughput} records/s")
+
+    // Reset metrics
+    pipeline.metrics = PipelineMetrics{
+        processed_count: 0,
+        error_count: 0,
+        latency_ms: 0,
+        throughput: 0.0
+    }
+
+    // Run stream processing
+    println("\nRunning stream processing...")
+    let stream_success = pipeline.run_stream()
+    let stream_metrics = pipeline.get_metrics()
+    println("Stream processing completed: {stream_success}")
+    println("Stream metrics - Processed: {stream_metrics.processed_count}, Errors: {stream_metrics.error_count}, Latency: {stream_metrics.latency_ms}ms, Throughput: {stream_metrics.throughput} records/s")
+
+    println("\nData pipeline execution completed!")
 }
+
+// Call main function
+main()

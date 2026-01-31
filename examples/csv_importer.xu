@@ -11,25 +11,32 @@ UserRecord has {
 // 解析单行 CSV: "id,name,score,active"
 func parse_record(line: string) -> Result[UserRecord, string] {
     let parts = line.split(",")
-    if parts.length() < 4 {
+    if parts.length < 4 {
         return Result#err("Not enough columns")
     }
-    
+
     // 提取并清理空白
     let id_str = parts[0].trim()
     let name = parts[1].trim()
     let score_str = parts[2].trim()
     let active_str = parts[3].trim()
-    
+
     // 简单的类型转换验证
-    // 注意：实际项目中 parse_int/parse_float 可能会失败（如果在 std 中返回 Result）
-    // 这里假设它们在格式错误时返回 0 或 panic，为了演示我们手动检查一些简单的条件
-    if id_str.length() == 0 { return Result#err("Empty ID") }
-    
+    if id_str.length == 0 { return Result#err("Empty ID") }
+
+    // 检查 score 是否为有效数字（简单检查第一个字符）
+    if score_str.length == 0 {
+        return Result#err("Empty score")
+    }
+    let first_char = score_str[0]
+    if !(first_char >= "0" && first_char <= "9") && first_char != "-" && first_char != "." {
+        return Result#err("Invalid score: {score_str}")
+    }
+
     let id = id_str.to_int()
     let score = score_str.to_float()
     let active = active_str == "true"
-    
+
     return Result#ok(UserRecord{
         id: id,
         name: name,
@@ -43,12 +50,12 @@ func process_data(csv_data: string) {
     var valid_count = 0
     var total_score = 0.0
     var active_users = 0
-    
-    println("Processing {lines.length()} lines...")
-    
+
+    println("Processing {lines.length} lines...")
+
     for line in lines {
-        if line.trim().length() == 0 { continue }
-        
+        if line.trim().length == 0 { continue }
+
         match parse_record(line) {
             Result#ok(record) {
                 valid_count += 1
@@ -64,12 +71,12 @@ func process_data(csv_data: string) {
             _ { }
         }
     }
-    
+
     println("\nSummary:")
     println("- Valid Records: {valid_count}")
-    
+
     if valid_count > 0 {
-        let avg = total_score / (valid_count.to_float())
+        let avg = total_score / (valid_count * 1.0)
         println("- Average Score: {avg}")
         println("- Active Users : {active_users}")
     }
@@ -83,6 +90,8 @@ func main() {
     4, , 70.0, true
     5, Dave,  88.2, true
     """
-    
+
     process_data(csv_content)
 }
+
+main()

@@ -1,0 +1,162 @@
+// 产品模块
+
+Product has {
+    id: string
+    name: string
+    description: string
+    price: float
+    stock: int
+    category: string
+    brand: string
+    created_at: string
+    updated_at: string
+    
+    func validate() -> bool {
+        return !self.id.none && !self.name.none && self.price > 0.0 && self.stock >= 0
+    }
+    
+    func to_json() -> string {
+        return """{
+            "id": "{self.id}",
+            "name": "{self.name}",
+            "description": "{self.description}",
+            "price": {self.price},
+            "stock": {self.stock},
+            "category": "{self.category}",
+            "brand": "{self.brand}",
+            "created_at": "{self.created_at}",
+            "updated_at": "{self.updated_at}"
+        }"""
+    }
+    
+    func update_stock(quantity: int) -> Result[Product, string] {
+        let new_stock = self.stock + quantity
+        if new_stock < 0 {
+            return Result#err("Insufficient stock")
+        }
+        self.stock = new_stock
+        self.updated_at = "2023-12-01 10:30:00" // 模拟时间
+        return Result#ok(self)
+    }
+    
+    static func create(id: string, name: string, price: float, stock: int, category: string, brand: string) -> Product {
+        let now = "2023-12-01 10:30:00" // 模拟时间
+        return Product{
+            id: id,
+            name: name,
+            description: "",
+            price: price,
+            stock: stock,
+            category: category,
+            brand: brand,
+            created_at: now,
+            updated_at: now
+        }
+    }
+}
+
+ProductService has {
+    products: {string: Product}
+    
+    func add_product(product: Product) -> Result[Product, string] {
+        if self.products.contains(product.id) {
+            return Result#err("Product already exists")
+        }
+        if !product.validate() {
+            return Result#err("Invalid product")
+        }
+        self.products[product.id] = product
+        return Result#ok(product)
+    }
+    
+    func get_product(id: string) -> Option[Product] {
+        return self.products.get(id)
+    }
+    
+    func update_product(id: string, updates: {string: any}) -> Result[Product, string] {
+        when product = self.products.get(id) {
+            if updates.contains("name") {
+                product.name = updates["name"] as string
+            }
+            if updates.contains("price") {
+                product.price = updates["price"] as float
+            }
+            if updates.contains("stock") {
+                product.stock = updates["stock"] as int
+            }
+            if updates.contains("description") {
+                product.description = updates["description"] as string
+            }
+            if updates.contains("category") {
+                product.category = updates["category"] as string
+            }
+            if updates.contains("brand") {
+                product.brand = updates["brand"] as string
+            }
+            product.updated_at = "2023-12-01 10:30:00" // 模拟时间
+            if !product.validate() {
+                return Result#err("Invalid product after update")
+            }
+            self.products[id] = product
+            return Result#ok(product)
+        } else {
+            return Result#err("Product not found")
+        }
+    }
+    
+    func delete_product(id: string) -> Result[bool, string] {
+        if self.products.contains(id) {
+            delete self.products[id]
+            return Result#ok(true)
+        }
+        return Result#err("Product not found")
+    }
+    
+    func list_products(category: Option[string] = none, brand: Option[string] = none) -> [Product] {
+        let result: [Product] = []
+        for (_, product) in self.products {
+            let match_category = category.none || product.category == category.unwrap()
+            let match_brand = brand.none || product.brand == brand.unwrap()
+            if match_category && match_brand {
+                result.push(product)
+            }
+        }
+        return result
+    }
+    
+    func search_products(query: string) -> [Product] {
+        let result: [Product] = []
+        let lower_query = query.to_lower()
+        for (_, product) in self.products {
+            if product.name.to_lower().contains(lower_query) || 
+               product.description.to_lower().contains(lower_query) || 
+               product.brand.to_lower().contains(lower_query) || 
+               product.category.to_lower().contains(lower_query) {
+                result.push(product)
+            }
+        }
+        return result
+    }
+    
+    func get_low_stock_products(threshold: int = 10) -> [Product] {
+        let result: [Product] = []
+        for (_, product) in self.products {
+            if product.stock <= threshold {
+                result.push(product)
+            }
+        }
+        return result
+    }
+    
+    func get_total_inventory_value() -> float {
+        let total = 0.0
+        for (_, product) in self.products {
+            total += product.price * product.stock.to_float()
+        }
+        return total
+    }
+    
+    static func new() -> ProductService {
+        return ProductService{ products: {} }
+    }
+}

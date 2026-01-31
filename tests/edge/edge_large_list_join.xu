@@ -1,5 +1,5 @@
 let l = [];
 for i in 0..10 {
-    l add(i);
+    l push(i);
 }
 print(l join(","));
