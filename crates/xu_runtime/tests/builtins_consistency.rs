@@ -1,4 +1,4 @@
-use xu_runtime::runtime::builtins_registry::{
+use xu_runtime::builtins_registry::{
     BuiltinProvider, BuiltinRegistry, StdBuiltinProvider,
 };
 use xu_syntax::BUILTIN_NAMES;

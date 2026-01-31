@@ -46,7 +46,7 @@ impl Runtime {
                     i0
                 } else {
                     let ix = self.ic_slots.len();
-                    self.ic_slots.push(crate::runtime::ICSlot::default());
+                    self.ic_slots.push(crate::ICSlot::default());
                     slot_cell.set(Some(ix));
                     ix
                 }
@@ -105,9 +105,9 @@ impl Runtime {
 
                 if let Some(idx) = slot_idx {
                     while self.ic_slots.len() <= idx {
-                        self.ic_slots.push(crate::runtime::ICSlot::default());
+                        self.ic_slots.push(crate::ICSlot::default());
                     }
-                    self.ic_slots[idx] = crate::runtime::ICSlot {
+                    self.ic_slots[idx] = crate::ICSlot {
                         struct_ty_hash: s.ty_hash,
                         key_hash: xu_ir::stable_hash64(field),
                         field_offset: Some(pos),
@@ -368,7 +368,7 @@ impl Runtime {
                     i0
                 } else {
                     let ix = self.ic_slots.len();
-                    self.ic_slots.push(crate::runtime::ICSlot::default());
+                    self.ic_slots.push(crate::ICSlot::default());
                     slot_cell.set(Some(ix));
                     ix
                 }
@@ -436,9 +436,9 @@ impl Runtime {
                         .ok_or_else(|| self.error(xu_syntax::DiagnosticKind::KeyNotFound(key.clone())))?;
                     if let Some(idx) = slot_idx {
                         while self.ic_slots.len() <= idx {
-                            self.ic_slots.push(crate::runtime::ICSlot::default());
+                            self.ic_slots.push(crate::ICSlot::default());
                         }
-                        self.ic_slots[idx] = crate::runtime::ICSlot {
+                        self.ic_slots[idx] = crate::ICSlot {
                             id: id.0,
                             key_hash,
                             ver: me.ver,
@@ -467,9 +467,9 @@ impl Runtime {
                         })?;
                     if let Some(idx) = slot_idx {
                         while self.ic_slots.len() <= idx {
-                            self.ic_slots.push(crate::runtime::ICSlot::default());
+                            self.ic_slots.push(crate::ICSlot::default());
                         }
-                        self.ic_slots[idx] = crate::runtime::ICSlot {
+                        self.ic_slots[idx] = crate::ICSlot {
                             id: id.0,
                             key_hash,
                             ver: me.ver,

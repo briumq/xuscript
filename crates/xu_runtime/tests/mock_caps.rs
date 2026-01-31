@@ -3,7 +3,7 @@ use xu_parser::Parser;
 use xu_runtime::Runtime;
 
 struct MockClock;
-impl xu_runtime::runtime::Clock for MockClock {
+impl xu_runtime::Clock for MockClock {
     fn unix_secs(&self) -> i64 {
         1234567890
     }
@@ -19,7 +19,7 @@ impl xu_runtime::runtime::Clock for MockClock {
 }
 
 struct MockRng;
-impl xu_runtime::runtime::RngAlgorithm for MockRng {
+impl xu_runtime::RngAlgorithm for MockRng {
     fn next_u64(&self, state: &mut u64) -> u64 {
         *state = state.wrapping_add(1);
         *state

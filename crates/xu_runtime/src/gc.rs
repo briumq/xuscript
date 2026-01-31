@@ -190,8 +190,8 @@ impl Heap {
     pub(crate) fn mark_all(
         &mut self,
         roots: &[Value],
-        envs: &[&crate::runtime::Env],
-        locals: &[&crate::runtime::LocalSlots],
+        envs: &[&crate::Env],
+        locals: &[&crate::slot_allocator::LocalSlots],
     ) {
         // Clear marks at the beginning to avoid duplicate marking
         self.marks.clear();

@@ -7,39 +7,26 @@ use hashbrown::hash_map::RawEntryMut;
 use smallvec::SmallVec;
 use xu_ir::{BinaryOp, Executable, Expr, Module, Stmt, StructDef};
 
-use crate::Text;
 use crate::Value;
+use crate::Env;
 use crate::value::{Dict, DictKey, FastHashMap, fast_map_new};
+use crate::capabilities;
+use crate::module_loader;
+use crate::modules;
+use crate::slot_allocator;
+use crate::ir;
+use crate::builtins_registry;
+use crate::methods;
 
 type HashMap<K, V> = FastHashMap<K, V>;
 
-mod appendable;
-mod builtins;
-pub mod builtins_registry;
-mod capabilities;
-mod diag;
-mod env;
-mod executor;
-mod stmt_exec;
-mod args_eval;
-mod ir;
-mod ir_throw;
-mod pattern;
-mod methods;
-mod module_loader;
-mod modules;
-mod op_dispatch;
-mod slot_allocator;
-mod util;
+// Re-exports
+pub use crate::text::Text;
 
-pub use capabilities::{Clock, FileStat, FileSystem, RngAlgorithm};
-pub use env::{Env, Scope};
-pub use ir::VM;
-pub(crate) use slot_allocator::LocalSlots;
-pub use xu_ir::{Bytecode, Op};
+// These types are defined in this file, no need to re-export from crate
 
-pub(crate) use methods::MethodKind;
-use util::value_to_string;
+pub(crate) use crate::methods::MethodKind;
+use crate::util::value_to_string;
 
 #[derive(Debug)]
 pub struct ExecResult {
@@ -71,35 +58,35 @@ pub struct MethodICSlot {
 
 pub struct Runtime {
     pub(crate) env: Env,
-    env_pool: Vec<Env>,
+    pub(crate) env_pool: Vec<Env>,
     pub(crate) heap: crate::gc::Heap,
     caps: capabilities::Capabilities,
-    module_loader: Box<dyn module_loader::ModuleLoader>,
-    frontend: Option<Box<dyn xu_ir::Frontend>>,
-    output: String,
+    pub(crate) module_loader: Box<dyn module_loader::ModuleLoader>,
+    pub(crate) frontend: Option<Box<dyn xu_ir::Frontend>>,
+    pub(crate) output: String,
     pub(crate) stmt_count: usize,
-    structs: HashMap<String, StructDef>,
-    struct_layouts: HashMap<String, std::rc::Rc<[String]>>,
-    enums: HashMap<String, Vec<String>>,
-    next_id: i64,
-    main_invoked: bool,
-    loaded_modules: HashMap<String, Value>,
-    import_parse_cache: HashMap<String, modules::ImportParseCacheEntry>,
-    import_stack: Vec<String>,
-    entry_path: Option<String>,
+    pub(crate) structs: HashMap<String, StructDef>,
+    pub(crate) struct_layouts: HashMap<String, std::rc::Rc<[String]>>,
+    pub(crate) enums: HashMap<String, Vec<String>>,
+    pub(crate) next_id: i64,
+    pub(crate) main_invoked: bool,
+    pub(crate) loaded_modules: HashMap<String, Value>,
+    pub(crate) import_parse_cache: HashMap<String, modules::ImportParseCacheEntry>,
+    pub(crate) import_stack: Vec<String>,
+    pub(crate) entry_path: Option<String>,
     rng_state: u64,
-    config: RuntimeConfig,
-    locals: slot_allocator::LocalSlots,
-    compiled_locals: HashMap<String, Vec<String>>,
-    compiled_locals_idx: HashMap<String, HashMap<String, usize>>,
-    current_func: Option<String>,
-    current_param_bindings: Option<Vec<(String, usize)>>,
+    pub(crate) config: RuntimeConfig,
+    pub(crate) locals: slot_allocator::LocalSlots,
+    pub(crate) compiled_locals: HashMap<String, Vec<String>>,
+    pub(crate) compiled_locals_idx: HashMap<String, HashMap<String, usize>>,
+    pub(crate) current_func: Option<String>,
+    pub(crate) current_param_bindings: Option<Vec<(String, usize)>>,
     method_cache: HashMap<(String, String), Value>,
     dict_cache: HashMap<(usize, u64), (u64, Text, Value)>,
     dict_cache_int: HashMap<(usize, i64), (u64, Value)>,
-    dict_cache_last: Option<DictCacheLast>,
-    dict_cache_int_last: Option<DictCacheIntLast>,
-    dict_version_last: Option<(usize, u64)>,
+    pub(crate) dict_cache_last: Option<DictCacheLast>,
+    pub(crate) dict_cache_int_last: Option<DictCacheIntLast>,
+    pub(crate) dict_version_last: Option<(usize, u64)>,
     pub(crate) ic_slots: Vec<ICSlot>,
     pub(crate) ic_method_slots: Vec<MethodICSlot>,
     pub(crate) string_pool: HashMap<String, Rc<String>>,
@@ -110,9 +97,9 @@ pub struct Runtime {
     pub(crate) args: Vec<String>,
     pub(crate) call_stack_depth: usize,
     predefined_constants: HashMap<String, String>,
-    vm_stack_pool: Vec<Vec<Value>>,
-    vm_iters_pool: Vec<Vec<ir::IterState>>,
-    vm_handlers_pool: Vec<Vec<ir::Handler>>,
+    pub(crate) vm_stack_pool: Vec<Vec<Value>>,
+    pub(crate) vm_iters_pool: Vec<Vec<ir::IterState>>,
+    pub(crate) vm_handlers_pool: Vec<Vec<ir::Handler>>,
     builder_pool: Vec<String>,
     /// Cached Option::none value to avoid repeated allocations
     cached_option_none: Option<Value>,
@@ -123,20 +110,20 @@ pub struct Runtime {
 }
 
 #[derive(Clone)]
-struct DictCacheLast {
-    id: usize,
-    key_hash: u64,
-    ver: u64,
-    key: Text,
-    value: Value,
+pub(crate) struct DictCacheLast {
+    pub(crate) id: usize,
+    pub(crate) key_hash: u64,
+    pub(crate) ver: u64,
+    pub(crate) key: Text,
+    pub(crate) value: Value,
 }
 
 #[derive(Clone)]
-struct DictCacheIntLast {
-    id: usize,
-    key: i64,
-    ver: u64,
-    value: Value,
+pub(crate) struct DictCacheIntLast {
+    pub(crate) id: usize,
+    pub(crate) key: i64,
+    pub(crate) ver: u64,
+    pub(crate) value: Value,
 }
 
 #[derive(Clone, Default)]
@@ -153,7 +140,7 @@ pub struct ICSlot {
     pub field_offset: Option<usize>,
 }
 
-pub(crate) enum Flow {
+pub enum Flow {
     None,
     Return(Value),
     Break,
@@ -305,21 +292,21 @@ impl Runtime {
             .insert(name.to_string(), value.to_string());
     }
 
-    fn hash_bytes<S: BuildHasher>(build: &S, bytes: &[u8]) -> u64 {
+    pub(crate) fn hash_bytes<S: BuildHasher>(build: &S, bytes: &[u8]) -> u64 {
         let mut h = build.build_hasher();
         h.write_u8(0);
         bytes.hash(&mut h);
         h.finish()
     }
 
-    fn hash_dict_key_int<S: BuildHasher>(build: &S, i: i64) -> u64 {
+    pub(crate) fn hash_dict_key_int<S: BuildHasher>(build: &S, i: i64) -> u64 {
         let mut h = build.build_hasher();
         h.write_u8(1);
         i.hash(&mut h);
         h.finish()
     }
 
-    fn dict_get_by_str_with_hash(me: &Dict, key: &str, hash: u64) -> Option<Value> {
+    pub(crate) fn dict_get_by_str_with_hash(me: &Dict, key: &str, hash: u64) -> Option<Value> {
         me.map
             .raw_entry()
             .from_hash(hash, |k| match k {
@@ -477,27 +464,27 @@ impl Runtime {
         self.env.get(name).is_some()
     }
 
-    fn push_locals(&mut self) {
+    pub(crate) fn push_locals(&mut self) {
         self.locals.push();
     }
 
-    fn pop_locals(&mut self) {
+    pub(crate) fn pop_locals(&mut self) {
         self.locals.pop();
     }
 
-    fn get_local(&self, name: &str) -> Option<Value> {
+    pub(crate) fn get_local(&self, name: &str) -> Option<Value> {
         self.locals.get(name)
     }
 
-    fn get_local_by_index(&self, idx: usize) -> Option<Value> {
+    pub(crate) fn get_local_by_index(&self, idx: usize) -> Option<Value> {
         self.locals.get_by_index(idx)
     }
 
-    fn get_local_by_depth_index(&self, depth_from_top: usize, idx: usize) -> Option<Value> {
+    pub(crate) fn get_local_by_depth_index(&self, depth_from_top: usize, idx: usize) -> Option<Value> {
         self.locals.get_by_depth_index(depth_from_top, idx)
     }
 
-    fn set_local(&mut self, name: &str, value: Value) -> bool {
+    pub(crate) fn set_local(&mut self, name: &str, value: Value) -> bool {
         let value_for_env = value.clone();
         if self.locals.set(name, value) {
             let _ = value_for_env; // skip env updates for local fast path
@@ -506,26 +493,26 @@ impl Runtime {
         false
     }
 
-    fn get_local_index(&self, name: &str) -> Option<usize> {
+    pub(crate) fn get_local_index(&self, name: &str) -> Option<usize> {
         self.locals.get_index(name)
     }
 
-    fn set_local_by_index(&mut self, idx: usize, value: Value) -> bool {
+    pub(crate) fn set_local_by_index(&mut self, idx: usize, value: Value) -> bool {
         if self.locals.set_by_index(idx, value) {
             return true;
         }
         false
     }
 
-    fn define_local(&mut self, name: String, value: Value) {
+    pub(crate) fn define_local(&mut self, name: String, value: Value) {
         let _ = self.locals.define(name, value);
     }
 
-    fn define_local_with_mutability(&mut self, name: String, value: Value, immutable: bool) {
+    pub(crate) fn define_local_with_mutability(&mut self, name: String, value: Value, immutable: bool) {
         let _ = self.locals.define_with_mutability(name, value, immutable);
     }
 
-    fn is_local_immutable(&self, name: &str) -> bool {
+    pub(crate) fn is_local_immutable(&self, name: &str) -> bool {
         self.locals.is_immutable(name)
     }
 
@@ -627,7 +614,7 @@ impl Runtime {
         }
     }
 
-    fn reset_for_entry_execution(&mut self) {
+    pub(crate) fn reset_for_entry_execution(&mut self) {
         self.output.clear();
         self.main_invoked = false;
         self.import_stack.clear();
@@ -674,7 +661,7 @@ impl Runtime {
         }
     }
 
-    fn install_builtins(&mut self) {
+    pub(crate) fn install_builtins(&mut self) {
         let mut registry = builtins_registry::BuiltinRegistry::new();
         builtins_registry::BuiltinProvider::install(
             &builtins_registry::StdBuiltinProvider,
@@ -735,7 +722,7 @@ impl Runtime {
         xu_syntax::DiagnosticsFormatter::format(&kind)
     }
 
-    fn collect_func_locals(module: &Module) -> HashMap<String, Vec<String>> {
+    pub(crate) fn collect_func_locals(module: &Module) -> HashMap<String, Vec<String>> {
         use std::collections::HashSet;
         fn push_unique(ordered: &mut Vec<String>, seen: &mut HashSet<String>, name: &str) {
             if seen.insert(name.to_string()) {
@@ -785,7 +772,7 @@ impl Runtime {
         out
     }
 
-    fn index_func_locals(
+    pub(crate) fn index_func_locals(
         map: &HashMap<String, Vec<String>>,
     ) -> HashMap<String, HashMap<String, usize>> {
         let mut out = fast_map_new();
@@ -799,7 +786,7 @@ impl Runtime {
         out
     }
 
-    fn call_method_with_ic_raw(
+    pub(crate) fn call_method_with_ic_raw(
         &mut self,
         recv: Value,
         method: &str,
@@ -1109,7 +1096,7 @@ impl Runtime {
         }
     }
 
-    fn eval_binary(&mut self, op: BinaryOp, a: Value, b: Value) -> Result<Value, String> {
+    pub(crate) fn eval_binary(&mut self, op: BinaryOp, a: Value, b: Value) -> Result<Value, String> {
         let debug_err = |e: String, a: &Value, b: &Value, op: BinaryOp, heap: &crate::gc::Heap| {
             let sa = value_to_string(a, heap);
             let sb = value_to_string(b, heap);
@@ -1189,7 +1176,7 @@ impl Runtime {
     }
 
     #[inline(always)]
-    fn values_equal(&self, a: &Value, b: &Value) -> bool {
+    pub(crate) fn values_equal(&self, a: &Value, b: &Value) -> bool {
         if a == b {
             return true;
         }
@@ -1294,7 +1281,7 @@ impl Runtime {
         }
     }
 
-    fn format_throw(&self, v: &Value) -> String {
+    pub(crate) fn format_throw(&self, v: &Value) -> String {
         if v.get_tag() == crate::value::TAG_STR {
             if let crate::gc::ManagedObject::Str(s) = self.heap.get(v.as_obj_id()) {
                 return s.to_string();
@@ -1312,7 +1299,7 @@ impl Runtime {
         self.output.push('\n');
     }
 
-    fn precompile_module(module: &Module) -> Result<(), String> {
+    pub(crate) fn precompile_module(module: &Module) -> Result<(), String> {
         Self::precompile_stmts(&module.stmts)
     }
 

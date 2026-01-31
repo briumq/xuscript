@@ -1,5 +1,5 @@
 use crate::Value;
-use crate::runtime::Runtime;
+use crate::Runtime;
 use crate::gc::ManagedObject;
 use crate::value::{StructInstance, set_with_capacity, TAG_STR, TAG_DICT, DictKey, TAG_BUILDER};
 use smallvec::SmallVec;
@@ -215,7 +215,7 @@ pub(super) fn op_builder_append(rt: &mut Runtime, stack: &mut Vec<Value>) -> Res
             s.push_str(piece);
         }
     } else {
-        let piece = crate::runtime::util::value_to_string(&v, &rt.heap);
+        let piece = crate::util::value_to_string(&v, &rt.heap);
         if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
             s.push_str(&piece);
         }

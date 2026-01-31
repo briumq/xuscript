@@ -1,7 +1,7 @@
 use xu_lexer::{Lexer, normalize_source};
 use xu_parser::Parser;
 use xu_runtime::Runtime;
-use xu_runtime::runtime::RuntimeConfig;
+use xu_runtime::RuntimeConfig;
 
 fn parse_module(src: &str) -> xu_parser::Module {
     let normalized = normalize_source(src);

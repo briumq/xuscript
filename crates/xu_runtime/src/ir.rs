@@ -11,7 +11,8 @@ use crate::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_STR, TA
 
 use super::util::{to_i64, type_matches, value_to_string};
 use super::{Flow, Runtime};
-use crate::runtime::ir_throw::throw_value;
+use super::runtime::{DictCacheIntLast, DictCacheLast};
+use crate::ir_throw::throw_value;
 
 mod dict_ops;
 mod fast;
@@ -1778,7 +1779,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                             if val.is_none() {
                                 if let Some(v) = me.map.get(&crate::value::DictKey::Int(key)) {
                                     val = Some(*v);
-                                    rt.dict_cache_int_last = Some(super::DictCacheIntLast {
+                                    rt.dict_cache_int_last = Some(DictCacheIntLast {
                                         id: id.0,
                                         key,
                                         ver: cur_ver,
@@ -1811,7 +1812,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                     let key_hash = Runtime::hash_bytes(me.map.hasher(), key_text.as_bytes());
                                     if let Some(v) = Runtime::dict_get_by_str_with_hash(me, key_text.as_str(), key_hash) {
                                         val = Some(v);
-                                        rt.dict_cache_last = Some(super::DictCacheLast {
+                                        rt.dict_cache_last = Some(DictCacheLast {
                                             id: id.0,
                                             key_hash,
                                             ver: cur_ver,

@@ -1,5 +1,5 @@
 use crate::Value;
-use crate::runtime::Runtime;
+use crate::Runtime;
 use crate::gc::ManagedObject;
 use xu_ir::BinaryOp;
 
@@ -26,7 +26,7 @@ pub(super) fn op_add(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), Str
 #[inline(always)]
 fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Value, String> {
     use crate::value::TAG_STR;
-    use crate::runtime::appendable::Appendable;
+    use crate::appendable::Appendable;
 
     let at = a.get_tag();
     let bt = b.get_tag();

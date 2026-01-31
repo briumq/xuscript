@@ -2,7 +2,7 @@ use crate::Value;
 
 use super::{MethodKind, Runtime};
 use super::common::*;
-use crate::runtime::util::{to_i64, value_to_string};
+use crate::util::{to_i64, value_to_string};
 
 pub(super) fn dispatch(
     rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,

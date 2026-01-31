@@ -7,7 +7,7 @@ use super::add_with_heap;
 use super::super::ICSlot;
 use super::{Flow, Runtime};
 
-pub(in crate::runtime) fn run_bytecode_fast(
+pub(crate) fn run_bytecode_fast(
     rt: &mut Runtime,
     bc: &Bytecode,
 ) -> Option<Result<Flow, String>> {
@@ -280,7 +280,7 @@ pub(in crate::runtime) fn run_bytecode_fast(
     Some(Ok(Flow::None))
 }
 
-pub(in crate::runtime) fn run_bytecode_fast_params_only(
+pub(crate) fn run_bytecode_fast_params_only(
     rt: &mut Runtime,
     bc: &Bytecode,
     params: &[xu_ir::Param],

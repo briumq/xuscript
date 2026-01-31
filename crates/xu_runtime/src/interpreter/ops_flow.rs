@@ -1,5 +1,5 @@
 use crate::Value;
-use crate::runtime::Runtime;
+use crate::Runtime;
 use crate::gc::ManagedObject;
 use xu_ir::Op;
 use super::{IterState, Flow};

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use super::Runtime;
+use crate::Runtime;
 use crate::Value;
 
 /// 验证参数数量是否在指定范围内

@@ -3,10 +3,10 @@ use std::hash::{BuildHasher, Hash, Hasher};
 use hashbrown::hash_map::RawEntryMut;
 
 use crate::Value;
-use crate::runtime::util::to_i64;
+use crate::util::to_i64;
 use crate::value::DictKey;
 
-use super::super::{DictCacheIntLast, DictCacheLast};
+use super::super::runtime::{DictCacheIntLast, DictCacheLast};
 use super::{MethodKind, Runtime};
 use super::common::*;
 

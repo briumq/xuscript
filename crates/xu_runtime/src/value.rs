@@ -446,7 +446,7 @@ pub enum Function {
 #[derive(Clone)]
 pub struct UserFunction {
     pub def: FuncDef,
-    pub env: crate::runtime::Env,
+    pub env: crate::Env,
     pub needs_env_frame: bool,
     pub fast_param_indices: Option<Box<[usize]>>,
     pub fast_locals_size: Option<usize>,
@@ -458,13 +458,13 @@ pub struct UserFunction {
 pub struct BytecodeFunction {
     pub def: FuncDef,
     pub bytecode: Rc<Bytecode>,
-    pub env: crate::runtime::Env,
+    pub env: crate::Env,
     pub needs_env_frame: bool,
     pub locals_count: usize,
     pub type_sig_ic: std::cell::Cell<Option<u64>>,
 }
 
-pub type BuiltinFunction = fn(&mut crate::runtime::Runtime, &[Value]) -> Result<Value, String>;
+pub type BuiltinFunction = fn(&mut crate::Runtime, &[Value]) -> Result<Value, String>;
 
 #[derive(Clone)]
 pub struct FileHandle {
