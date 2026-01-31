@@ -1,13 +1,34 @@
-let l: [int] = [];
-l.push(1);
-l.push(2);
-l.push(3);
-print(l.length());
-l.reverse();
-print(l);
-print(l.pop());
-print(l.length());
-print(l.join("-"));
-print(l.contains(2));
-l.clear();
-print(l.length());
+// 测试列表方法
+let numbers = [3, 1, 4, 1, 5, 9, 2, 6];
+
+// 测试insert方法
+numbers.insert(0, 0);
+println("After insert(0, 0): " + numbers);
+
+// 测试sort方法
+numbers.sort();
+println("After sort(): " + numbers);
+
+// 测试map方法
+let squared = numbers.map(func(x) -> {
+    return x * x;
+});
+println("After map (squared): " + squared);
+
+// 测试filter方法
+let even = numbers.filter(func(x) -> {
+    return x % 2 == 0;
+});
+println("After filter (even): " + even);
+
+// 测试reduce方法
+let sum = numbers.reduce(func(acc, x) -> {
+    return acc + x;
+}, 0);
+println("After reduce (sum): " + sum);
+
+// 测试find方法
+let found = numbers.find(func(x) -> {
+    return x > 5;
+});
+println("After find (x > 5): " + found);

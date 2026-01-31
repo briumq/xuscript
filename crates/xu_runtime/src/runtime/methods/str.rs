@@ -315,6 +315,136 @@ pub(super) fn dispatch(
                 s.as_str().replace(&from, &to).into(),
             ))))
         }
+        MethodKind::StrReplaceAll => {
+            if args.len() != 2 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 2,
+                    expected_max: 2,
+                    actual: args.len(),
+                }));
+            }
+            let from = if args[0].get_tag() == crate::value::TAG_STR {
+                if let crate::gc::ManagedObject::Str(x) = rt.heap.get(args[0].as_obj_id()) {
+                    x.as_str().to_string()
+                } else {
+                    return Err(rt.error(xu_syntax::DiagnosticKind::ReplaceParamRequired));
+                }
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ReplaceParamRequired));
+            };
+            let to = if args[1].get_tag() == crate::value::TAG_STR {
+                if let crate::gc::ManagedObject::Str(x) = rt.heap.get(args[1].as_obj_id()) {
+                    x.as_str().to_string()
+                } else {
+                    return Err(rt.error(xu_syntax::DiagnosticKind::ReplaceParamRequired));
+                }
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ReplaceParamRequired));
+            };
+            Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+                s.as_str().replace(&from, &to).into(),
+            ))))
+        }
+        MethodKind::StrTrimStart => {
+            if !args.is_empty() {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 0,
+                    expected_max: 0,
+                    actual: args.len(),
+                }));
+            }
+            Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+                s.as_str().trim_start().to_string().into(),
+            ))))
+        }
+        MethodKind::StrTrimEnd => {
+            if !args.is_empty() {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 0,
+                    expected_max: 0,
+                    actual: args.len(),
+                }));
+            }
+            Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+                s.as_str().trim_end().to_string().into(),
+            ))))
+        }
+        MethodKind::StrFind => {
+            if args.len() != 1 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 1,
+                    expected_max: 1,
+                    actual: args.len(),
+                }));
+            }
+            let sub = if args[0].get_tag() == crate::value::TAG_STR {
+                if let crate::gc::ManagedObject::Str(x) = rt.heap.get(args[0].as_obj_id()) {
+                    x.as_str().to_string()
+                } else {
+                    return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                        expected: "string".to_string(),
+                        actual: args[0].type_name().to_string(),
+                    }));
+                }
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                    expected: "string".to_string(),
+                    actual: args[0].type_name().to_string(),
+                }));
+            };
+            match s.as_str().find(&sub) {
+                Some(idx) => Ok(rt.option_some(Value::from_i64(idx as i64))),
+                None => Ok(rt.option_none()),
+            }
+        }
+        MethodKind::StrSubstr => {
+            if args.len() != 2 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 2,
+                    expected_max: 2,
+                    actual: args.len(),
+                }));
+            }
+            let start = to_i64(&args[0])?;
+            let length = to_i64(&args[1])?;
+            
+            if start < 0 || length < 0 {
+                return Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+                    "".into(),
+                ))));
+            }
+            
+            let start_idx = start as usize;
+            let length_idx = length as usize;
+            let str_ref = s.as_str();
+            
+            // 处理 ASCII 字符串的快速路径
+            if s.is_ascii() {
+                if start_idx >= str_ref.len() {
+                    return Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+                        "".into(),
+                    ))));
+                }
+                let end_idx = std::cmp::min(start_idx + length_idx, str_ref.len());
+                let substr = &str_ref[start_idx..end_idx];
+                return Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+                    substr.to_string().into(),
+                ))));
+            }
+            
+            // 处理 UTF-8 字符串
+            let chars: Vec<char> = str_ref.chars().collect();
+            if start_idx >= chars.len() {
+                return Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+                    "".into(),
+                ))));
+            }
+            let end_idx = std::cmp::min(start_idx + length_idx, chars.len());
+            let substr: String = chars[start_idx..end_idx].iter().collect();
+            Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+                substr.into(),
+            ))))
+        }
         MethodKind::Len => {
             if !args.is_empty() {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {

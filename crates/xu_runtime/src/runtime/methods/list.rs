@@ -219,6 +219,95 @@ pub(super) fn dispatch(
             }
             Ok(Value::list(rt.heap.alloc(crate::gc::ManagedObject::List(out))))
         }
+        MethodKind::ListInsert => {
+            if args.len() != 2 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 2,
+                    expected_max: 2,
+                    actual: args.len(),
+                }));
+            }
+            let i = to_i64(&args[0])?;
+            if i < 0 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
+            }
+            if let crate::gc::ManagedObject::List(list) = rt.heap.get_mut(id) {
+                let ui = i as usize;
+                if ui > list.len() {
+                    return Err(rt.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
+                }
+                list.insert(ui, args[1].clone());
+            }
+            Ok(Value::VOID)
+        }
+        MethodKind::ListSort => {
+            if !args.is_empty() {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 0,
+                    expected_max: 0,
+                    actual: args.len(),
+                }));
+            }
+            if let crate::gc::ManagedObject::List(list) = rt.heap.get_mut(id) {
+                list.sort_by(|a, b| {
+                    if a.is_int() && b.is_int() {
+                        a.as_i64().cmp(&b.as_i64())
+                    } else if a.is_f64() && b.is_f64() {
+                        a.as_f64().partial_cmp(&b.as_f64()).unwrap_or(std::cmp::Ordering::Equal)
+                    } else {
+                        std::cmp::Ordering::Equal
+                    }
+                });
+            }
+            Ok(Value::VOID)
+        }
+        MethodKind::ListReduce => {
+            if args.len() != 2 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 2,
+                    expected_max: 2,
+                    actual: args.len(),
+                }));
+            }
+            let f = args[0];
+            let mut acc = args[1].clone();
+            let items: Vec<Value> = if let crate::gc::ManagedObject::List(list) = rt.heap.get(id) {
+                list.to_vec()
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())));
+            };
+            for item in items {
+                acc = rt.call_function(f, &[acc, item])?;
+            }
+            Ok(acc)
+        }
+        MethodKind::ListFind => {
+            if args.len() != 1 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 1,
+                    expected_max: 1,
+                    actual: args.len(),
+                }));
+            }
+            let f = args[0];
+            let items: Vec<Value> = if let crate::gc::ManagedObject::List(list) = rt.heap.get(id) {
+                list.to_vec()
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())));
+            };
+            for item in items {
+                let found = rt.call_function(f, &[item])?;
+                if !found.is_bool() {
+                    return Err(rt.error(xu_syntax::DiagnosticKind::InvalidConditionType(
+                        found.type_name().to_string(),
+                    )));
+                }
+                if found.as_bool() {
+                    return Ok(rt.option_some(item));
+                }
+            }
+            Ok(rt.option_none())
+        }
         _ => Err(rt.error(xu_syntax::DiagnosticKind::UnknownListMethod(
             method.to_string(),
         ))),

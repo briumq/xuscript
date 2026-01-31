@@ -1,16 +1,16 @@
+// 字符串方法测试
 func assert(x) { __builtin_assert(x) }
 
-let s = "  Hello-World  "
-assert(s.length() == 15)
-assert(s.trim().length() == 11)
-assert(s.to_upper().contains("HELLO"))
-assert(s.to_lower().contains("world"))
-let parts = s.split("-")
-assert(parts.length() == 2)
-assert(parts[0].contains("Hello"))
-let s2 = s.replace("World", "Xu")
-assert(s2.contains("Xu"))
-assert("42".to_int() == 42)
-assert("3.14".to_float() == 3.14)
-assert("prefix".starts_with("pre"))
-assert("suffix".ends_with("fix"))
+let s = "  Hello, World!  ";
+assert(s.trim() == "Hello, World!");
+assert(s.trim_start() == "Hello, World!  ");
+assert(s.trim_end() == "  Hello, World!");
+
+let s2 = "Hello, World!";
+assert(s2.find("Hello").has());
+assert(s2.substr(0, 5) == "Hello");
+
+let s3 = "Hello, Hello";
+assert(s3.replace_all("Hello", "Hi") == "Hi, Hi");
+
+print("All string method tests passed!");

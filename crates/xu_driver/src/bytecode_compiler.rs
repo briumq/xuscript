@@ -927,30 +927,26 @@ impl Compiler {
                     self.compile_expr(&m.receiver)?;
                     self.compile_expr(&m.args[0])?;
                     self.bc.ops.push(Op::DictMerge);
-                } else if (mname == "insert" || mname == "insert_int") && m.args.len() == 2 {
+                } else if mname == "insert_int" && m.args.len() == 2 {
                     self.compile_expr(&m.receiver)?;
-                    // Check if key is a string constant for optimized path
-                    if mname == "insert" {
-                        if let Expr::Str(s) = &m.args[0] {
-                            // Use optimized DictInsertStrConst for string constant keys
-                            self.compile_expr(&m.args[1])?;
-                            let slot = self.alloc_ic_slot();
-                            let s_idx = self.add_constant(xu_ir::Constant::Str(s.clone()));
-                            self.bc.ops.push(Op::DictInsertStrConst(
-                                s_idx,
-                                xu_ir::stable_hash64(s.as_str()),
-                                Some(slot),
-                            ));
-                        } else {
-                            self.compile_expr(&m.args[0])?;
-                            self.compile_expr(&m.args[1])?;
-                            self.bc.ops.push(Op::DictInsert);
-                        }
-                    } else {
-                        self.compile_expr(&m.args[0])?;
-                        self.compile_expr(&m.args[1])?;
-                        self.bc.ops.push(Op::DictInsert);
+                    self.compile_expr(&m.args[0])?;
+                    self.compile_expr(&m.args[1])?;
+                    self.bc.ops.push(Op::DictInsert);
+                } else if mname == "insert" && m.args.len() == 2 {
+                    // Check if this is a dict insert or list insert
+                    // For now, always use CallMethod for insert to support both dict and list
+                    self.compile_expr(&m.receiver)?;
+                    for a in m.args.iter() {
+                        self.compile_expr(a)?;
                     }
+                    let slot = self.alloc_ic_slot();
+                    let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
+                    self.bc.ops.push(Op::CallMethod(
+                        m_idx,
+                        xu_ir::stable_hash64(m.method.as_str()),
+                        m.args.len(),
+                        Some(slot),
+                    ));
                 } else if (mname == "get" || mname == "get_int") && m.args.len() == 1 {
                     // Always use regular method call for get() to support both dict and struct methods
                     self.compile_expr(&m.receiver)?;
