@@ -26,6 +26,8 @@ pub(crate) enum MethodKind {
     DictGetInt,
     DictKeys,
     DictValues,
+    DictItems,
+    GetOrDefault,
     FileRead,
     FileClose,
     StrFormat,
@@ -45,6 +47,7 @@ pub(crate) enum MethodKind {
     StrEndsWith,
     StrFind,
     StrSubstr,
+    StrMatch,
     IntToString,
     IntAbs,
     IntToBase,
@@ -79,7 +82,7 @@ impl Default for MethodKind {
 impl MethodKind {
     pub(crate) fn from_str(s: &str) -> Self {
         match s {
-            "push" => Self::ListPush,
+            "push" | "add" => Self::ListPush,
             "pop" => Self::ListPop,
             "reverse" => Self::ListReverse,
             "join" => Self::ListJoin,
@@ -96,8 +99,10 @@ impl MethodKind {
             "insert_int" => Self::DictInsertInt,
             "get" => Self::DictGet,
             "get_int" => Self::DictGetInt,
+            "get_or_default" => Self::GetOrDefault,
             "keys" => Self::DictKeys,
             "values" => Self::DictValues,
+            "items" => Self::DictItems,
             "read" => Self::FileRead,
             "close" => Self::FileClose,
             "format" => Self::StrFormat,
@@ -117,6 +122,7 @@ impl MethodKind {
             "ends_with" => Self::StrEndsWith,
             "str_find" => Self::StrFind,
             "substr" => Self::StrSubstr,
+            "match" => Self::StrMatch,
             "to_string" => Self::IntToString,  // 也用于 float
             "abs" => Self::IntAbs,  // 也用于 float
             "to_base" => Self::IntToBase,

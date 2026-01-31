@@ -1,7 +1,6 @@
-3
-[3,2,1]
-1
-2
-3-2
-true
-0
+After insert(0, 0): [0,3,1,4,1,5,9,2,6]
+After sort(): [0,1,1,2,3,4,5,6,9]
+After map (squared): [0,1,1,4,9,16,25,36,81]
+After filter (even): [0,2,4,6]
+After reduce (sum): 31
+After find (x > 5): 6

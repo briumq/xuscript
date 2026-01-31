@@ -2,6 +2,7 @@ use crate::Value;
 
 use super::{MethodKind, Runtime};
 use crate::runtime::util::{to_i64, value_to_string};
+use regex::Regex;
 use xu_syntax;
 
 pub(super) fn dispatch(
@@ -369,7 +370,7 @@ pub(super) fn dispatch(
                 s.as_str().trim_end().to_string().into(),
             ))))
         }
-        MethodKind::StrFind => {
+        MethodKind::StrFind | MethodKind::ListFind => {
             if args.len() != 1 {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
                     expected_min: 1,
@@ -454,6 +455,62 @@ pub(super) fn dispatch(
                 }));
             }
             Ok(Value::from_i64(s.char_count() as i64))
+        }
+        MethodKind::StrMatch => {
+            if args.len() != 1 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 1,
+                    expected_max: 1,
+                    actual: args.len(),
+                }));
+            }
+            let pattern = if args[0].get_tag() == crate::value::TAG_STR {
+                if let crate::gc::ManagedObject::Str(x) = rt.heap.get(args[0].as_obj_id()) {
+                    x.as_str().to_string()
+                } else {
+                    return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                        expected: "string".to_string(),
+                        actual: args[0].type_name().to_string(),
+                    }));
+                }
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                    expected: "string".to_string(),
+                    actual: args[0].type_name().to_string(),
+                }));
+            };
+            
+            let regex = Regex::new(&pattern).map_err(|e| {
+                rt.error(xu_syntax::DiagnosticKind::Raw(format!("Invalid regex: {}", e)))
+            })?;
+            
+            let captures = regex.captures(s.as_str());
+            match captures {
+                Some(caps) => {
+                    let mut groups = Vec::new();
+                    for cap in caps.iter() {
+                        match cap {
+                            Some(m) => {
+                                let matched_str = m.as_str().to_string();
+                                groups.push(Value::str(
+                                    rt.heap.alloc(crate::gc::ManagedObject::Str(matched_str.into())),
+                                ));
+                            }
+                            None => {
+                                groups.push(Value::str(
+                                    rt.heap.alloc(crate::gc::ManagedObject::Str("".into())),
+                                ));
+                            }
+                        }
+                    }
+                    Ok(Value::list(
+                        rt.heap.alloc(crate::gc::ManagedObject::List(groups)),
+                    ))
+                }
+                None => Ok(Value::list(
+                    rt.heap.alloc(crate::gc::ManagedObject::List(Vec::new())),
+                )),
+            }
         }
         _ => Err(rt.error(xu_syntax::DiagnosticKind::UnknownStrMethod(
             method.to_string(),

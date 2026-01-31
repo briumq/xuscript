@@ -65,7 +65,7 @@ pub(super) fn dispatch(
             }
             Ok(Value::VOID)
         }
-        MethodKind::DictInsert => {
+        MethodKind::DictInsert | MethodKind::ListInsert => {
             if args.len() != 2 {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
                     expected_min: 2,
@@ -413,6 +413,66 @@ pub(super) fn dispatch(
             } else {
                 Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())))
             }
+        }
+        MethodKind::GetOrDefault => {
+            if args.len() != 2 {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 2,
+                    expected_max: 2,
+                    actual: args.len(),
+                }));
+            }
+            let k_val = &args[0];
+            let default = args[1].clone();
+            let key = if k_val.get_tag() == crate::value::TAG_STR {
+                if let crate::gc::ManagedObject::Str(s) = rt.heap.get(k_val.as_obj_id()) {
+                    DictKey::from_text(s)
+                } else {
+                    return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a text".into())));
+                }
+            } else if k_val.is_int() {
+                DictKey::Int(k_val.as_i64())
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                    expected: "text or int".to_string(),
+                    actual: k_val.type_name().to_string(),
+                }));
+            };
+
+            let value = if let crate::gc::ManagedObject::Dict(me) = rt.heap.get(id) {
+                me.map.get(&key).cloned().unwrap_or(default)
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+            };
+            Ok(value)
+        }
+        MethodKind::DictItems => {
+            if !args.is_empty() {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 0,
+                    expected_max: 0,
+                    actual: args.len(),
+                }));
+            }
+            let dict_entries: Vec<(crate::value::DictKey, Value)> = if let crate::gc::ManagedObject::Dict(me) = rt.heap.get(id) {
+                me.map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+            } else {
+                return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+            };
+            let mut items = Vec::with_capacity(dict_entries.len());
+            for (k, v) in dict_entries {
+                let key_val = match k {
+                    crate::value::DictKey::Str { data, .. } => {
+                        Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(crate::Text::from_str(&data))))
+                    }
+                    crate::value::DictKey::Int(i) => Value::from_i64(i),
+                };
+                let entry = rt.heap.alloc(crate::gc::ManagedObject::List(vec![key_val, v]));
+                items.push(Value::list(entry));
+            }
+            Ok(Value::list(
+                rt.heap.alloc(crate::gc::ManagedObject::List(items)),
+            ))
         }
         MethodKind::Len => {
             if !args.is_empty() {
