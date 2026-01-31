@@ -1,12 +1,53 @@
 func assert(x) { __builtin_assert(x) }
 
-Color with [ red | blue ]
+Color with [ red | blue | green ]
 
 Color does {
+    // 实例方法
     func is_red() {
         return self == Color#red
     }
+
+    func name() -> string {
+        match self {
+            Color#red { return "red" }
+            Color#blue { return "blue" }
+            Color#green { return "green" }
+            _ { return "unknown" }
+        }
+    }
+
+    // 静态方法
+    static func default() -> Color {
+        return Color#red
+    }
+
+    static func from_name(n: string) -> Color {
+        match n {
+            "blue" { return Color#blue }
+            "green" { return Color#green }
+            _ { return Color#red }
+        }
+    }
 }
 
+// 测试实例方法
 let c = Color#red
 assert(c.is_red())
+assert(c.name() == "red")
+
+let c2 = Color#blue
+assert(!c2.is_red())
+assert(c2.name() == "blue")
+
+// 测试静态方法
+let d = Color.default()
+assert(d == Color#red)
+assert(d.is_red())
+
+let from_blue = Color.from_name("blue")
+assert(from_blue == Color#blue)
+assert(from_blue.name() == "blue")
+
+let from_unknown = Color.from_name("unknown")
+assert(from_unknown == Color#red)
