@@ -1,0 +1,212 @@
+// 电商结账系统示例
+
+// 枚举定义
+PaymentMethod with [ credit_card | paypal | apple_pay | google_pay ]
+OrderStatus with [ pending | processing | completed | cancelled ]
+
+// 结构体定义
+Product has {
+    id: string
+    name: string
+    price: float
+    quantity: int = 1
+}
+
+Product does {
+    func total() -> float {
+        return self.price * self.quantity
+    }
+}
+
+Cart has {
+    items: [Product]
+}
+
+Cart does {
+    func add(product: Product) {
+        self.items.add(product)
+    }
+
+    func remove(product_id: string) {
+        let new_items = self.items.filter(func(item) -> item.id != product_id)
+        self.items = new_items
+    }
+
+    func total() -> float {
+        let sum = 0.0
+        for item in self.items {
+            sum += item.total()
+        }
+        return sum
+    }
+
+    func is_empty() -> bool {
+        return self.items.length == 0
+    }
+}
+
+Customer has {
+    id: string
+    name: string
+    email: string
+    address: string
+}
+
+Customer does {
+    func validate() -> bool {
+        return self.name.length > 0 && self.email.length > 0 && self.address.length > 0
+    }
+}
+
+Order has {
+    id: string
+    customer: Customer
+    cart: Cart
+    payment_method: PaymentMethod
+    status: OrderStatus = OrderStatus#pending
+    created_at: string
+}
+
+Order does {
+    func process() {
+        self.status = OrderStatus#processing
+        println("Processing order {self.id}")
+    }
+
+    func complete() {
+        self.status = OrderStatus#completed
+        println("Order {self.id} completed")
+    }
+
+    func cancel() {
+        self.status = OrderStatus#cancelled
+        println("Order {self.id} cancelled")
+    }
+
+    func to_receipt() -> string {
+        let receipt = """Order Receipt
+Order ID: {self.id}
+Customer: {self.customer.name}
+Email: {self.customer.email}
+Address: {self.customer.address}
+
+Items:
+"""
+
+        for item in self.cart.items {
+            receipt += "{item.name} (x{item.quantity}): ${item.total()}\n"
+        }
+
+        receipt += "\nTotal: ${self.cart.total()}"
+        receipt += "\nPayment Method: {self.payment_method}"
+        receipt += "\nStatus: {self.status}"
+        receipt += "\nCreated At: {self.created_at}"
+
+        return receipt
+    }
+}
+
+// 函数定义
+func create_order(customer: Customer, cart: Cart, payment_method: PaymentMethod) -> Result[Order, string] {
+    if cart.is_empty() {
+        return Result#err("Cart is empty")
+    }
+    
+    if !customer.validate() {
+        return Result#err("Customer information is invalid")
+    }
+    
+    let order_id = "ORD-12345" // 使用固定订单号
+    let now = "2023-12-01 10:30:00" // 模拟当前时间
+    
+    let order = Order{
+        id: order_id,
+        customer: customer,
+        cart: cart,
+        payment_method: payment_method,
+        status: OrderStatus#pending,
+        created_at: now
+    }
+    
+    return Result#ok(order)
+}
+
+func calculate_discount(total: float, customer_loyalty_level: int) -> float {
+    let discount = match customer_loyalty_level {
+        1 { 0.05 } // 5% 折扣
+        2 { 0.1 }  // 10% 折扣
+        3 { 0.15 } // 15% 折扣
+        _ { 0.0 }  // 无折扣
+    }
+    
+    return total * discount
+}
+
+// 主函数
+func main() {
+    println("=== E-commerce Checkout System ===")
+    
+    // 创建产品
+    let product1 = Product{ id: "P001", name: "iPhone 14", price: 999.99, quantity: 1 }
+    let product2 = Product{ id: "P002", name: "AirPods Pro", price: 249.99, quantity: 2 }
+    let product3 = Product{ id: "P003", name: "Apple Watch", price: 399.99, quantity: 1 }
+    
+    // 创建购物车
+    let cart = Cart{ items: [] }
+    cart.add(product1)
+    cart.add(product2)
+    cart.add(product3)
+    
+    println("\n=== Cart Items ===")
+    for item in cart.items {
+        println("{item.name}: ${item.price} x {item.quantity} = ${item.total()}")
+    }
+    println("Subtotal: ${cart.total()}")
+    
+    // 计算折扣
+    let subtotal = cart.total()
+    let discount = calculate_discount(subtotal, 2) // 10% 折扣
+    let total = subtotal - discount
+    
+    println("\n=== Discount Calculation ===")
+    println("Subtotal: ${subtotal}")
+    println("Discount: ${discount}")
+    println("Total: ${total}")
+    
+    // 创建顾客
+    let customer = Customer{
+        id: "C001",
+        name: "John Doe",
+        email: "john.doe@example.com",
+        address: "123 Main St, New York, NY 10001"
+    }
+    
+    // 创建订单
+    let order_result = create_order(customer, cart, PaymentMethod#credit_card)
+    
+    match order_result {
+        Result#ok(order) {
+            println("\n=== Order Created ===")
+            println("Order ID: {order.id}")
+            
+            // 处理订单
+            order.process()
+            order.complete()
+            
+            // 打印收据
+            println("\n=== Receipt ===")
+            println(order.to_receipt())
+        }
+        Result#err(error) {
+            println("\n=== Error ===")
+            println("Failed to create order: {error}")
+        }
+        _ {
+            println("\n=== Error ===")
+            println("Unknown error")
+        }
+    }
+}
+
+// 调用主函数
+main()

@@ -1,0 +1,45 @@
+=== 循环示例 ===
+Count: 0
+Count: 1
+Count: 2
+Count: 3
+Count: 4
+Final counter: 3
+
+=== 条件语句 ===
+David is a minor
+
+=== 模式匹配 ===
+Status: 已通过
+
+=== 条件绑定 ===
+Hello, Alice!
+
+=== 多绑定短路 ===
+First: Alice, Last: Charlie
+
+=== 结构体展开 ===
+Alice 明年 21 岁
+
+=== 错误处理 ===
+Data fetched successfully: [{"name": "Alice", "age": 20}, {"name": "Bob", "age": 25}]
+
+=== Option 组合子 ===
+First user name: Alice
+
+=== 字典操作 ===
+User map size: 3
+charlie: Charlie, 30
+bob: Bob, 18
+alice: Alice, 20
+
+=== 函数示例 ===
+Discounted price: 80
+
+=== 字符串插值 ===
+User: David, Age: 16, Adult: false
+
+=== 列表操作 ===
+Original: [1,2,3,4,5]
+Doubled: [2,4,6,8,10]
+Even: [2,4]

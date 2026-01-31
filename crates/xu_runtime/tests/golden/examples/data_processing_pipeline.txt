@@ -1,0 +1,29 @@
+=== Data Processing Pipeline ===
+Generated 10 test records
+
+Starting pipeline...
+Error processing record REC-1000: Value out of range
+Error processing record REC-1001: Value out of range
+Error processing record REC-1007: Value out of range
+Error processing record REC-1008: Value out of range
+Error processing record REC-1009: Value out of range
+Pipeline completed
+Processed: 5, Failed: 5
+
+=== Processing Results ===
+Processed 5 records successfully
+
+=== Processed Records ===
+Record REC-1002: 6 (DataType#float)
+Record REC-1003: 9 (DataType#integer)
+Record REC-1004: 12 (DataType#float)
+Record REC-1005: 15 (DataType#integer)
+Record REC-1006: 18 (DataType#float)
+
+=== Aggregation Results ===
+Total records aggregated: 5
+Sum: 60
+Average: 12
+
+=== Error Handling Demo ===
+Expected error for record REC-ERROR: Value out of range

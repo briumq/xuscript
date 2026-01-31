@@ -1,0 +1,14 @@
+// 测试函数内元组解构
+func assert(x) { __builtin_assert(x) }
+
+func div(a: int, b: int) -> (int, int) {
+    return (a / b, a % b)
+}
+
+func main() {
+    let (q, r) = div(10, 3)
+    assert(q == 3)
+    assert(r == 1)
+}
+
+main()

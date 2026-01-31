@@ -1,0 +1,10 @@
+// 测试字典键值对循环解构
+func assert(x) { __builtin_assert(x) }
+
+let map = {"a": 1, "b": 2}
+
+var count = 0
+for (key, value) in map {
+    count = count + 1
+}
+assert(count == 2)

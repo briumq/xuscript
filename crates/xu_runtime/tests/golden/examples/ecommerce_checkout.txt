@@ -1,0 +1,34 @@
+=== E-commerce Checkout System ===
+
+=== Cart Items ===
+iPhone 14: $999.99 x 1 = $999.99
+AirPods Pro: $249.99 x 2 = $499.98
+Apple Watch: $399.99 x 1 = $399.99
+Subtotal: $1899.96
+
+=== Discount Calculation ===
+Subtotal: $1899.96
+Discount: $189.996
+Total: $1709.964
+
+=== Order Created ===
+Order ID: ORD-12345
+Processing order ORD-12345
+Order ORD-12345 completed
+
+=== Receipt ===
+Order Receipt
+Order ID: ORD-12345
+Customer: John Doe
+Email: john.doe@example.com
+Address: 123 Main St, New York, NY 10001
+
+Items:
+iPhone 14 (x1): $999.99
+AirPods Pro (x2): $499.98
+Apple Watch (x1): $399.99
+
+Total: $1899.96
+Payment Method: PaymentMethod#credit_card
+Status: OrderStatus#completed
+Created At: 2023-12-01 10:30:00

@@ -1,0 +1,251 @@
+// 数据处理管道示例
+
+// 枚举定义
+DataType with [ integer | float | string | boolean ]
+ProcessingStatus with [ pending | processing | completed | failed ]
+
+// 结构体定义
+DataRecord has {
+    id: string
+    data: float  // 简化为 float 类型
+    data_type: DataType
+    timestamp: int
+}
+
+DataRecord does {
+    func validate() -> bool {
+        return self.id.length > 0 && self.timestamp > 0
+    }
+
+    func to_string() -> string {
+        return "Record {self.id}: {self.data} ({self.data_type})"
+    }
+}
+
+// 过滤处理器
+FilterProcessor has {
+    name: string
+    description: string
+    min_value: float
+    max_value: float
+}
+
+FilterProcessor does {
+    func process(record: DataRecord) -> Result[DataRecord, string] {
+        if record.data_type == DataType#integer || record.data_type == DataType#float {
+            if record.data < self.min_value || record.data > self.max_value {
+                return Result#err("Value out of range")
+            }
+        }
+        return Result#ok(record)
+    }
+}
+
+// 转换处理器
+TransformerProcessor has {
+    name: string
+    description: string
+    multiplier: float
+}
+
+TransformerProcessor does {
+    func process(record: DataRecord) -> Result[DataRecord, string] {
+        if record.data_type == DataType#integer || record.data_type == DataType#float {
+            record.data = record.data * self.multiplier
+        }
+        return Result#ok(record)
+    }
+}
+
+// 聚合处理器
+AggregatorProcessor has {
+    name: string
+    description: string
+    sum: float = 0.0
+    count: int = 0
+}
+
+AggregatorProcessor does {
+    func process(record: DataRecord) -> Result[DataRecord, string] {
+        if record.data_type == DataType#integer || record.data_type == DataType#float {
+            self.sum += record.data
+            self.count += 1
+        }
+        return Result#ok(record)
+    }
+
+    func get_average() -> float {
+        if self.count > 0 {
+            return self.sum / self.count
+        }
+        return 0.0
+    }
+}
+
+// 工厂函数
+func create_filter_processor(name: string, min_val: float, max_val: float) -> FilterProcessor {
+    return FilterProcessor{
+        name: name,
+        description: "Filters records based on value range",
+        min_value: min_val,
+        max_value: max_val
+    }
+}
+
+func create_transformer_processor(name: string, multiplier: float) -> TransformerProcessor {
+    return TransformerProcessor{
+        name: name,
+        description: "Transforms records by multiplying values",
+        multiplier: multiplier
+    }
+}
+
+func create_aggregator_processor(name: string) -> AggregatorProcessor {
+    return AggregatorProcessor{
+        name: name,
+        description: "Aggregates record values",
+        sum: 0.0,
+        count: 0
+    }
+}
+
+// 生成测试数据
+func generate_test_data(count: int) -> [DataRecord] {
+    var records: [DataRecord] = []
+    let now = 1670000000 // 模拟时间戳
+
+    for i in 0..count {
+        let id = "REC-{1000 + i}"
+        let value = i * 1.5
+        let data_type = if i % 2 == 0 {
+            DataType#float
+        } else {
+            DataType#integer
+        }
+
+        let record = DataRecord{
+            id: id,
+            data: value,
+            data_type: data_type,
+            timestamp: now + i
+        }
+
+        records.add(record)
+    }
+
+    return records
+}
+
+// 处理单条记录通过所有处理器
+func process_record(record: DataRecord, filter: FilterProcessor, transformer: TransformerProcessor, aggregator: AggregatorProcessor) -> Result[DataRecord, string] {
+    // 先过滤
+    match filter.process(record) {
+        Result#ok(r1) {
+            // 再转换
+            match transformer.process(r1) {
+                Result#ok(r2) {
+                    // 最后聚合
+                    return aggregator.process(r2)
+                }
+                Result#err(e) {
+                    return Result#err(e)
+                }
+                _ {
+                    return Result#err("Unknown transformer error")
+                }
+            }
+        }
+        Result#err(e) {
+            return Result#err(e)
+        }
+        _ {
+            return Result#err("Unknown filter error")
+        }
+    }
+}
+
+// 主函数
+func main() {
+    println("=== Data Processing Pipeline ===")
+
+    // 生成测试数据
+    let test_data = generate_test_data(10)
+    println("Generated {test_data.length} test records")
+
+    // 创建处理器
+    let filter = create_filter_processor("Filter", 2.0, 10.0)
+    let transformer = create_transformer_processor("Transformer", 2.0)
+    let aggregator = create_aggregator_processor("Aggregator")
+
+    // 处理数据
+    var results: [DataRecord] = []
+    var records_processed = 0
+    var records_failed = 0
+
+    println("\nStarting pipeline...")
+
+    for record in test_data {
+        match process_record(record, filter, transformer, aggregator) {
+            Result#ok(processed_record) {
+                results.add(processed_record)
+                records_processed += 1
+            }
+            Result#err(error) {
+                println("Error processing record {record.id}: {error}")
+                records_failed += 1
+            }
+            _ {
+                println("Unknown error processing record {record.id}")
+                records_failed += 1
+            }
+        }
+    }
+
+    println("Pipeline completed")
+    println("Processed: {records_processed}, Failed: {records_failed}")
+
+    // 打印结果
+    println("\n=== Processing Results ===")
+    println("Processed {results.length} records successfully")
+
+    // 打印处理后的记录
+    println("\n=== Processed Records ===")
+    for result_record in results {
+        println(result_record.to_string())
+    }
+
+    // 打印聚合结果
+    if aggregator.count > 0 {
+        println("\n=== Aggregation Results ===")
+        println("Total records aggregated: {aggregator.count}")
+        println("Sum: {aggregator.sum}")
+        println("Average: {aggregator.get_average()}")
+    }
+
+    // 演示错误处理
+    println("\n=== Error Handling Demo ===")
+
+    // 创建包含超出范围值的记录
+    let error_record = DataRecord{
+        id: "REC-ERROR",
+        data: 15.0, // 超出过滤器范围
+        data_type: DataType#float,
+        timestamp: 1670000000
+    }
+
+    let error_result = filter.process(error_record)
+    match error_result {
+        Result#ok(record) {
+            println("Record processed successfully: {record.id}")
+        }
+        Result#err(error) {
+            println("Expected error for record {error_record.id}: {error}")
+        }
+        _ {
+            println("Unknown result")
+        }
+    }
+}
+
+// 调用主函数
+main()

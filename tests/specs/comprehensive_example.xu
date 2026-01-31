@@ -9,16 +9,16 @@ User has {
     email: string
     status: Status = Status#pending
 
-    func is_active() -> bool {
-        return self.status == Status#approved
-    }
-
     static func create(id: int, name: string, email: string) -> User {
         return User{ id: id, name: name, email: email }
     }
 }
 
 User does {
+    func is_active() -> bool {
+        return self.status == Status#approved
+    }
+
     func to_string() -> string {
         return "User({self.id}, {self.name})"
     }
