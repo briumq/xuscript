@@ -548,9 +548,24 @@ impl Runtime {
                     actual: index.type_name().to_string(),
                 }))
             }
+        } else if tag == crate::value::TAG_TUPLE {
+            let i = super::super::util::to_i64(&index)?;
+            if i < 0 {
+                return Err(self.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
+            }
+            let id = obj.as_obj_id();
+            if let crate::gc::ManagedObject::Tuple(tuple) = self.heap.get(id) {
+                let ui = i as usize;
+                if ui >= tuple.len() {
+                    return Err(self.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
+                }
+                Ok(tuple[ui])
+            } else {
+                Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a tuple".into())))
+            }
         } else {
             Err(self.error(xu_syntax::DiagnosticKind::InvalidIndexAccess {
-                expected: "list, dict, or text".to_string(),
+                expected: "list, dict, tuple, or text".to_string(),
                 actual: obj.type_name().to_string(),
             }))
         }

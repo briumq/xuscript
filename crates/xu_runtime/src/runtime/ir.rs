@@ -7,7 +7,7 @@ use super::appendable::Appendable;
 use crate::Text;
 use crate::Value;
 use crate::gc::ManagedObject;
-use crate::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_STR};
+use crate::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_STR, TAG_TUPLE};
 
 use super::util::{to_i64, type_matches, value_to_string};
 use super::{Flow, Runtime};
@@ -1885,6 +1885,34 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         }
                     } else {
                         return Err("Not a list".into());
+                    }
+                } else if tag == TAG_TUPLE && idx.is_int() {
+                    let id = obj.as_obj_id();
+                    let i = idx.as_i64();
+                    if let ManagedObject::Tuple(t) = rt.heap.get(id) {
+                        if i >= 0 && (i as usize) < t.len() {
+                            stack.push(t[i as usize]);
+                            ip += 1;
+                            continue;
+                        }
+                    }
+                    match rt.get_index_with_ic_raw(obj, idx, *slot_cell) {
+                        Ok(v) => stack.push(v),
+                        Err(e) => {
+                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                            if let Some(flow) = throw_value(
+                                rt,
+                                &mut ip,
+                                &mut handlers,
+                                &mut stack,
+                                &mut iters,
+                                &mut pending,
+                                &mut thrown,
+                                err_val,
+                            ) {
+                                return Ok(flow);
+                            }
+                        }
                     }
                 } else {
                     match rt.get_index_with_ic_raw(obj, idx, *slot_cell) {
