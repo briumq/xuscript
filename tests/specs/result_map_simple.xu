@@ -1,0 +1,65 @@
+// 简单测试Result.map返回结构体失败的问题
+
+// 定义结构体
+User has {
+    name: string
+    age: int
+
+    static func create(name: string, age: int) -> User {
+        return User{ name: name, age: age }
+    }
+}
+
+Token has {
+    user: User
+    role: string
+
+    static func create(user: User, role: string) -> Token {
+        return Token{ user: user, role: role }
+    }
+}
+
+// 定义返回Result的函数
+func get_user(id: int) -> Result[User, string] {
+    if id == 1 {
+        return Result#ok(User.create("Alice", 20))
+    } else {
+        return Result#err("User not found")
+    }
+}
+
+// 测试函数
+func test_result_map_simple() {
+    println("=== 测试Result.map返回结构体失败的问题 ===")
+
+    // 测试1: Result.map返回结构体
+    println("\n测试1: Result.map返回结构体")
+    let result1 = get_user(1).map(func(user: User) -> Token {
+        return Token.create(user, "admin")
+    })
+    println("Result: {result1}")
+
+    // 测试2: 使用显式match语句
+    println("\n测试2: 使用显式match语句")
+    let user_result = get_user(1)
+    let result2 = match user_result {
+        Result#ok(user) {
+            Token.create(user, "admin")
+        }
+        Result#err(error) {
+            Token.create(User.create("Unknown", 0), "error")
+        }
+        _ {
+            Token.create(User.create("Unknown", 0), "unknown")
+        }
+    }
+    println("Result: {result2}")
+}
+
+// 主函数
+func main() {
+    test_result_map_simple()
+}
+
+// 调用主函数
+main()

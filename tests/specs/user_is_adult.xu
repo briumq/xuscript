@@ -1,0 +1,37 @@
+// 测试 User 结构体的 is_adult 方法
+
+// 枚举定义
+Status with [ pending | approved | rejected ]
+
+// 结构体定义
+User has {
+    name: string
+    age: int = 0
+    status: Status = Status#pending
+    
+    // 实例方法
+    func is_adult() -> bool {
+        return self.age >= 18
+    }
+    
+    // 静态方法
+    static func create(name: string, age: int = 0) -> User {
+        return User{ name: name, age: age }
+    }
+}
+
+// 主函数
+func main() {
+    println("=== 测试 User.is_adult() 方法 ===")
+    
+    // 创建一个成年人
+    let adult = User.create("Alice", 20)
+    println("{adult.name} is adult: {adult.is_adult()}")
+    
+    // 创建一个未成年人
+    let minor = User.create("Bob", 16)
+    println("{minor.name} is adult: {minor.is_adult()}")
+}
+
+// 调用主函数
+main();

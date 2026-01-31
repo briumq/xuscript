@@ -1,0 +1,43 @@
+// 测试字典键值对循环
+
+// 测试函数
+func test_dict_key_value_loop() {
+    println("=== 测试字典键值对循环 ===")
+
+    // 创建一个字典
+    let dict = {
+        "name": "Alice",
+        "age": 30,
+        "city": "New York",
+        "country": "USA"
+    }
+
+    // 测试1: 字典键值对循环（应该失败，因为还没有实现）
+    println("\n测试1: 字典键值对循环")
+    println("期望: 能够遍历字典的键值对")
+    // 注意：这里的代码会失败，因为字典键值对循环还没有实现
+    // for (key, value) in dict {
+    //     println("{key}: {value}")
+    // }
+    println("（跳过运行，因为字典键值对循环还没有实现）")
+
+    // 测试2: 使用keys()和values()方法遍历（应该成功）
+    println("\n测试2: 使用keys()和values()方法遍历")
+    println("期望: 能够分别遍历字典的键和值")
+    println("Keys:")
+    for key in dict.keys() {
+        println(key)
+    }
+    println("Values:")
+    for value in dict.values() {
+        println(value)
+    }
+}
+
+// 主函数
+func main() {
+    test_dict_key_value_loop()
+}
+
+// 调用主函数
+main()

@@ -151,6 +151,12 @@ impl Compiler {
             Stmt::StructDef(def) => {
                 let idx = self.add_constant(xu_ir::Constant::Struct((**def).clone()));
                 self.bc.ops.push(Op::DefineStruct(idx));
+
+                // Compile all methods defined in the has block
+                for f in def.methods.iter() {
+                    self.compile_func_def(f)?;
+                }
+
                 Some(())
             }
             Stmt::EnumDef(def) => {
@@ -945,34 +951,20 @@ impl Compiler {
                         self.compile_expr(&m.args[1])?;
                         self.bc.ops.push(Op::DictInsert);
                     }
-                } else if mname == "get" && m.args.len() == 1 {
+                } else if (mname == "get" || mname == "get_int") && m.args.len() == 1 {
+                    // Always use regular method call for get() to support both dict and struct methods
                     self.compile_expr(&m.receiver)?;
-                    if let Expr::Str(s) = &m.args[0] {
-                        let slot = self.alloc_ic_slot();
-                        let s_idx = self.add_constant(xu_ir::Constant::Str(s.clone()));
-                        self.bc.ops.push(Op::DictGetStrConst(
-                            s_idx,
-                            xu_ir::stable_hash64(s.as_str()),
-                            Some(slot),
-                        ));
-                    } else if let Expr::Int(i) = &m.args[0] {
-                        let slot = self.alloc_ic_slot();
-                        self.bc.ops.push(Op::DictGetIntConst(*i, Some(slot)));
-                    } else {
-                        self.compile_expr(&m.args[0])?;
-                        let slot = self.alloc_ic_slot();
-                        self.bc.ops.push(Op::GetIndex(Some(slot)));
+                    for a in m.args.iter() {
+                        self.compile_expr(a)?;
                     }
-                } else if mname == "get_int" && m.args.len() == 1 {
-                    self.compile_expr(&m.receiver)?;
-                    if let Expr::Int(i) = &m.args[0] {
-                        let slot = self.alloc_ic_slot();
-                        self.bc.ops.push(Op::DictGetIntConst(*i, Some(slot)));
-                    } else {
-                        self.compile_expr(&m.args[0])?;
-                        let slot = self.alloc_ic_slot();
-                        self.bc.ops.push(Op::GetIndex(Some(slot)));
-                    }
+                    let slot = self.alloc_ic_slot();
+                    let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
+                    self.bc.ops.push(Op::CallMethod(
+                        m_idx,
+                        xu_ir::stable_hash64(m.method.as_str()),
+                        m.args.len(),
+                        Some(slot),
+                    ));
                 } else {
                     self.compile_expr(&m.receiver)?;
                     for a in m.args.iter() {

@@ -1,0 +1,3 @@
+// test: to_float_invalid_input [expect_panic: "Failed to parse float"]
+let invalid_input = "invalid".to_float()
+println("Output: {invalid_input}")

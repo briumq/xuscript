@@ -1,0 +1,62 @@
+// 简单测试try_to_float()和try_to_int()方法
+
+func is_some(opt) -> bool {
+    return match opt {
+        Option#some(_) { true }
+        _ { false }
+    }
+}
+
+// 测试函数
+func test_try_to_methods() {
+    println("=== 测试try_to_float()和try_to_int()方法 ===")
+
+    // 测试try_to_float()方法
+    println("\n测试try_to_float()方法")
+
+    // 有效的浮点数输入
+    let valid_float = "123.45".try_to_float()
+    println("Input: 123.45")
+    println("Is some: {is_some(valid_float)}")
+
+    // 整数输入
+    let int_input = "42".try_to_float()
+    println("Input: 42")
+    println("Is some: {is_some(int_input)}")
+
+    // 无效输入
+    let invalid_input = "invalid".try_to_float()
+    println("Input: invalid")
+    println("Is some: {is_some(invalid_input)}")
+
+    // 空字符串输入
+    let empty_input = "".try_to_float()
+    println("Input: (empty)")
+    println("Is some: {is_some(empty_input)}")
+
+    // 测试try_to_int()方法
+    println("\n测试try_to_int()方法")
+
+    // 有效的整数输入
+    let valid_int = "42".try_to_int()
+    println("Input: 42")
+    println("Is some: {is_some(valid_int)}")
+
+    // 浮点数输入（应该失败，因为不是整数）
+    let float_input = "123.45".try_to_int()
+    println("Input: 123.45")
+    println("Is some: {is_some(float_input)}")
+
+    // 无效输入
+    let invalid_int = "invalid".try_to_int()
+    println("Input: invalid")
+    println("Is some: {is_some(invalid_int)}")
+}
+
+// 主函数
+func main() {
+    test_try_to_methods()
+}
+
+// 调用主函数
+main()

@@ -70,6 +70,12 @@ pub(crate) fn analyze_module(
                     fields.insert(f.name.clone(), type_to_string(&f.ty));
                 }
                 structs.insert(def.name.clone(), fields);
+                // Register methods defined in the has block
+                for method in def.methods.iter() {
+                    let max = method.params.len();
+                    let min = method.params.iter().filter(|p| p.default.is_none()).count();
+                    funcs.insert(method.name.clone(), (min, max));
+                }
             }
             _ => {}
         }

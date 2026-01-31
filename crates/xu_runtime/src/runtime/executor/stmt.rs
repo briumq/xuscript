@@ -38,6 +38,16 @@ impl Runtime {
                     .collect::<Vec<_>>();
                 self.struct_layouts
                     .insert(def.name.clone(), std::rc::Rc::from(layout));
+
+                // Register all methods defined in the has block
+                for f in def.methods.iter() {
+                    let s = Stmt::FuncDef(Box::new(f.clone()));
+                    match self.exec_stmt(&s) {
+                        Flow::None => {}
+                        other => return other,
+                    }
+                }
+
                 Flow::None
             }
             Stmt::EnumDef(def) => {
@@ -247,37 +257,174 @@ impl Runtime {
                     }
                 } else if tag == crate::value::TAG_DICT {
                     let id = iter.as_obj_id();
-                    let raw_keys = if let crate::gc::ManagedObject::Dict(dict) = self.heap.get(id) {
-                        dict.map.keys().cloned().collect::<Vec<_>>()
-                    } else {
-                        Vec::new()
-                    };
 
-                    let mut items = Vec::with_capacity(raw_keys.len());
-                    for k in raw_keys {
-                        match k {
-                            DictKey::Str { data, .. } => items.push(Value::str(
-                                self.heap.alloc(crate::gc::ManagedObject::Str(Text::from_str(&data))),
-                            )),
-                            DictKey::Int(i) => items.push(Value::from_i64(i)),
-                        }
-                    }
-                    for item in items {
-                        if use_local {
-                            if let Some(idx) = local_idx {
-                                let _ = self.set_local_by_index(idx, item);
-                            } else {
-                                let _ = self.set_local(&s.var, item);
+                    // 检查是否是字典键值对循环: for (key, value) in dict
+                    // 解析器会将 for (k, v) in dict 转换为 for __tmp_foreach_N in dict
+                    // 并在循环体内通过 .0 和 .1 访问键值对
+                    let is_key_value_loop = s.var.starts_with('(') && s.var.ends_with(')') && s.var.contains(',');
+                    let is_parser_transformed_kv_loop = s.var.starts_with("__tmp_foreach_");
+
+                    if is_key_value_loop {
+                        // 解析元组模式中的变量名
+                        let var_str = s.var.trim_matches(|c| c == '(' || c == ')');
+                        let parts: Vec<&str> = var_str.split(',').map(|p| p.trim()).collect();
+                        if parts.len() == 2 {
+                            let key_var = parts[0];
+                            let value_var = parts[1];
+
+                            // 预先收集字典的键值对，避免借用冲突
+                            let mut key_value_pairs = Vec::new();
+                            {
+                                let dict = if let crate::gc::ManagedObject::Dict(dict) = self.heap.get(id) {
+                                    dict
+                                } else {
+                                    return Flow::None;
+                                };
+                                
+                                for (k, v) in dict.map.iter() {
+                                    key_value_pairs.push((k.clone(), v.clone()));
+                                }
                             }
-                        } else {
-                            self.env.define(s.var.clone(), item);
+
+                            // 遍历预先收集的键值对
+                            for (k, v) in key_value_pairs {
+                                // 处理键
+                                let key_val = match k {
+                                    DictKey::Str { data, .. } => Value::str(
+                                        self.heap.alloc(crate::gc::ManagedObject::Str(Text::from_str(&data))),
+                                    ),
+                                    DictKey::Int(i) => Value::from_i64(i),
+                                };
+
+                                // 处理值
+                                let value_val = v;
+
+                                // 设置变量
+                                if use_local {
+                                    // 为键和值创建局部变量
+                                    if self.get_local(key_var).is_none() {
+                                        self.define_local(key_var.to_string(), Value::VOID);
+                                    }
+                                    if self.get_local(value_var).is_none() {
+                                        self.define_local(value_var.to_string(), Value::VOID);
+                                    }
+                                    let _ = self.set_local(key_var, key_val);
+                                    let _ = self.set_local(value_var, value_val);
+                                } else {
+                                    // 为键和值创建环境变量
+                                    self.env.define(key_var.to_string(), key_val);
+                                    self.env.define(value_var.to_string(), value_val);
+                                }
+
+                                // 执行循环体
+                                let flow = self.exec_stmts(&s.body);
+                                match flow {
+                                    Flow::None => {}
+                                    Flow::Continue => continue,
+                                    Flow::Break => break,
+                                    other => return other,
+                                }
+                            }
                         }
-                        let flow = self.exec_stmts(&s.body);
-                        match flow {
-                            Flow::None => {}
-                            Flow::Continue => continue,
-                            Flow::Break => break,
-                            other => return other,
+                    } else if is_parser_transformed_kv_loop {
+                        // 解析器转换的键值对循环: for __tmp_foreach_N in dict
+                        // 需要返回 (key, value) 元组，以便后续通过 .0 和 .1 访问
+                        let mut key_value_pairs = Vec::new();
+                        {
+                            let dict = if let crate::gc::ManagedObject::Dict(dict) = self.heap.get(id) {
+                                dict
+                            } else {
+                                return Flow::None;
+                            };
+
+                            for (k, v) in dict.map.iter() {
+                                key_value_pairs.push((k.clone(), v.clone()));
+                            }
+                            // 也需要处理 shape 中的属性
+                            if let Some(sid) = dict.shape {
+                                if let crate::gc::ManagedObject::Shape(shape) = self.heap.get(sid) {
+                                    for (k, off) in shape.prop_map.iter() {
+                                        if let Some(v) = dict.prop_values.get(*off) {
+                                            key_value_pairs.push((DictKey::from_str(k.as_str()), *v));
+                                        }
+                                    }
+                                }
+                            }
+                            // 处理 elements 数组中的值
+                            for (i, v) in dict.elements.iter().enumerate() {
+                                if v.get_tag() != crate::value::TAG_VOID {
+                                    key_value_pairs.push((DictKey::Int(i as i64), *v));
+                                }
+                            }
+                        }
+
+                        for (k, v) in key_value_pairs {
+                            // 创建键值
+                            let key_val = match k {
+                                DictKey::Str { data, .. } => Value::str(
+                                    self.heap.alloc(crate::gc::ManagedObject::Str(Text::from_str(&data))),
+                                ),
+                                DictKey::Int(i) => Value::from_i64(i),
+                            };
+
+                            // 创建 (key, value) 元组
+                            let tuple = Value::tuple(
+                                self.heap.alloc(crate::gc::ManagedObject::Tuple(vec![key_val, v])),
+                            );
+
+                            // 设置循环变量
+                            if use_local {
+                                if let Some(idx) = local_idx {
+                                    let _ = self.set_local_by_index(idx, tuple);
+                                } else {
+                                    let _ = self.set_local(&s.var, tuple);
+                                }
+                            } else {
+                                self.env.define(s.var.clone(), tuple);
+                            }
+
+                            let flow = self.exec_stmts(&s.body);
+                            match flow {
+                                Flow::None => {}
+                                Flow::Continue => continue,
+                                Flow::Break => break,
+                                other => return other,
+                            }
+                        }
+                    } else {
+                        // 普通的字典键循环: for key in dict
+                        let raw_keys = if let crate::gc::ManagedObject::Dict(dict) = self.heap.get(id) {
+                            dict.map.keys().cloned().collect::<Vec<_>>()
+                        } else {
+                            Vec::new()
+                        };
+
+                        let mut items = Vec::with_capacity(raw_keys.len());
+                        for k in raw_keys {
+                            match k {
+                                DictKey::Str { data, .. } => items.push(Value::str(
+                                    self.heap.alloc(crate::gc::ManagedObject::Str(Text::from_str(&data))),
+                                )),
+                                DictKey::Int(i) => items.push(Value::from_i64(i)),
+                            }
+                        }
+                        for item in items {
+                            if use_local {
+                                if let Some(idx) = local_idx {
+                                    let _ = self.set_local_by_index(idx, item);
+                                } else {
+                                    let _ = self.set_local(&s.var, item);
+                                }
+                            } else {
+                                self.env.define(s.var.clone(), item);
+                            }
+                            let flow = self.exec_stmts(&s.body);
+                            match flow {
+                                Flow::None => {}
+                                Flow::Continue => continue,
+                                Flow::Break => break,
+                                other => return other,
+                            }
                         }
                     }
                 } else if tag == crate::value::TAG_RANGE {

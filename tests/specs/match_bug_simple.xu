@@ -1,0 +1,36 @@
+// 简单测试内联match表达式赋值失败的问题
+
+// 测试函数
+func test_match_bug_simple() {
+    println("=== 测试内联match表达式赋值失败的问题 ===")
+
+    // 创建一个简单的Option值
+    let opt = Option#some(42)
+
+    // 测试1: 内联match表达式赋值（应该失败）
+    println("\n测试1: 内联match表达式赋值")
+    println("期望: 42")
+    let val = match Option#some(42) { 
+        Option#some(v) { v } 
+        _ { -1 } 
+    }
+    println("实际: {val}")
+
+    // 测试2: 分开写的match表达式赋值（应该成功）
+    println("\n测试2: 分开写的match表达式赋值")
+    println("期望: 42")
+    let result = Option#some(42)
+    let val2 = match result { 
+        Option#some(v) { v } 
+        _ { -1 } 
+    }
+    println("实际: {val2}")
+}
+
+// 主函数
+func main() {
+    test_match_bug_simple()
+}
+
+// 调用主函数
+main()

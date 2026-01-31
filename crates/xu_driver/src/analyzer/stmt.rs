@@ -43,7 +43,46 @@ pub fn analyze_stmts(
             );
         }
         match s {
-            Stmt::StructDef(_) => {}
+            Stmt::StructDef(def) => {
+                // Analyze methods defined in the has block
+                for method in def.methods.iter_mut() {
+                    let idx = scope.last().unwrap().len();
+                    scope.last_mut().unwrap().insert(method.name.clone(), idx);
+                    scope.push(HashMap::new());
+                    def_spans.push(HashMap::new());
+                    for p in &mut method.params {
+                        if scope[..scope.len() - 1]
+                            .iter()
+                            .any(|s| s.contains_key(p.name.as_str()))
+                        {
+                            report_shadowing(&p.name, finder, out);
+                        }
+                        let idx = scope.last().unwrap().len();
+                        scope.last_mut().unwrap().insert(p.name.clone(), idx);
+                        if let Some(sp) = finder.find_name_or_next(&p.name) {
+                            def_spans.last_mut().unwrap().insert(p.name.clone(), sp);
+                        }
+                        if let Some(d) = &mut p.default {
+                            analyze_expr(d, funcs, scope, finder, out);
+                        }
+                    }
+                    analyze_stmts(
+                        &mut method.body,
+                        funcs,
+                        structs,
+                        scope,
+                        def_spans,
+                        finder,
+                        out,
+                        base_dir,
+                        strict,
+                        cache.clone(),
+                        import_stack,
+                    );
+                    scope.pop();
+                    def_spans.pop();
+                }
+            }
             Stmt::EnumDef(_) => {}
             Stmt::FuncDef(def) => {
                 let idx = scope.last().expect("Scope stack underflow").len();

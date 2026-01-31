@@ -238,6 +238,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.expect(TokenKind::LBrace)?;
 
         let mut fields: Vec<StructField> = Vec::with_capacity(4);
+        let mut methods: Vec<FuncDef> = Vec::with_capacity(4);
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             self.skip_layout();
             if self.at(TokenKind::RBrace) {
@@ -283,7 +284,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                         f.params = params.into_boxed_slice();
                     }
                 }
-                self.pending_stmts.push(Stmt::FuncDef(Box::new(f)));
+                methods.push(f);
                 continue;
             }
 
@@ -314,6 +315,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             vis,
             name,
             fields: fields.into_boxed_slice(),
+            methods: methods.into_boxed_slice(),
         })
     }
 
@@ -481,10 +483,19 @@ impl<'a, 'b> Parser<'a, 'b> {
             if self.at(TokenKind::KwInner) {
                 self.bump();
                 fvis = Visibility::Inner;
+                self.skip_trivia();
             }
-            self.skip_trivia();
+
+            let is_static = self.at(TokenKind::KwStatic);
+            if is_static {
+                self.bump();
+                self.skip_trivia();
+            }
+
             let mut f = self.parse_func_def(fvis)?;
-            if !f.name.starts_with("__method__") {
+            if is_static {
+                f.name = format!("__static__{}__{}", target, f.name);
+            } else if !f.name.starts_with("__method__") {
                 let original = f.name.clone();
                 f.name = format!("__method__{}__{}", target, original);
                 let needs_self = f
@@ -722,7 +733,22 @@ impl<'a, 'b> Parser<'a, 'b> {
 
     fn parse_foreach(&mut self) -> Option<ForEachStmt> {
         self.expect(TokenKind::KwFor)?;
-        let var = self.expect_ident()?;
+        
+        // 检查是否是字典键值对循环: for (key, value) in dict
+        let (var, key_value_vars) = if self.at(TokenKind::LParen) {
+            self.bump();
+            let key_var = self.expect_ident()?;
+            self.expect(TokenKind::Comma)?;
+            let value_var = self.expect_ident()?;
+            self.expect(TokenKind::RParen)?;
+            let tmp_var = format!("__tmp_foreach_{}", self.tmp_counter);
+            self.tmp_counter += 1;
+            (tmp_var, Some((key_var, value_var)))
+        } else {
+            // 普通循环: for var in iter
+            (self.expect_ident()?, None)
+        };
+        
         self.expect(TokenKind::KwIn)?;
         let iter = self.parse_expr_no_struct_init(0)?;
         let body = if self.at(TokenKind::Colon) {
@@ -731,7 +757,54 @@ impl<'a, 'b> Parser<'a, 'b> {
         } else {
             self.parse_block()?
         };
-        Some(ForEachStmt { iter, var, body })
+        
+        // 如果是字典键值对循环，修改body来包含键值对的解构
+        let final_body = if let Some((key_var, value_var)) = key_value_vars {
+            let mut new_body = Vec::new();
+            
+            // 创建键值对解构语句
+            let key_expr = Expr::Member(Box::new(MemberExpr {
+                object: Box::new(Expr::Ident(var.clone(), std::cell::Cell::new(None))),
+                field: "0".to_string(),
+                ic_slot: std::cell::Cell::new(None),
+            }));
+            let value_expr = Expr::Member(Box::new(MemberExpr {
+                object: Box::new(Expr::Ident(var.clone(), std::cell::Cell::new(None))),
+                field: "1".to_string(),
+                ic_slot: std::cell::Cell::new(None),
+            }));
+            
+            // 添加键的赋值语句
+            new_body.push(Stmt::Assign(Box::new(AssignStmt {
+                vis: Visibility::Public,
+                target: Expr::Ident(key_var.clone(), std::cell::Cell::new(None)),
+                op: AssignOp::Set,
+                value: key_expr,
+                ty: None,
+                slot: None,
+                decl: Some(DeclKind::Let),
+            })));
+            
+            // 添加值的赋值语句
+            new_body.push(Stmt::Assign(Box::new(AssignStmt {
+                vis: Visibility::Public,
+                target: Expr::Ident(value_var.clone(), std::cell::Cell::new(None)),
+                op: AssignOp::Set,
+                value: value_expr,
+                ty: None,
+                slot: None,
+                decl: Some(DeclKind::Let),
+            })));
+            
+            // 添加原有的body语句
+            new_body.extend(body.iter().cloned());
+            
+            new_body.into_boxed_slice()
+        } else {
+            body
+        };
+        
+        Some(ForEachStmt { iter, var, body: final_body })
     }
 
     fn parse_return(&mut self) -> Option<Stmt> {

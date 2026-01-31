@@ -1,0 +1,138 @@
+// 更复杂的测试用例，尝试复现Result.map返回结构体失败问题
+
+// 定义结构体
+User has {
+    id: int
+    name: string
+    email: string
+
+    static func create(id: int, name: string, email: string) -> User {
+        return User{ id: id, name: name, email: email }
+    }
+}
+
+// 定义一个返回Result的函数
+func fetch_user(id: int) -> Result[User, string] {
+    if id == 1 {
+        return Result#ok(User.create(1, "Alice", "alice@example.com"))
+    } else if id == 2 {
+        return Result#ok(User.create(2, "Bob", "bob@example.com"))
+    } else {
+        return Result#err("User not found")
+    }
+}
+
+// 定义另一个结构体
+UserProfile has {
+    user: User
+    bio: string
+    age: int
+
+    static func create(user: User, bio: string, age: int) -> UserProfile {
+        return UserProfile{ user: user, bio: bio, age: age }
+    }
+}
+
+// 测试函数
+func test_result_map_bug_complex() {
+    println("=== 测试Result.map返回结构体失败问题（复杂场景）===")
+
+    // 测试1: 简单的Result.map返回结构体
+    println("\n测试1: 简单的Result.map返回结构体")
+    let result1 = fetch_user(1).map(func(user: User) -> string {
+        return user.name
+    })
+    match result1 {
+        Result#ok(name) {
+            println("User name: {name}")
+        }
+        Result#err(error) {
+            println("Error: {error}")
+        }
+        _ {
+            println("Unknown result")
+        }
+    }
+
+    // 测试2: 嵌套的Result.map返回结构体
+    println("\n测试2: 嵌套的Result.map返回结构体")
+    let result2 = fetch_user(1).map(func(user: User) -> UserProfile {
+        return UserProfile.create(user, "Software engineer", 30)
+    })
+    match result2 {
+        Result#ok(profile) {
+            println("Profile created successfully")
+            println("User: {profile.user.name}")
+            println("Bio: {profile.bio}")
+            println("Age: {profile.age}")
+        }
+        Result#err(error) {
+            println("Error: {error}")
+        }
+        _ {
+            println("Unknown result")
+        }
+    }
+
+    // 测试3: 链式的Result.map操作
+    println("\n测试3: 链式的Result.map操作")
+    let result3 = fetch_user(1)
+        .map(func(user: User) -> User {
+            // 修改用户信息
+            return User.create(user.id, user.name + " (Verified)", user.email)
+        })
+        .map(func(user: User) -> string {
+            return "Verified user: {user.name}"
+        })
+    match result3 {
+        Result#ok(message) {
+            println("Message: {message}")
+        }
+        Result#err(error) {
+            println("Error: {error}")
+        }
+        _ {
+            println("Unknown result")
+        }
+    }
+
+    // 测试4: Result.map返回包含Result的结构体
+    println("\n测试4: Result.map返回包含Result的结构体")
+    let result4 = fetch_user(1).map(func(user: User) -> Result[User, string] {
+        // 模拟一个可能失败的操作
+        if user.id == 1 {
+            return Result#ok(user)
+        } else {
+            return Result#err("Operation failed")
+        }
+    })
+    match result4 {
+        Result#ok(user_result) {
+            match user_result {
+                Result#ok(user) {
+                    println("Nested result: User {user.name} created")
+                }
+                Result#err(error) {
+                    println("Nested error: {error}")
+                }
+                _ {
+                    println("Nested unknown result")
+                }
+            }
+        }
+        Result#err(error) {
+            println("Error: {error}")
+        }
+        _ {
+            println("Unknown result")
+        }
+    }
+}
+
+// 主函数
+func main() {
+    test_result_map_bug_complex()
+}
+
+// 调用主函数
+main()

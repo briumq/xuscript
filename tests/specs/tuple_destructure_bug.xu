@@ -1,0 +1,47 @@
+// 测试元组解构和多返回值解构问题
+
+// 定义一个返回元组的函数
+func get_user() -> (string, int) {
+    return ("Alice", 30)
+}
+
+// 定义一个返回多值的函数
+func get_coordinates() -> (float, float, string) {
+    return (100.5, 200.75, "New York")
+}
+
+// 测试函数
+func test_tuple_destructure_bug() {
+    println("=== 测试元组解构和多返回值解构问题 ===")
+
+    // 测试1: 元组解构
+    println("\n测试1: 元组解构")
+    println("期望: name = Alice, age = 30")
+    let (name, age) = get_user()
+    println("Name: {name}")
+    println("Age: {age}")
+
+    // 测试2: 多返回值解构
+    println("\n测试2: 多返回值解构")
+    println("期望: x = 100.5, y = 200.75, city = New York")
+    let (x, y, city) = get_coordinates()
+    println("X: {x}")
+    println("Y: {y}")
+    println("City: {city}")
+
+    // 测试3: 直接使用元组（使用.0 .1语法访问）
+    println("\n测试3: 直接使用元组")
+    println("期望: 能够访问元组元素")
+    let user_tuple = get_user()
+    println("Tuple: {user_tuple}")
+    println("First element: {user_tuple.0}")
+    println("Second element: {user_tuple.1}")
+}
+
+// 主函数
+func main() {
+    test_tuple_destructure_bug()
+}
+
+// 调用主函数
+main()

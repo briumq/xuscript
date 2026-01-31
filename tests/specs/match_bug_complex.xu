@@ -1,0 +1,103 @@
+// 更复杂的测试用例，尝试复现内联match表达式赋值失败的问题
+
+// 定义枚举
+Status with [ pending | approved | rejected ]
+Response with [ success(data: string) | error(code: int, msg: string) ]
+
+// 定义结构体
+User has {
+    name: string
+    age: int
+    status: Status
+
+    static func create(name: string, age: int, status: Status) -> User {
+        return User{ name: name, age: age, status: status }
+    }
+}
+
+// 定义一个返回Result的函数
+func fetch_user(id: int) -> Result[User, string] {
+    if id == 1 {
+        return Result#ok(User.create("Alice", 20, Status#approved))
+    } else if id == 2 {
+        return Result#ok(User.create("Bob", 16, Status#pending))
+    } else {
+        return Result#err("User not found")
+    }
+}
+
+// 测试函数
+func test_match_bug_complex() {
+    println("=== 测试复杂的内联match表达式 ===")
+
+    // 测试1: 嵌套的内联match表达式
+    println("\n测试1: 嵌套的内联match表达式")
+    let result = match fetch_user(1) {
+        Result#ok(user) {
+            match user.status {
+                Status#approved { "User {user.name} is approved" }
+                Status#pending { "User {user.name} is pending" }
+                Status#rejected { "User {user.name} is rejected" }
+                _ { "User {user.name} has unknown status" }
+            }
+        }
+        Result#err(error) { "Error: {error}" }
+        _ { "Unknown result" }
+    }
+    println("Nested match result: {result}")
+
+    // 测试2: 内联match表达式作为函数参数
+    println("\n测试2: 内联match表达式作为函数参数")
+    let status = match fetch_user(2) {
+        Result#ok(user) { user.status }
+        Result#err(error) { "error" }
+        _ { "unknown" }
+    }
+    println("Status: {status}")
+
+    // 测试3: 内联match表达式与闭包结合
+    println("\n测试3: 内联match表达式与闭包结合")
+    let users = [1, 2, 3].map(func(id) -> {
+        return match fetch_user(id) {
+            Result#ok(user) { user.name }
+            Result#err(error) { "error" }
+            _ { "unknown" }
+        }
+    })
+    println("User names: {users}")
+
+    // 测试4: 多个内联match表达式连续使用
+    println("\n测试4: 多个内联match表达式连续使用")
+    let status1 = match fetch_user(1) {
+        Result#ok(user) { user.status }
+        Result#err(error) { Status#pending }
+        _ { Status#pending }
+    }
+    let status2 = match fetch_user(2) {
+        Result#ok(user) { user.status }
+        Result#err(error) { Status#pending }
+        _ { Status#pending }
+    }
+    println("Status 1: {status1}, Status 2: {status2}")
+
+    // 测试5: 内联match表达式与条件表达式结合
+    println("\n测试5: 内联match表达式与条件表达式结合")
+    let message = if true {
+        match fetch_user(1) {
+            Result#ok(user) { "Found user: {user.name}" }
+            Result#err(error) { "Error: {error}" }
+            _ { "Unknown" }
+        }
+    } else {
+        "Condition false"
+    }
+    println("Message: {message}")
+}
+
+// 主函数
+func main() {
+    test_match_bug_complex()
+}
+
+// 调用主函数
+main()

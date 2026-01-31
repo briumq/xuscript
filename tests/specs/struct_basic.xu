@@ -1,0 +1,25 @@
+// 测试结构体的基本属性访问
+
+// 结构体定义
+User has {
+    name: string
+    age: int
+    
+    // 静态方法
+    static func create(name: string, age: int) -> User {
+        return User{ name: name, age: age }
+    }
+}
+
+// 主函数
+func main() {
+    println("=== 测试结构体基本属性访问 ===")
+    
+    // 创建一个用户
+    let user = User.create("Alice", 20)
+    println("User name: {user.name}")
+    println("User age: {user.age}")
+}
+
+// 调用主函数
+main();

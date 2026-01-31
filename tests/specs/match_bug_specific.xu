@@ -1,0 +1,68 @@
+// 测试内联match表达式赋值失败的具体场景
+
+// 定义一个简单的缓存结构体
+Cache has {
+    data: {string: int}
+
+    static func create() -> Cache {
+        return Cache{ data: {} }
+    }
+
+    func get(key: string) -> Option[int] {
+        if self.data.has(key) {
+            return Option#some(self.data[key])
+        } else {
+            return Option#none
+        }
+    }
+
+    func set(k: string, v: int) {
+        self.data.insert(k, v)
+    }
+}
+
+// 测试函数
+func test_match_bug_specific() {
+    println("=== 测试内联match表达式赋值失败的具体场景 ===")
+
+    // 创建缓存并添加数据
+    let cache = Cache.create()
+    cache.set("a", 100)
+    cache.set("b", 200)
+
+    // 测试1: 内联match表达式赋值（应该失败）
+    println("\n测试1: 内联match表达式赋值")
+    println("期望: 100")
+    let val = match cache.get("a") { 
+        Option#some(v) { v } 
+        _ { -1 } 
+    }
+    println("实际: {val}")
+
+    // 测试2: 分开写的match表达式赋值（应该成功）
+    println("\n测试2: 分开写的match表达式赋值")
+    println("期望: 100")
+    let result = cache.get("a")
+    let val2 = match result { 
+        Option#some(v) { v } 
+        _ { -1 } 
+    }
+    println("实际: {val2}")
+
+    // 测试3: 内联match表达式赋值（不存在的键）
+    println("\n测试3: 内联match表达式赋值（不存在的键）")
+    println("期望: -1")
+    let val3 = match cache.get("c") { 
+        Option#some(v) { v } 
+        _ { -1 } 
+    }
+    println("实际: {val3}")
+}
+
+// 主函数
+func main() {
+    test_match_bug_specific()
+}
+
+// 调用主函数
+main()

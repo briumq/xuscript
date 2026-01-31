@@ -1,0 +1,38 @@
+// 测试push作为add的别名
+
+// 测试函数
+func test_push_alias() {
+    println("=== 测试push作为add的别名 ===")
+
+    // 创建一个空列表
+    let list: list[int] = []
+
+    // 测试1: 使用add方法添加元素
+    println("\n测试1: 使用add方法添加元素")
+    list.add(1)
+    list.add(2)
+    list.add(3)
+    println("List after add: {list}")
+
+    // 测试2: 使用push方法添加元素（应该与add方法效果相同）
+    println("\n测试2: 使用push方法添加元素")
+    list.push(4)
+    list.push(5)
+    list.push(6)
+    println("List after push: {list}")
+
+    // 测试3: 混合使用add和push方法
+    println("\n测试3: 混合使用add和push方法")
+    list.add(7)
+    list.push(8)
+    list.add(9)
+    println("List after mixed: {list}")
+}
+
+// 主函数
+func main() {
+    test_push_alias()
+}
+
+// 调用主函数
+main()

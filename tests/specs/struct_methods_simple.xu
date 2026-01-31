@@ -1,0 +1,27 @@
+// 测试结构体方法的简单语法
+
+// 结构体定义
+User has {
+    name: string
+    age: int
+}
+
+// 定义结构体方法
+func (self: User) is_adult() -> bool {
+    return self.age >= 18
+}
+
+// 主函数
+func main() {
+    println("=== 测试结构体方法的简单语法 ===")
+    
+    // 直接创建用户实例
+    let adult = User{ name: "Alice", age: 20 }
+    println("{adult.name} is adult: {adult.is_adult()}")
+    
+    let minor = User{ name: "Bob", age: 16 }
+    println("{minor.name} is adult: {minor.is_adult()}")
+}
+
+// 调用主函数
+main();

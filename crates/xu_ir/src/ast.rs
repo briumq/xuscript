@@ -40,6 +40,7 @@ pub struct StructDef {
     pub vis: Visibility,
     pub name: String,
     pub fields: Box<[StructField]>,
+    pub methods: Box<[FuncDef]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

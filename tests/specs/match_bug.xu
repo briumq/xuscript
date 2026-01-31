@@ -1,0 +1,62 @@
+// 测试内联match表达式赋值失败的问题
+
+// 定义一个简单的枚举
+Status with [ pending | approved | rejected ]
+
+// 定义一个简单的结构体
+User has {
+    name: string
+    age: int
+    status: Status
+
+    static func create(name: string, age: int, status: Status) -> User {
+        return User{ name: name, age: age, status: status }
+    }
+}
+
+// 测试函数
+func test_match_bug() {
+    // 创建测试数据
+    let users = [
+        User.create("Alice", 20, Status#approved),
+        User.create("Bob", 16, Status#pending),
+        User.create("Charlie", 25, Status#rejected)
+    ]
+
+    // 测试1: 内联match表达式赋值（应该失败）
+    println("=== 测试1: 内联match表达式赋值 ===")
+    let status_text = match users[0].status {
+        Status#pending  { "待处理" }
+        Status#approved { "已通过" }
+        Status#rejected { "已拒绝" }
+        _ { "未知状态" }
+    }
+    println("Status text: {status_text}")
+
+    // 测试2: 分开写的match表达式赋值（应该成功）
+    println("\n=== 测试2: 分开写的match表达式赋值 ===")
+    let first_status = users[0].status
+    let status_text2 = match first_status {
+        Status#pending  { "待处理" }
+        Status#approved { "已通过" }
+        Status#rejected { "已拒绝" }
+        _ { "未知状态" }
+    }
+    println("Status text 2: {status_text2}")
+
+    // 测试3: 直接使用when语句（应该成功）
+    println("\n=== 测试3: when语句 ===")
+    when first_user = users.first {
+        println("First user: {first_user.name}")
+    } else {
+        println("No users found")
+    }
+}
+
+// 主函数
+func main() {
+    test_match_bug()
+}
+
+// 调用主函数
+main()

@@ -1,0 +1,102 @@
+// 测试Result.map返回结构体失败的问题
+
+// 定义枚举
+Status with [ active | inactive ]
+Role with [ admin | user | guest ]
+
+// 定义结构体
+User has {
+    name: string
+    age: int
+    status: Status
+
+    static func create(name: string, age: int, status: Status) -> User {
+        return User{ name: name, age: age, status: status }
+    }
+}
+
+Token has {
+    user: User
+    role: Role
+    exp: int
+
+    static func create(user: User, role: Role, exp: int) -> Token {
+        return Token{ user: user, role: role, exp: exp }
+    }
+}
+
+// 定义返回Result的函数
+func parse_role(role_str: string) -> Result[Role, string] {
+    if role_str == "admin" {
+        return Result#ok(Role#admin)
+    } else if role_str == "user" {
+        return Result#ok(Role#user)
+    } else if role_str == "guest" {
+        return Result#ok(Role#guest)
+    } else {
+        return Result#err("Invalid role")
+    }
+}
+
+func get_user(id: int) -> Result[User, string] {
+    if id == 1 {
+        return Result#ok(User.create("Alice", 20, Status#active))
+    } else if id == 2 {
+        return Result#ok(User.create("Bob", 16, Status#inactive))
+    } else {
+        return Result#err("User not found")
+    }
+}
+
+// 测试函数
+func test_result_map_struct() {
+    println("=== 测试Result.map返回结构体失败的问题 ===")
+
+    // 测试1: Result.map返回结构体
+    println("\n测试1: Result.map返回结构体")
+    let result1 = get_user(1).map(func(user: User) -> Token {
+        return Token.create(user, Role#admin, 3600)
+    })
+    println("Result: {result1}")
+
+    // 测试2: 使用显式match语句
+    println("\n测试2: 使用显式match语句")
+    let user_result = get_user(1)
+    let result2 = match user_result {
+        Result#ok(user) {
+            Token.create(user, Role#admin, 3600)
+        }
+        Result#err(error) {
+            Token.create(User.create("Unknown", 0, Status#inactive), Role#guest, 0)
+        }
+        _ {
+            Token.create(User.create("Unknown", 0, Status#inactive), Role#guest, 0)
+        }
+    }
+    println("Result: {result2}")
+
+    // 测试3: 嵌套的Result.map
+    println("\n测试3: 嵌套的Result.map")
+    let result3 = get_user(1).map(func(user: User) -> Token {
+        return Token.create(user, Role#admin, 3600)
+    })
+    match result3 {
+        Result#ok(token) {
+            println("Success: Token created for {token.user.name}")
+        }
+        Result#err(error) {
+            println("Error: {error}")
+        }
+        _ {
+            println("Unknown result")
+        }
+    }
+}
+
+// 主函数
+func main() {
+    test_result_map_struct()
+}
+
+// 调用主函数
+main()

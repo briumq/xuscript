@@ -1,0 +1,45 @@
+// 测试使用字典get方法的内联match表达式赋值失败的问题
+
+// 测试函数
+func test_match_bug_dict() {
+    println("=== 测试使用字典get方法的内联match表达式赋值 ===")
+
+    // 创建一个字典
+    let cache = { "a": 100, "b": 200, "c": 300 }
+
+    // 测试1: 内联match表达式赋值（应该失败）
+    println("\n测试1: 内联match表达式赋值")
+    println("期望: 100")
+    let val = match cache.get("a") { 
+        Option#some(v) { v } 
+        _ { -1 } 
+    }
+    println("实际: {val}")
+
+    // 测试2: 分开写的match表达式赋值（应该成功）
+    println("\n测试2: 分开写的match表达式赋值")
+    println("期望: 100")
+    let result = cache.get("a")
+    let val2 = match result { 
+        Option#some(v) { v } 
+        _ { -1 } 
+    }
+    println("实际: {val2}")
+
+    // 测试3: 内联match表达式赋值（不存在的键）
+    println("\n测试3: 内联match表达式赋值（不存在的键）")
+    println("期望: -1")
+    let val3 = match cache.get("d") { 
+        Option#some(v) { v } 
+        _ { -1 } 
+    }
+    println("实际: {val3}")
+}
+
+// 主函数
+func main() {
+    test_match_bug_dict()
+}
+
+// 调用主函数
+main()
