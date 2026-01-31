@@ -2,10 +2,13 @@ use crate::Value;
 
 use super::Runtime;
 
+mod bool;
 mod common;
 mod dict;
 mod enum_;
 mod file;
+mod float;
+mod int;
 mod list;
 mod str;
 
@@ -170,160 +173,23 @@ fn dispatch_primitive_methods(
 ) -> Result<Value, String> {
     // 处理整数方法
     if recv.is_int() {
-        return dispatch_int_methods(rt, recv, kind, args, method);
+        return int::dispatch(rt, recv, kind, args, method);
     }
     
     // 处理浮点数方法
     if recv.is_f64() {
-        return dispatch_float_methods(rt, recv, kind, args, method);
+        return float::dispatch(rt, recv, kind, args, method);
     }
     
     // 处理布尔值方法
     if recv.is_bool() {
-        return dispatch_bool_methods(rt, recv, kind, args, method);
+        return bool::dispatch(rt, recv, kind, args, method);
     }
     
     Err(err(
         rt,
         xu_syntax::DiagnosticKind::UnsupportedReceiver(recv.type_name().to_string()),
     ))
-}
-
-fn dispatch_int_methods(
-    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
-) -> Result<Value, String> {
-    let i = recv.as_i64();
-    
-    match kind {
-        MethodKind::IntToString => {
-            let s = i.to_string();
-            Ok(create_str_value(rt, &s))
-        }
-        MethodKind::IntAbs => {
-            let abs = i.abs();
-            Ok(Value::from_i64(abs))
-        }
-        MethodKind::IntToBase => {
-            validate_arity(rt, method, args.len(), 1, 1)?;
-            
-            let base = args[0].as_i64();
-            if base < 2 || base > 36 {
-                return Err(err(
-                    rt,
-                    xu_syntax::DiagnosticKind::Raw("Base must be between 2 and 36".into()),
-                ));
-            }
-            
-            let s = if i == 0 {
-                "0".to_string()
-            } else {
-                let mut result = String::new();
-                let mut n = i.abs();
-                let digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-                while n > 0 {
-                    let digit = (n % base) as usize;
-                    result.push(digits.chars().nth(digit).unwrap());
-                    n /= base;
-                }
-                if i < 0 {
-                    result.push('-');
-                }
-                result.chars().rev().collect()
-            };
-            Ok(create_str_value(rt, &s))
-        }
-        MethodKind::IntIsEven => {
-            validate_arity(rt, method, args.len(), 0, 0)?;
-            Ok(Value::from_bool(i % 2 == 0))
-        }
-        MethodKind::IntIsOdd => {
-            validate_arity(rt, method, args.len(), 0, 0)?;
-            Ok(Value::from_bool(i % 2 != 0))
-        }
-        _ => Err(err(
-            rt,
-            xu_syntax::DiagnosticKind::UnsupportedMethod {
-                method: method.to_string(),
-                ty: "int".to_string(),
-            },
-        )),
-    }
-}
-
-fn dispatch_float_methods(
-    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
-) -> Result<Value, String> {
-    let f = recv.as_f64();
-    
-    match kind {
-        MethodKind::IntToString => {
-            let s = f.to_string();
-            Ok(create_str_value(rt, &s))
-        }
-        MethodKind::IntAbs => {
-            let abs = f.abs();
-            Ok(Value::from_f64(abs))
-        }
-        MethodKind::StrToInt => {
-            let i = f as i64;
-            Ok(Value::from_i64(i))
-        }
-        MethodKind::FloatRound => {
-            validate_arity(rt, method, args.len(), 0, 1)?;
-            
-            let rounded = if args.len() == 1 {
-                let digits = args[0].as_i64();
-                let factor = 10.0_f64.powi(digits as i32);
-                (f * factor).round() / factor
-            } else {
-                f.round()
-            };
-            Ok(Value::from_f64(rounded))
-        }
-        MethodKind::FloatFloor => {
-            validate_arity(rt, method, args.len(), 0, 0)?;
-            let floor = f.floor();
-            Ok(Value::from_f64(floor))
-        }
-        MethodKind::FloatCeil => {
-            validate_arity(rt, method, args.len(), 0, 0)?;
-            let ceil = f.ceil();
-            Ok(Value::from_f64(ceil))
-        }
-        _ => Err(err(
-            rt,
-            xu_syntax::DiagnosticKind::UnsupportedMethod {
-                method: method.to_string(),
-                ty: "float".to_string(),
-            },
-        )),
-    }
-}
-
-fn dispatch_bool_methods(
-    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
-) -> Result<Value, String> {
-    let b = recv.as_bool();
-    
-    match kind {
-        MethodKind::IntToString => {
-            validate_arity(rt, method, args.len(), 0, 0)?;
-            let s = b.to_string();
-            Ok(create_str_value(rt, &s))
-        }
-        MethodKind::BoolNot => {
-            validate_arity(rt, method, args.len(), 0, 0)?;
-            let not_b = !b;
-            Ok(Value::from_bool(not_b))
-        }
-        _ => Err(err(
-            rt,
-            xu_syntax::DiagnosticKind::UnsupportedMethod {
-                method: method.to_string(),
-                ty: "bool".to_string(),
-            },
-        )),
-    }
 }
 
 fn dispatch_option_some(

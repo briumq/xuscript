@@ -200,20 +200,4 @@ pub(super) fn to_i64(v: &Value) -> Result<i64, String> {
     }
 }
 
-pub(super) fn to_f64_pair(a: &Value, b: &Value) -> Result<(f64, f64), String> {
-    let x = if a.is_int() {
-        a.as_i64() as f64
-    } else if a.is_f64() {
-        a.as_f64()
-    } else {
-        return Err(format!("Expected number, got {}", a.type_name()));
-    };
-    let y = if b.is_int() {
-        b.as_i64() as f64
-    } else if b.is_f64() {
-        b.as_f64()
-    } else {
-        return Err(format!("[E0003] Expected number, got {}", b.type_name()));
-    };
-    Ok((x, y))
-}
+
