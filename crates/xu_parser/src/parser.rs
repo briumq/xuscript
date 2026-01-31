@@ -12,10 +12,7 @@ use crate::{
     Expr, Module, Pattern, Stmt,
 };
 
-mod interp;
-mod expr;
-mod stmt;
-mod types;
+
 
 /// Parse result.
 pub struct ParseResult {
@@ -25,19 +22,19 @@ pub struct ParseResult {
 
 /// Xu parser.
 pub struct Parser<'a, 'b> {
-    input: &'a str,
-    tokens: &'a [Token],
-    i: usize,
-    diagnostics: Vec<Diagnostic>,
-    interp_cache: HashMap<String, Expr>,
-    pub(super) pending_stmts: Vec<Stmt>,
-    pub(super) tmp_counter: u32,
-    pub(super) allow_comma_terminator: bool,
-    pub(super) bump: &'b bumpalo::Bump,
+    pub input: &'a str,
+    pub tokens: &'a [Token],
+    pub i: usize,
+    pub diagnostics: Vec<Diagnostic>,
+    pub interp_cache: HashMap<String, Expr>,
+    pub pending_stmts: Vec<Stmt>,
+    pub tmp_counter: u32,
+    pub allow_comma_terminator: bool,
+    pub bump: &'b bumpalo::Bump,
 }
 
 impl<'a, 'b> Parser<'a, 'b> {
-    pub(super) fn parse_int_literal(s: &str) -> i64 {
+    pub fn parse_int_literal(s: &str) -> i64 {
         let cleaned: String = s.chars().filter(|c| *c != '_').collect();
         if let Some(hex) = cleaned.strip_prefix("0x").or_else(|| cleaned.strip_prefix("0X")) {
             i64::from_str_radix(hex, 16).unwrap_or(0)
@@ -90,7 +87,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         }
     }
 
-    pub(super) fn parse_block(&mut self) -> Option<Box<[Stmt]>> {
+    pub fn parse_block(&mut self) -> Option<Box<[Stmt]>> {
         while self.at(TokenKind::Newline) {
             self.bump();
         }
@@ -123,7 +120,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         None
     }
 
-    pub(super) fn parse_block_or_inline_stmt_after_colon(
+    pub fn parse_block_or_inline_stmt_after_colon(
         &mut self,
         allow_comma_terminator: bool,
     ) -> Option<Box<[Stmt]>> {
@@ -141,7 +138,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         Some(vec![stmt].into_boxed_slice())
     }
 
-    pub(super) fn recover_stmt(&mut self) -> Stmt {
+    pub fn recover_stmt(&mut self) -> Stmt {
         let start_span = self.cur_span();
         let mut brace_depth = 0;
         while !self.at(TokenKind::Eof) {
@@ -173,7 +170,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         Stmt::Error(Span::new(start_span.start.0, self.cur_span().end.0))
     }
 
-    pub(super) fn expect_ident(&mut self) -> Option<String> {
+    pub fn expect_ident(&mut self) -> Option<String> {
         self.skip_trivia();
         if matches!(
             self.peek_kind(),
@@ -191,11 +188,11 @@ impl<'a, 'b> Parser<'a, 'b> {
         Some(self.token_text(&t).to_string())
     }
 
-    pub(super) fn at_arrow(&self) -> bool {
+    pub fn at_arrow(&self) -> bool {
         self.peek_kind() == TokenKind::Minus && self.peek_kind_n(1) == Some(TokenKind::Gt)
     }
 
-    pub(super) fn expect_stmt_terminator(&mut self) -> Option<()> {
+    pub fn expect_stmt_terminator(&mut self) -> Option<()> {
         if self.at(TokenKind::StmtEnd)
             || self.at(TokenKind::Newline)
             || self.at(TokenKind::Eof)
@@ -215,7 +212,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         None
     }
 
-    pub(super) fn expect(&mut self, kind: TokenKind) -> Option<Token> {
+    pub fn expect(&mut self, kind: TokenKind) -> Option<Token> {
         self.skip_trivia();
         if self.at(kind) {
             return Some(self.bumped());
@@ -228,23 +225,23 @@ impl<'a, 'b> Parser<'a, 'b> {
         None
     }
 
-    pub(super) fn at(&self, kind: TokenKind) -> bool {
+    pub fn at(&self, kind: TokenKind) -> bool {
         self.peek_kind() == kind
     }
 
-    pub(super) fn peek_kind(&self) -> TokenKind {
+    pub fn peek_kind(&self) -> TokenKind {
         self.tokens
             .get(self.i)
             .map(|t| t.kind)
             .unwrap_or(TokenKind::Eof)
     }
 
-    pub(super) fn peek_kind_n(&self, n: usize) -> Option<TokenKind> {
+    pub fn peek_kind_n(&self, n: usize) -> Option<TokenKind> {
         self.tokens.get(self.i + n).map(|t| t.kind)
     }
 
     /// Peek at the token kind after `{`, skipping whitespace/newlines.
-    pub(super) fn peek_kind_after_lbrace(&self) -> Option<TokenKind> {
+    pub fn peek_kind_after_lbrace(&self) -> Option<TokenKind> {
         let mut j = self.i + 1; // skip the `{`
         while j < self.tokens.len() {
             let kind = self.tokens[j].kind;
@@ -258,7 +255,7 @@ impl<'a, 'b> Parser<'a, 'b> {
     }
 
     /// Peek at the token kind after `{ ident`, skipping whitespace/newlines.
-    pub(super) fn peek_kind_after_lbrace_ident(&self) -> Option<TokenKind> {
+    pub fn peek_kind_after_lbrace_ident(&self) -> Option<TokenKind> {
         let mut j = self.i + 1; // skip the `{`
         // Skip whitespace to find the identifier
         while j < self.tokens.len() {
@@ -287,7 +284,7 @@ impl<'a, 'b> Parser<'a, 'b> {
 
     /// Peek at the token kind after `{ <token>`, skipping whitespace/newlines.
     /// Used for checking what follows a string literal in `{ "key": ... }`.
-    pub(super) fn peek_kind_after_lbrace_skip_one(&self) -> Option<TokenKind> {
+    pub fn peek_kind_after_lbrace_skip_one(&self) -> Option<TokenKind> {
         let mut j = self.i + 1; // skip the `{`
         // Skip whitespace to find the first token
         while j < self.tokens.len() {
@@ -314,40 +311,40 @@ impl<'a, 'b> Parser<'a, 'b> {
         None
     }
 
-    pub(super) fn bumped(&mut self) -> Token {
+    pub fn bumped(&mut self) -> Token {
         let t = self.tokens[self.i].clone();
         self.i += 1;
         t
     }
 
-    pub(super) fn bump(&mut self) {
+    pub fn bump(&mut self) {
         self.i += 1;
     }
 
-    pub(super) fn skip_trivia(&mut self) {
+    pub fn skip_trivia(&mut self) {
         while self.at(TokenKind::Newline) {
             self.i += 1;
         }
     }
 
-    pub(super) fn skip_layout(&mut self) {
+    pub fn skip_layout(&mut self) {
         while self.at(TokenKind::Newline) {
             self.i += 1;
         }
     }
 
-    pub(super) fn cur_span(&self) -> Span {
+    pub fn cur_span(&self) -> Span {
         self.tokens
             .get(self.i)
             .map(|t| t.span)
             .unwrap_or_else(|| Span::new(self.input.len() as u32, self.input.len() as u32))
     }
 
-    pub(super) fn token_text(&self, t: &Token) -> &str {
+    pub fn token_text(&self, t: &Token) -> &str {
         &self.input[t.span.start.0 as usize..t.span.end.0 as usize]
     }
 
-    pub(super) fn parse_params(&mut self) -> Option<Vec<crate::Param>> {
+    pub fn parse_params(&mut self) -> Option<Vec<crate::Param>> {
         let mut params: Vec<crate::Param> = Vec::new();
         if self.at(TokenKind::RParen) {
             return Some(params);
@@ -383,7 +380,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         Some(params)
     }
 
-    pub(super) fn parse_pattern(&mut self) -> Option<Pattern> {
+    pub fn parse_pattern(&mut self) -> Option<Pattern> {
         self.skip_trivia();
         match self.peek_kind() {
             TokenKind::LParen => {
@@ -489,7 +486,7 @@ impl<'a, 'b> Parser<'a, 'b> {
     }
 }
 
-pub(super) fn infix_binding_power(op: crate::BinaryOp) -> (u8, u8) {
+pub fn infix_binding_power(op: crate::BinaryOp) -> (u8, u8) {
     match op {
         crate::BinaryOp::Or => (1, 2),
         crate::BinaryOp::And => (3, 4),
@@ -500,11 +497,11 @@ pub(super) fn infix_binding_power(op: crate::BinaryOp) -> (u8, u8) {
     }
 }
 
-pub(super) fn prefix_binding_power() -> u8 {
+pub fn prefix_binding_power() -> u8 {
     13
 }
 
-pub(super) fn fast_interpolation_expr(key: &str) -> Option<Expr> {
+pub fn fast_interpolation_expr(key: &str) -> Option<Expr> {
     if key.chars().all(|c| xu_syntax::is_ident_continue(c)) && xu_syntax::is_ident_start(key.chars().next()?) {
         return Some(Expr::Ident(key.to_string(), std::cell::Cell::new(None)));
     }

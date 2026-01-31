@@ -1,4 +1,5 @@
-use super::{Parser, infix_binding_power, prefix_binding_power};
+use super::Parser;
+use crate::parser::{infix_binding_power, prefix_binding_power};
 
 use xu_syntax::{Diagnostic, DiagnosticKind, TokenKind, unquote};
 

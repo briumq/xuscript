@@ -3,7 +3,8 @@ use xu_syntax::{
     Diagnostic, DiagnosticKind, InterpolationParser, InterpolationPiece, TokenKind, unescape,
 };
 
-use super::{Expr, Parser, fast_interpolation_expr};
+use super::{Expr, Parser};
+use crate::parser::fast_interpolation_expr;
 
 impl<'a, 'b> Parser<'a, 'b> {
     pub(super) fn parse_interpolated_string(&mut self, raw: &str) -> Option<Expr> {
