@@ -1,0 +1,31 @@
+// Test: when statement without else branch
+func assert(x) { __builtin_assert(x) }
+
+func some_a() -> Option[int] { return Option#some(1) }
+func none_a() -> Option[int] { return Option#none() }
+
+// when with some value, no else
+var executed = false
+when a = some_a() {
+    executed = true
+    assert(a == 1)
+}
+assert(executed)
+
+// when with none value, no else - should just skip the block
+var executed2 = false
+when b = none_a() {
+    executed2 = true
+}
+assert(!executed2)
+
+// when with else still works
+var executed3 = false
+when c = none_a() {
+    executed3 = true
+} else {
+    executed3 = true
+}
+assert(executed3)
+
+println("when_optional_else: all tests passed")

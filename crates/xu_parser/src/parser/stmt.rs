@@ -634,10 +634,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                 self.parse_block()?
             }
         } else {
-            self.diagnostics.push(Diagnostic::error_kind(
-                DiagnosticKind::ExpectedToken("else".to_string()),
-                Some(self.cur_span()),
-            ));
+            // 允许省略 else，默认为空块
             Box::new([])
         };
 
