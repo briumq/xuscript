@@ -405,7 +405,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         let name = format!("__anon_func_{}", self.tmp_counter);
         self.tmp_counter += 1;
 
-        if self.at(TokenKind::LBrace) || self.at(TokenKind::Indent) {
+        if self.at(TokenKind::LBrace) {
             let body = self.parse_block()?;
             return Some(Expr::FuncLit(Box::new(FuncDef {
                 vis: Visibility::Inner,
@@ -424,7 +424,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                 self.bump();
             }
             self.skip_trivia();
-            if self.at(TokenKind::LBrace) || self.at(TokenKind::Indent) {
+            if self.at(TokenKind::LBrace) {
                 let body = self.parse_block()?;
                 return Some(Expr::FuncLit(Box::new(FuncDef {
                     vis: Visibility::Inner,
@@ -521,13 +521,12 @@ impl<'a, 'b> Parser<'a, 'b> {
             self.expect(TokenKind::RBrace)?;
             return Some(expr);
         }
-        self.expect(TokenKind::Indent)?;
-        self.skip_layout();
-        let expr = self.parse_expr(0)?;
-        self.expect_stmt_terminator()?;
-        self.skip_trivia();
-        self.expect(TokenKind::Dedent)?;
-        Some(expr)
+        let span = self.cur_span();
+        self.diagnostics.push(Diagnostic::error_kind(
+            DiagnosticKind::ExpectedToken("{ ... } block".to_string()),
+            Some(span),
+        ));
+        None
     }
 
     fn parse_list_or_range(&mut self) -> Option<Expr> {

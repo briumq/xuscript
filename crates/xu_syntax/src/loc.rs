@@ -5,8 +5,6 @@ pub enum DiagnosticKind {
     UnterminatedBlockComment,
     UnmatchedDelimiter(char),
     DotNotTerminator,
-    InvalidIndentation,
-    InconsistentDedent,
     UnterminatedString,
     UnexpectedChar(char),
     UnclosedDelimiter(char),
@@ -115,12 +113,6 @@ impl DiagnosticsFormatter {
             DiagnosticKind::UnterminatedBlockComment => "Unterminated block comment".into(),
             DiagnosticKind::UnmatchedDelimiter(c) => format!("Unmatched '{}'", c),
             DiagnosticKind::DotNotTerminator => "Dot is not a statement terminator".into(),
-            DiagnosticKind::InvalidIndentation => {
-                "Indentation must be multiples of 2 ASCII spaces".into()
-            }
-            DiagnosticKind::InconsistentDedent => {
-                "Inconsistent dedent; indentation level does not match any previous block".into()
-            }
             DiagnosticKind::UnterminatedString => "Unterminated string literal".into(),
             DiagnosticKind::UnexpectedChar(c) => format!("Unexpected character: {}", c),
             DiagnosticKind::UnclosedDelimiter(c) => format!("Unclosed '{}'", c),

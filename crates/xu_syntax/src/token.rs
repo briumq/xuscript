@@ -1,7 +1,7 @@
 //! Token definitions.
 //!
 //! Defines all tokens of the Xu language, including keywords, operators, literals,
-//! delimiters, and layout-sensitive tokens (indentation/newlines).
+//! delimiters, and newlines for automatic statement termination.
 use crate::Span;
 
 /// Token kind.
@@ -9,10 +9,6 @@ use crate::Span;
 pub enum TokenKind {
     /// Newline (used for automatic statement termination).
     Newline,
-    /// Indentation increase.
-    Indent,
-    /// Indentation decrease.
-    Dedent,
     /// Space (usually filtered out; optionally preserved).
     Space,
     /// Comment.

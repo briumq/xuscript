@@ -19,10 +19,7 @@ impl<'a> Finder<'a> {
     pub fn next_significant_span(&mut self) -> Option<Span> {
         while let Some(t) = self.tokens.get(self.i) {
             self.i += 1;
-            if matches!(
-                t.kind,
-                TokenKind::Newline | TokenKind::Indent | TokenKind::Dedent
-            ) {
+            if matches!(t.kind, TokenKind::Newline) {
                 continue;
             }
             return Some(t.span);

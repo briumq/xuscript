@@ -10,16 +10,6 @@ fn lex_smoke_chinese_punct() {
 }
 
 #[test]
-fn lex_does_not_emit_indent_dedent() {
-    let src = "if true:\n  println(\"ok\");\nprintln(\"done\");\n";
-    let normalized = normalize_source(src);
-    let result = Lexer::new(&normalized.text).lex();
-    let kinds: Vec<_> = result.tokens.iter().map(|t| t.kind).collect();
-    assert!(!kinds.contains(&xu_syntax::TokenKind::Indent));
-    assert!(!kinds.contains(&xu_syntax::TokenKind::Dedent));
-}
-
-#[test]
 fn indentation_is_just_whitespace() {
     let src = "if true:\n   println(\"bad\");\n";
     let normalized = normalize_source(src);

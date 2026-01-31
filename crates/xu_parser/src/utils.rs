@@ -3,7 +3,7 @@ use xu_syntax::{Span, Token, TokenKind};
 pub fn next_significant(tokens: &[Token], mut i: usize) -> (Option<Span>, usize) {
     while let Some(t) = tokens.get(i) {
         i += 1;
-        if matches!(t.kind, TokenKind::Newline | TokenKind::Indent | TokenKind::Dedent) {
+        if matches!(t.kind, TokenKind::Newline) {
             continue;
         }
         return (Some(t.span), i);

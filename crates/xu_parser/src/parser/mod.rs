@@ -72,10 +72,6 @@ impl<'a, 'b> Parser<'a, 'b> {
             if self.at(TokenKind::Eof) {
                 break;
             }
-            if self.at(TokenKind::Dedent) {
-                self.bump();
-                continue;
-            }
             let stmt = match self.parse_stmt() {
                 Some(stmt) => stmt,
                 None => self.recover_stmt(),
@@ -107,7 +103,12 @@ impl<'a, 'b> Parser<'a, 'b> {
                     break;
                 }
                 match self.parse_stmt() {
-                    Some(s) => stmts.push(s),
+                    Some(s) => {
+                        stmts.push(s);
+                        if !self.pending_stmts.is_empty() {
+                            stmts.extend(self.pending_stmts.drain(..));
+                        }
+                    }
                     None => stmts.push(self.recover_stmt()),
                 }
             }
@@ -160,7 +161,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                 }
             }
             if brace_depth == 0 {
-                if self.at(TokenKind::StmtEnd) || self.at(TokenKind::Dedent) || self.at(TokenKind::Newline) {
+                if self.at(TokenKind::StmtEnd) || self.at(TokenKind::Newline) {
                     break;
                 }
             }
@@ -199,7 +200,6 @@ impl<'a, 'b> Parser<'a, 'b> {
             || self.at(TokenKind::Newline)
             || self.at(TokenKind::Eof)
             || self.at(TokenKind::RBrace)
-            || self.at(TokenKind::Dedent)
             || (self.allow_comma_terminator && self.at(TokenKind::Comma))
         {
             if self.at(TokenKind::StmtEnd) {
@@ -248,7 +248,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         let mut j = self.i + 1; // skip the `{`
         while j < self.tokens.len() {
             let kind = self.tokens[j].kind;
-            if kind == TokenKind::Newline || kind == TokenKind::Indent {
+            if kind == TokenKind::Newline {
                 j += 1;
                 continue;
             }
@@ -263,7 +263,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         // Skip whitespace to find the identifier
         while j < self.tokens.len() {
             let kind = self.tokens[j].kind;
-            if kind == TokenKind::Newline || kind == TokenKind::Indent {
+            if kind == TokenKind::Newline {
                 j += 1;
                 continue;
             }
@@ -276,7 +276,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         // Skip whitespace after identifier
         while j < self.tokens.len() {
             let kind = self.tokens[j].kind;
-            if kind == TokenKind::Newline || kind == TokenKind::Indent {
+            if kind == TokenKind::Newline {
                 j += 1;
                 continue;
             }
@@ -292,7 +292,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         // Skip whitespace to find the first token
         while j < self.tokens.len() {
             let kind = self.tokens[j].kind;
-            if kind == TokenKind::Newline || kind == TokenKind::Indent {
+            if kind == TokenKind::Newline {
                 j += 1;
                 continue;
             }
@@ -305,7 +305,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         // Skip whitespace after the token
         while j < self.tokens.len() {
             let kind = self.tokens[j].kind;
-            if kind == TokenKind::Newline || kind == TokenKind::Indent {
+            if kind == TokenKind::Newline {
                 j += 1;
                 continue;
             }
@@ -331,10 +331,7 @@ impl<'a, 'b> Parser<'a, 'b> {
     }
 
     pub(super) fn skip_layout(&mut self) {
-        while self.at(TokenKind::Newline)
-            || self.at(TokenKind::Indent)
-            || self.at(TokenKind::Dedent)
-        {
+        while self.at(TokenKind::Newline) {
             self.i += 1;
         }
     }
