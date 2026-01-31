@@ -12,6 +12,7 @@ mod common;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MethodKind {
     ListAdd,
+    ListPush,
     ListPop,
     ListReverse,
     ListJoin,
@@ -28,12 +29,15 @@ pub(crate) enum MethodKind {
     StrSplit,
     StrToInt,
     StrToFloat,
+    StrTryToInt,
+    StrTryToFloat,
     StrReplace,
     StrTrim,
     StrToUpper,
     StrToLower,
     StrStartsWith,
     StrEndsWith,
+    IntToString,
     OptOr,
     OptOrElse,
     OptMap,
@@ -60,6 +64,7 @@ impl MethodKind {
     pub(crate) fn from_str(s: &str) -> Self {
         match s {
             "add" => Self::ListAdd,
+            "push" => Self::ListPush,
             "pop" => Self::ListPop,
             "reverse" => Self::ListReverse,
             "join" => Self::ListJoin,
@@ -80,12 +85,15 @@ impl MethodKind {
             "split" => Self::StrSplit,
             "to_int" => Self::StrToInt,
             "to_float" => Self::StrToFloat,
+            "try_to_int" => Self::StrTryToInt,
+            "try_to_float" => Self::StrTryToFloat,
             "replace" => Self::StrReplace,
             "trim" => Self::StrTrim,
             "to_upper" => Self::StrToUpper,
             "to_lower" => Self::StrToLower,
             "starts" | "starts_with" => Self::StrStartsWith,
             "ends" | "ends_with" => Self::StrEndsWith,
+            "to_string" => Self::IntToString,  // 也用于 float
             "or" => Self::OptOr,
             "or_else" => Self::OptOrElse,
             "map" => Self::OptMap,
@@ -126,6 +134,21 @@ pub(super) fn dispatch_builtin_method(
     if tag == crate::value::TAG_OPTION {
         // Handle optimized Option#some variant
         return dispatch_option_some(rt, recv, kind, args, method);
+    }
+    // 处理整数的 to_string() 方法
+    if recv.is_int() && kind == MethodKind::IntToString {
+        let s = recv.as_i64().to_string();
+        return Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(crate::Text::from_string(s)))));
+    }
+    // 处理浮点数的 to_string() 方法
+    if recv.is_f64() && kind == MethodKind::IntToString {
+        let s = recv.as_f64().to_string();
+        return Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(crate::Text::from_string(s)))));
+    }
+    // 处理浮点数的 to_int() 方法
+    if recv.is_f64() && kind == MethodKind::StrToInt {
+        let i = recv.as_f64() as i64;
+        return Ok(Value::from_i64(i));
     }
     Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedReceiver(
         recv.type_name().to_string(),

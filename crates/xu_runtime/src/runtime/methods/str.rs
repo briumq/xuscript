@@ -2,6 +2,7 @@ use crate::Value;
 
 use super::{MethodKind, Runtime};
 use crate::runtime::util::{to_i64, value_to_string};
+use xu_syntax;
 
 pub(super) fn dispatch(
     rt: &mut Runtime,
@@ -146,6 +147,32 @@ pub(super) fn dispatch(
                     rt.error(xu_syntax::DiagnosticKind::ParseFloatError(e.to_string()))
                 })?;
             Ok(Value::from_f64(v))
+        }
+        MethodKind::StrTryToInt => {
+            if !args.is_empty() {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 0,
+                    expected_max: 0,
+                    actual: args.len(),
+                }));
+            }
+            match s.as_str().trim().parse::<i64>() {
+                Ok(v) => Ok(rt.option_some(Value::from_i64(v))),
+                Err(_) => Ok(rt.option_none()),
+            }
+        }
+        MethodKind::StrTryToFloat => {
+            if !args.is_empty() {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 0,
+                    expected_max: 0,
+                    actual: args.len(),
+                }));
+            }
+            match s.as_str().trim().parse::<f64>() {
+                Ok(v) => Ok(rt.option_some(Value::from_f64(v))),
+                Err(_) => Ok(rt.option_none()),
+            }
         }
         MethodKind::StrToUpper => {
             if !args.is_empty() {
