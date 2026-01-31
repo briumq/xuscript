@@ -211,7 +211,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             let t = self.expect(TokenKind::Str)?;
             let raw = self.token_text(&t);
             let path = unquote(raw);
-            self.skip_layout();
+            // Only check for 'as' on the same line - don't skip newlines
             let alias = if self.at(TokenKind::KwAs) {
                 self.bump();
                 Some(self.expect_ident()?)
