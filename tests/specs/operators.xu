@@ -56,3 +56,15 @@ assert(!called2)
 let a = "hello"
 let b = " world"
 assert(a + b == "hello world")
+
+// string comparison (lexicographic order)
+assert("apple" < "banana")
+assert("banana" > "apple")
+assert("apple" <= "banana")
+assert("banana" >= "apple")
+assert("abc" <= "abc")
+assert("abc" >= "abc")
+assert(!("apple" > "banana"))
+assert(!("apple" >= "banana"))
+assert(!("banana" < "apple"))
+assert(!("banana" <= "apple"))

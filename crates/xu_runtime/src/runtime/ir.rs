@@ -34,6 +34,11 @@ pub(super) enum IterState {
         keys: Vec<Value>,
         idx: usize,
     },
+    /// 字典键值对迭代，用于 for (k, v) in dict 语法
+    DictKV {
+        items: Vec<Value>,  // 存储 (key, value) 元组
+        idx: usize,
+    },
 }
 
 pub(super) struct Handler {
@@ -882,23 +887,37 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let a = stack
                     .last_mut()
                     .ok_or_else(|| "Stack underflow".to_string())?;
-                match a.bin_op(xu_ir::BinaryOp::Gt, b) {
-                    Ok(r) => *a = r,
-                    Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
+                if a.get_tag() == TAG_STR && b.get_tag() == TAG_STR {
+                    let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                        s.as_str()
+                    } else {
+                        ""
+                    };
+                    let sb = if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
+                        s.as_str()
+                    } else {
+                        ""
+                    };
+                    *a = Value::from_bool(sa > sb);
+                } else {
+                    match a.bin_op(xu_ir::BinaryOp::Gt, b) {
+                        Ok(r) => *a = r,
+                        Err(e) => {
+                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                            if let Some(flow) = throw_value(
+                                rt,
+                                &mut ip,
+                                &mut handlers,
+                                &mut stack,
+                                &mut iters,
+                                &mut pending,
+                                &mut thrown,
+                                err_val,
+                            ) {
+                                return Ok(flow);
+                            }
+                            continue;
                         }
-                        continue;
                     }
                 }
             }
@@ -907,23 +926,37 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let a = stack
                     .last_mut()
                     .ok_or_else(|| "Stack underflow".to_string())?;
-                match a.bin_op(xu_ir::BinaryOp::Lt, b) {
-                    Ok(r) => *a = r,
-                    Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
+                if a.get_tag() == TAG_STR && b.get_tag() == TAG_STR {
+                    let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                        s.as_str()
+                    } else {
+                        ""
+                    };
+                    let sb = if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
+                        s.as_str()
+                    } else {
+                        ""
+                    };
+                    *a = Value::from_bool(sa < sb);
+                } else {
+                    match a.bin_op(xu_ir::BinaryOp::Lt, b) {
+                        Ok(r) => *a = r,
+                        Err(e) => {
+                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                            if let Some(flow) = throw_value(
+                                rt,
+                                &mut ip,
+                                &mut handlers,
+                                &mut stack,
+                                &mut iters,
+                                &mut pending,
+                                &mut thrown,
+                                err_val,
+                            ) {
+                                return Ok(flow);
+                            }
+                            continue;
                         }
-                        continue;
                     }
                 }
             }
@@ -932,23 +965,37 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let a = stack
                     .last_mut()
                     .ok_or_else(|| "Stack underflow".to_string())?;
-                match a.bin_op(xu_ir::BinaryOp::Ge, b) {
-                    Ok(r) => *a = r,
-                    Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
+                if a.get_tag() == TAG_STR && b.get_tag() == TAG_STR {
+                    let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                        s.as_str()
+                    } else {
+                        ""
+                    };
+                    let sb = if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
+                        s.as_str()
+                    } else {
+                        ""
+                    };
+                    *a = Value::from_bool(sa >= sb);
+                } else {
+                    match a.bin_op(xu_ir::BinaryOp::Ge, b) {
+                        Ok(r) => *a = r,
+                        Err(e) => {
+                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                            if let Some(flow) = throw_value(
+                                rt,
+                                &mut ip,
+                                &mut handlers,
+                                &mut stack,
+                                &mut iters,
+                                &mut pending,
+                                &mut thrown,
+                                err_val,
+                            ) {
+                                return Ok(flow);
+                            }
+                            continue;
                         }
-                        continue;
                     }
                 }
             }
@@ -957,23 +1004,37 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let a = stack
                     .last_mut()
                     .ok_or_else(|| "Stack underflow".to_string())?;
-                match a.bin_op(xu_ir::BinaryOp::Le, b) {
-                    Ok(r) => *a = r,
-                    Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
+                if a.get_tag() == TAG_STR && b.get_tag() == TAG_STR {
+                    let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                        s.as_str()
+                    } else {
+                        ""
+                    };
+                    let sb = if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
+                        s.as_str()
+                    } else {
+                        ""
+                    };
+                    *a = Value::from_bool(sa <= sb);
+                } else {
+                    match a.bin_op(xu_ir::BinaryOp::Le, b) {
+                        Ok(r) => *a = r,
+                        Err(e) => {
+                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                            if let Some(flow) = throw_value(
+                                rt,
+                                &mut ip,
+                                &mut handlers,
+                                &mut stack,
+                                &mut iters,
+                                &mut pending,
+                                &mut thrown,
+                                err_val,
+                            ) {
+                                return Ok(flow);
+                            }
+                            continue;
                         }
-                        continue;
                     }
                 }
             }
@@ -2133,27 +2194,81 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     Value::from_i64(start)
                 } else if tag == TAG_DICT {
                     let id = iterable.as_obj_id();
-                    let raw_keys: Vec<DictKey> = match rt.heap.get(id) {
-                        ManagedObject::Dict(d) => {
-                            d.map.keys().cloned().collect()
+                    // 检查是否是解析器转换的键值对循环
+                    let is_kv_loop = var.starts_with("__tmp_foreach_");
+
+                    if is_kv_loop {
+                        // 键值对循环：返回 (key, value) 元组
+                        // 先收集原始数据，避免借用冲突
+                        let raw_pairs: Vec<(DictKey, Value)> = match rt.heap.get(id) {
+                            ManagedObject::Dict(d) => {
+                                let mut result = Vec::with_capacity(d.map.len());
+                                for (k, v) in d.map.iter() {
+                                    result.push((k.clone(), *v));
+                                }
+                                // 处理 shape 中的属性
+                                if let Some(sid) = d.shape {
+                                    if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
+                                        for (k, off) in shape.prop_map.iter() {
+                                            if let Some(v) = d.prop_values.get(*off) {
+                                                result.push((DictKey::from_str(k.as_str()), *v));
+                                            }
+                                        }
+                                    }
+                                }
+                                // 处理 elements 数组
+                                for (i, v) in d.elements.iter().enumerate() {
+                                    if v.get_tag() != crate::value::TAG_VOID {
+                                        result.push((DictKey::Int(i as i64), *v));
+                                    }
+                                }
+                                result
+                            }
+                            _ => {
+                                return Err(
+                                    rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into()))
+                                );
+                            }
+                        };
+                        if raw_pairs.is_empty() {
+                            ip = *end;
+                            continue;
                         }
-                        _ => {
-                            return Err(
-                                rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into()))
-                            );
+                        // 现在分配内存创建元组
+                        let items: Vec<Value> = raw_pairs.into_iter().map(|(k, v)| {
+                            let key_val = match k {
+                                DictKey::Str { data, .. } => Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(&data)))),
+                                DictKey::Int(i) => Value::from_i64(i),
+                            };
+                            Value::tuple(rt.heap.alloc(ManagedObject::Tuple(vec![key_val, v])))
+                        }).collect();
+                        let first = items[0];
+                        iters.push(IterState::DictKV { items, idx: 1 });
+                        first
+                    } else {
+                        // 普通字典循环：只返回键
+                        let raw_keys: Vec<DictKey> = match rt.heap.get(id) {
+                            ManagedObject::Dict(d) => {
+                                d.map.keys().cloned().collect()
+                            }
+                            _ => {
+                                return Err(
+                                    rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into()))
+                                );
+                            }
+                        };
+                        if raw_keys.is_empty() {
+                            ip = *end;
+                            continue;
                         }
-                    };
-                    if raw_keys.is_empty() {
-                        ip = *end;
-                        continue;
+                        let keys: Vec<Value> = raw_keys.into_iter().map(|k| match k {
+                            DictKey::Str { data, .. } => Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(&data)))),
+                            DictKey::Int(i) => Value::from_i64(i),
+                        }).collect();
+                        let first = keys[0];
+                        iters.push(IterState::Dict { keys, idx: 1 });
+                        first
                     }
-                    let keys: Vec<Value> = raw_keys.into_iter().map(|k| match k {
-                        DictKey::Str { data, .. } => Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(&data)))),
-                        DictKey::Int(i) => Value::from_i64(i),
-                    }).collect();
-                    let first = keys[0];
-                    iters.push(IterState::Dict { keys, idx: 1 });
-                    first
                 } else {
                     return Err(rt.error(xu_syntax::DiagnosticKind::InvalidIteratorType {
                         expected: "list, range, or dict".to_string(),
@@ -2225,6 +2340,15 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                             None
                         } else {
                             let item = keys[*idx];
+                            *idx += 1;
+                            Some(item)
+                        }
+                    }
+                    IterState::DictKV { items, idx } => {
+                        if *idx >= items.len() {
+                            None
+                        } else {
+                            let item = items[*idx];
                             *idx += 1;
                             Some(item)
                         }
