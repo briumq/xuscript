@@ -71,6 +71,31 @@ pub fn builtin_os_args(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
     ))
 }
 
+pub fn builtin_env_get(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
+    if args.len() != 1 {
+        return Err("env_get expects 1 argument".into());
+    }
+    let key = if args[0].get_tag() == crate::core::value::TAG_STR {
+        if let crate::core::gc::ManagedObject::Str(s) = rt.heap.get(args[0].as_obj_id()) {
+            s.as_str().to_string()
+        } else {
+            return Err("env_get expects string".into());
+        }
+    } else {
+        return Err("env_get expects string".into());
+    };
+    match std::env::var(&key) {
+        Ok(val) => Ok(Value::str(
+            rt.heap
+                .alloc(crate::core::gc::ManagedObject::Str(val.into())),
+        )),
+        Err(_) => Ok(Value::str(
+            rt.heap
+                .alloc(crate::core::gc::ManagedObject::Str("".into())),
+        )),
+    }
+}
+
 pub fn builtin_process_rss(_rt: &mut Runtime, _args: &[Value]) -> Result<Value, String> {
     let mut usage = rusage {
         ru_utime: libc::timeval { tv_sec: 0, tv_usec: 0 },

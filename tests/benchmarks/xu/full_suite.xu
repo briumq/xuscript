@@ -1,5 +1,11 @@
 // Xu full benchmark suite with JSON output (safe subset)
-var BENCH_SCALE = "5000"
+// BENCH_SCALE can be set via environment variable, defaults to "5000"
+func get_bench_scale() -> string {
+  let env_val = env_get("BENCH_SCALE")
+  if env_val != "" { return env_val }
+  return "5000"
+}
+var BENCH_SCALE = get_bench_scale()
 
 Foo has {
   x: int
@@ -50,7 +56,7 @@ func bench_dict(N: int) -> float {
     let d: {string: int} = {}
     for i in [0..N-1] { d.insert("k" + to_text(i), i) }
     var sum = 0
-    for j in [0..N-1] { sum += d.get("k" + to_text(j)) }
+    for j in [0..N-1] { sum += d["k" + to_text(j)] }
   }
   return run_min_ms(7, logic)
 }
@@ -60,7 +66,7 @@ func bench_dict_intkey(N: int) -> float {
     let d: {int: int} = {}
     for i in [0..N-1] { d.insert_int(i, i) }
     var sum = 0
-    for j in [0..N-1] { sum += d.get_int(j) }
+    for j in [0..N-1] { sum += d[j] }
   }
   return run_min_ms(7, logic)
 }
@@ -70,7 +76,7 @@ func bench_dict_hot(N: int) -> float {
   let d: {string: int} = {}
   for i in [0..N-1] { d.insert(to_text(i), i) }
   func logic() {
-    for _ in [0..N-1] { let _v = d.get("0") }
+    for _ in [0..N-1] { let _v = d["0"] }
   }
   return run_min_ms(7, logic)
 }

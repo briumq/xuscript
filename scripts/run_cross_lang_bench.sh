@@ -50,20 +50,17 @@ if ! WARMS="${WARMS:-0}" REPEAT="${REPEAT:-1}" run_with_timeout node tests/bench
 fi
 
 echo "Xu:"
-# Create wrapper to inject scale and drive suite.xu 主程序
-WRAPPER="tests/benchmarks/xu/temp_suite.xu"
-# 使用 sed 替换 BENCH_SCALE 的默认值
-sed "s/var BENCH_SCALE = \"5000\"/var BENCH_SCALE = \"$SCALE\"/" tests/benchmarks/xu/full_suite.xu > "$WRAPPER"
+# Run Xu benchmark with BENCH_SCALE environment variable
 OUT_XU="$(mktemp -t xu_bench_out.XXXXXX)"
 ERR_XU="$(mktemp -t xu_bench_err.XXXXXX)"
-trap 'rm -f "$WRAPPER" "$OUT_XU" "$ERR_XU"' EXIT
+trap 'rm -f "$OUT_XU" "$ERR_XU"' EXIT
 
 # 使用 ulimit 限制内存（如果支持）
 if ulimit -v "$MAX_MEMORY_KB" 2>/dev/null; then
   echo "[Guard] Memory limit applied to Xu process" >&2
 fi
 
-run_with_timeout "$XU_BIN" run --no-diags "$WRAPPER" >"$OUT_XU" 2>"$ERR_XU" || {
+BENCH_SCALE="$SCALE" run_with_timeout "$XU_BIN" run --no-diags "tests/benchmarks/xu/full_suite.xu" >"$OUT_XU" 2>"$ERR_XU" || {
   echo "Xu benchmark timed out or failed" >&2
   # 打印错误输出以便调试
   if [ -s "$ERR_XU" ]; then

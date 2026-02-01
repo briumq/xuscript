@@ -74,6 +74,7 @@ impl BuiltinProvider for StdBuiltinProvider {
         registry.register("builder_push", builtins::builtin_builder_push);
         registry.register("builder_finalize", builtins::builtin_builder_finalize);
         registry.register("os_args", builtins::builtin_os_args);
+        registry.register("env_get", builtins::builtin_env_get);
         // string helpers
         registry.register("contains", builtins::builtin_contains);
         registry.register("starts_with", builtins::builtin_starts_with);
