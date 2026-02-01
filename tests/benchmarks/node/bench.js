@@ -152,15 +152,14 @@ function benchStringScan(n) {
 
 function runCase(fn, n, warms, repeat) {
   for (let i = 0; i < warms; i++) fn(n);
-  let best = null;
+  let total = 0;
   let last = null;
   for (let i = 0; i < repeat; i++) {
     const item = fn(n);
     last = item;
-    const d = item.duration_ms;
-    if (best === null || d < best) best = d;
+    total += item.duration_ms;
   }
-  last.duration_ms = best;
+  last.duration_ms = total / repeat;
   last.rss_bytes = process.memoryUsage().rss;
   return last;
 }

@@ -126,6 +126,13 @@ pub(crate) fn op_call_method(
             return Ok(None);
         }
 
+        // Fast path for dict.contains with string key
+        if let Some(result) = try_dict_contains_fast(rt, stack, args_start, recv, method_hash) {
+            stack.truncate(args_start - 1);
+            stack.push(result);
+            return Ok(None);
+        }
+
         // Fast path for dict.insert with string key
         if try_dict_insert_fast(rt, stack, args_start, recv, method_hash, n, &slot_idx) {
             stack.truncate(args_start - 1);
@@ -283,6 +290,61 @@ fn try_dict_get_fast(
         } else {
             return Some(rt.option_none());
         }
+    }
+    None
+}
+
+/// Try fast path for dict.contains with string key
+#[inline(always)]
+fn try_dict_contains_fast(
+    rt: &mut Runtime,
+    stack: &[Value],
+    args_start: usize,
+    recv: Value,
+    method_hash: u64,
+) -> Option<Value> {
+    static CONTAINS_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+    let contains_hash = *CONTAINS_HASH.get_or_init(|| xu_ir::stable_hash64("contains"));
+    if method_hash != contains_hash {
+        return None;
+    }
+
+    let key_val = stack[args_start];
+    if key_val.get_tag() != TAG_STR {
+        return None;
+    }
+
+    let dict_id = recv.as_obj_id();
+    let key_id = key_val.as_obj_id();
+
+    // Get key pointer/len without cloning
+    let (key_ptr, key_len) = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
+        (s.as_str().as_ptr(), s.as_str().len())
+    } else {
+        return None;
+    };
+
+    // SAFETY: key_ptr is valid during this operation
+    let key_bytes = unsafe { std::slice::from_raw_parts(key_ptr, key_len) };
+
+    if let ManagedObject::Dict(me) = rt.heap.get(dict_id) {
+        // Compute hash and check if key exists
+        let key_hash = Runtime::hash_bytes(me.map.hasher(), key_bytes);
+
+        // SAFETY: key_ptr still valid
+        let key_str = unsafe { std::str::from_utf8_unchecked(key_bytes) };
+
+        // Use raw_entry for efficient lookup without allocating DictKey
+        let found = me
+            .map
+            .raw_entry()
+            .from_hash(key_hash, |k| match k {
+                DictKey::Str { data, .. } => data.as_str() == key_str,
+                _ => false,
+            })
+            .is_some();
+
+        return Some(Value::from_bool(found));
     }
     None
 }

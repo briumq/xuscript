@@ -14,17 +14,16 @@ Foo has {
 
 func now_us() -> int { return mono_micros() }
 
-func run_min_ms(repeat: int, logic) -> float {
-  var min_val = 999999999999.0
+func run_avg_ms(repeat: int, logic) -> float {
+  var total = 0.0
   for _ in [1..repeat] {
     var s = now_us()
     logic()
     var e = now_us()
     gc()
-    var cost = e - s
-    if cost < min_val { min_val = cost }
+    total += (e - s)
   }
-  return min_val / 1000.0
+  return total / repeat / 1000.0
 }
 
 func out_json(name: string, N: int, ms: float) {
@@ -48,7 +47,7 @@ func bench_loop(N: int) -> float {
     var c = 0
     for _ in [1..N] { c += 1 }
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_dict(N: int) -> float {
@@ -58,7 +57,7 @@ func bench_dict(N: int) -> float {
     var sum = 0
     for j in [0..N-1] { sum += d["k" + to_text(j)] }
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_dict_intkey(N: int) -> float {
@@ -68,7 +67,7 @@ func bench_dict_intkey(N: int) -> float {
     var sum = 0
     for j in [0..N-1] { sum += d[j] }
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_dict_hot(N: int) -> float {
@@ -78,7 +77,7 @@ func bench_dict_hot(N: int) -> float {
   func logic() {
     for _ in [0..N-1] { let _v = d["0"] }
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_string(N: int) -> float {
@@ -86,7 +85,7 @@ func bench_string(N: int) -> float {
     var str = ""
     for i in [0..N-1] { str += to_text(i); str += "," }
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_string_builder(N: int) -> float {
@@ -95,7 +94,7 @@ func bench_string_builder(N: int) -> float {
     for i in [0..N-1] { builder_push(b, i); builder_push(b, ",") }
     let _result = builder_finalize(b)
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_struct_method(N: int) -> float {
@@ -103,7 +102,7 @@ func bench_struct_method(N: int) -> float {
     let f = Foo{ x: 1 }
     for i in [0..N-1] { let _v = f.method(i) }
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_func_call(N: int) -> float {
@@ -112,7 +111,7 @@ func bench_func_call(N: int) -> float {
     var sum = 0
     for i in [0..N-1] { sum += add1(i) }
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_branch_heavy(N: int) -> float {
@@ -120,7 +119,7 @@ func bench_branch_heavy(N: int) -> float {
     var sum = 0
     for i in [0..N-1] { if (i % 2) == 0 { sum += 1 } else { sum -= 1 } }
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_list_push_pop(N: int) -> float {
@@ -129,17 +128,18 @@ func bench_list_push_pop(N: int) -> float {
     for i in [0..N-1] { l.push(i) }
     for _ in [0..N-1] { let _ = l.pop() }
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_dict_miss(N: int) -> float {
+  // Build dict outside of timing (like Python/Node.js)
+  let d: {string: int} = {}
+  for i in [0..N-1] { d.insert("k" + to_text(i), i) }
   func logic() {
-    let d: {string: int} = {}
-    for i in [0..N-1] { d.insert("k" + to_text(i), i) }
     var miss = 0
     for j in [0..N-1] { if d.contains("x" + to_text(j)) { miss += 1 } }
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_dict_update_hot(N: int) -> float {
@@ -149,7 +149,7 @@ func bench_dict_update_hot(N: int) -> float {
   func logic() {
     for i in [0..N-1] { d.insert("hot", i) }
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_string_unicode(N: int) -> float {
@@ -159,7 +159,7 @@ func bench_string_unicode(N: int) -> float {
     for i in [0..N-1] { builder_push(b, parts[i % 4]); builder_push(b, ",") }
     let _result = builder_finalize(b)
   }
-  return run_min_ms(7, logic)
+  return run_avg_ms(3, logic)
 }
 
 func bench_string_scan(N: int) -> float {
@@ -171,7 +171,7 @@ func bench_string_scan(N: int) -> float {
     let _c2 = starts_with(str, "0,1")
     let _c3 = ends_with(str, to_text(N - 1))  // Same as Python/Node: str(n-1) inside timing
   }
-  return run_min_ms(1, logic)  // Run once like Python/Node
+  return run_avg_ms(3, logic)  // Run once like Python/Node
 }
 
 func main() {

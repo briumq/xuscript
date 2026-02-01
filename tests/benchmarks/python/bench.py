@@ -143,16 +143,14 @@ def bench_string_scan(n):
 def run_case(fn, n, warms, repeat):
     for _ in range(warms):
         fn(n)
-    best = None
+    total = 0.0
     last = None
     for _ in range(repeat):
         item = fn(n)
         last = item
-        d = item["duration_ms"]
-        if best is None or d < best:
-            best = d
+        total += item["duration_ms"]
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    last["duration_ms"] = best
+    last["duration_ms"] = total / repeat
     last["rss_bytes"] = int(rss) if isinstance(rss, (int, float)) else 0
     return last
 
