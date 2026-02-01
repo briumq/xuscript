@@ -29,23 +29,17 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
             let mut hasher = d.map.hasher().build_hasher();
             key.hash(&mut hasher);
             let h = hasher.finish();
-            let mut changed = false;
             match d.map.raw_entry_mut().from_hash(h, |k| k == &key) {
                 hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
-                    let prev = o.get().clone();
+                    // 值更新 - 不增加版本号
                     *o.get_mut() = v.clone();
-                    if prev != v {
-                        changed = true;
-                    }
                 }
                 hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
+                    // 新 key - 增加版本号
                     vac.insert(key, v.clone());
-                    changed = true;
+                    d.ver += 1;
+                    rt.dict_version_last = Some((id.0, d.ver));
                 }
-            }
-            if changed {
-                d.ver += 1;
-                rt.dict_version_last = Some((id.0, d.ver));
             }
         } else {
             return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
@@ -87,11 +81,8 @@ pub(crate) fn op_dict_merge(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<
                         changed = true;
                     }
                     hashbrown::hash_map::Entry::Occupied(mut e) => {
-                        let prev = e.get().clone();
-                        if prev != v {
-                            *e.get_mut() = v;
-                            changed = true;
-                        }
+                        // 值更新 - 不增加版本号
+                        *e.get_mut() = v;
                     }
                 }
             }

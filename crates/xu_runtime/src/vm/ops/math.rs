@@ -1,3 +1,9 @@
+//! Math operations for the VM.
+//!
+//! Note: These functions have different signatures from dispatch.rs implementations
+//! and are not yet used. They need signature unification before migration.
+#![allow(dead_code)]
+
 use crate::core::Value;
 use crate::core::value::ValueExt;
 use crate::Runtime;

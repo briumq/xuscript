@@ -144,9 +144,8 @@ pub(crate) fn op_dict_insert_str_const(
                         _ => false,
                     }) {
                         hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
+                            // 值更新 - 不增加版本号
                             *o.get_mut() = v;
-                            d.ver += 1;
-                            rt.dict_version_last = Some((id.0, d.ver));
                             cache_hit = true;
                         }
                         _ => {}
@@ -161,21 +160,26 @@ pub(crate) fn op_dict_insert_str_const(
         if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
             let internal_hash = Runtime::hash_bytes(d.map.hasher(), k.as_bytes());
             // Avoid creating DictKey for comparison - use closure with str comparison
+            let mut is_new_key = false;
             match d.map.raw_entry_mut().from_hash(internal_hash, |key| match key {
                 DictKey::Str { data, .. } => data.as_str() == k,
                 _ => false,
             }) {
                 hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
+                    // 值更新 - 不增加版本号
                     *o.get_mut() = v;
                 }
                 hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
-                    // Only allocate key when actually inserting new entry
+                    // 新 key - 增加版本号
                     let key = DictKey::from_str(k);
                     vac.insert(key, v);
+                    is_new_key = true;
                 }
             }
-            d.ver += 1;
-            rt.dict_version_last = Some((id.0, d.ver));
+            if is_new_key {
+                d.ver += 1;
+                rt.dict_version_last = Some((id.0, d.ver));
+            }
 
             // Update IC cache with key info for fast comparison
             if let Some(idx_slot) = slot {

@@ -5,6 +5,10 @@
 //! - CallMethod: Method calls with IC caching
 //! - MakeFunction: Creating function values
 //! - Return: Returning from functions
+//!
+//! Note: These functions are not yet used by dispatch.rs as the call operations
+//! have complex inline implementations with fast paths that need careful migration.
+#![allow(dead_code)]
 
 use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};

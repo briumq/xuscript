@@ -1,23 +1,19 @@
-use crate::core::value::{TAG_BUILDER, ValueExt};
+use crate::core::value::ValueExt;
 
 use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
 
-use crate::util::Appendable;
-use crate::core::text::Text;
 use crate::core::Value;
 use crate::core::gc::ManagedObject;
-use crate::core::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_STR, TAG_TUPLE};
+use crate::core::value::{DictKey, Function, TAG_DICT, TAG_STR};
 
-use crate::util::{to_i64, type_matches, value_to_string};
+use crate::util::{to_i64, value_to_string};
 use crate::{Flow, Runtime};
-use crate::runtime::{DictCacheIntLast, DictCacheLast};
 use super::exception::throw_value;
 
 use super::fast::run_bytecode_fast_params_only;
 use super::ops::dict as dict_ops;
-#[allow(unused_imports)]
-use super::ops::{access, assign, call, collection, compare, iter, string, types};
+use super::ops::{access, assign, collection, compare, iter, string, types};
 use super::stack::{add_with_heap, stack_underflow, Handler, IterState, Pending};
 
 pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, String> {
@@ -179,239 +175,46 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::AddAssignName(idx) => {
-                let rhs = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let name = rt.get_const_str(*idx, &bc.constants);
-                let mut handled = false;
-
-                if rt.locals.is_active() {
-                    if let Some(func_name) = &rt.current_func {
-                        if let Some(idxmap) = rt.compiled_locals_idx.get(func_name) {
-                            if let Some(idx) = idxmap.get(name) {
-                                let Some(cur) = rt.get_local_by_index(*idx) else {
-                                    let err_val = Value::str(
-                                        rt.heap.alloc(ManagedObject::Str(
-                                            rt.error(
-                                                xu_syntax::DiagnosticKind::UndefinedIdentifier(
-                                                    name.to_string(),
-                                                ),
-                                            )
-                                            .into(),
-                                        )),
-                                    );
-                                    if let Some(flow) = throw_value(
-                                        rt,
-                                        &mut ip,
-                                        &mut handlers,
-                                        &mut stack,
-                                        &mut iters,
-                                        &mut pending,
-                                        &mut thrown,
-                                        err_val,
-                                    ) {
-                                        return Ok(flow);
-                                    }
-                                    continue;
-                                };
-                                let mut cur = cur;
-                                if let Err(e) =
-                                    cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap)
-                                {
-                                    let err_val =
-                                        Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                                    if let Some(flow) = throw_value(
-                                        rt,
-                                        &mut ip,
-                                        &mut handlers,
-                                        &mut stack,
-                                        &mut iters,
-                                        &mut pending,
-                                        &mut thrown,
-                                        err_val,
-                                    ) {
-                                        return Ok(flow);
-                                    }
-                                    continue;
-                                }
-                                rt.set_local_by_index(*idx, cur);
-                                handled = true;
-                            }
-                        }
-                    }
-                    if !handled {
-                        if let Some(cur) = rt.get_local(name) {
-                            let mut cur = cur;
-                            if let Err(e) =
-                                cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap)
-                            {
-                                let err_val =
-                                    Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                                if let Some(flow) = throw_value(
-                                    rt,
-                                    &mut ip,
-                                    &mut handlers,
-                                    &mut stack,
-                                    &mut iters,
-                                    &mut pending,
-                                    &mut thrown,
-                                    err_val,
-                                ) {
-                                    return Ok(flow);
-                                }
-                                continue;
-                            }
-                            let _ = rt.set_local(name, cur);
-                            handled = true;
-                        }
-                    }
-                    if handled {
-                        // Fall through
-                    } else {
-                        let Some(cur) = rt.env.get_cached(name) else {
-                            let err_val = Value::str(
-                                rt.heap.alloc(ManagedObject::Str(
-                                    rt.error(xu_syntax::DiagnosticKind::UndefinedIdentifier(
-                                        name.to_string(),
-                                    ))
-                                    .into(),
-                                )),
-                            );
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        };
-                        let mut cur = cur;
-                        if let Err(e) = cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                        let assigned = rt.env.assign(name, cur);
-                        if !assigned {
-                            rt.env.define(name.to_string(), cur);
-                        }
-                    }
-                } else {
-                    let Some(cur) = rt.env.get_cached(name) else {
-                        let err_val = Value::str(
-                            rt.heap.alloc(ManagedObject::Str(
-                                rt.error(xu_syntax::DiagnosticKind::UndefinedIdentifier(
-                                    name.to_string(),
-                                ))
-                                .into(),
-                            )),
-                        );
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
-                        }
-                        continue;
-                    };
-                    let mut cur = cur;
-                    if let Err(e) = cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
-                        }
-                        continue;
-                    }
-                    let assigned = rt.env.assign(name, cur);
-                    if !assigned {
-                        rt.env.define(name.to_string(), cur);
-                    }
+                if let Some(flow) = assign::op_add_assign_name(
+                    rt,
+                    bc,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *idx,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::AddAssignLocal(idx) => {
-                let rhs = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let Some(mut cur) = rt.get_local_by_index(*idx) else {
-                    return Err(format!("Undefined local variable index: {}", idx));
-                };
-                if cur.is_int() && rhs.is_int() {
-                    cur = Value::from_i64(cur.as_i64().wrapping_add(rhs.as_i64()));
-                } else {
-                    if let Err(e) = cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
-                        }
-                        continue;
-                    }
+                if let Some(flow) = assign::op_add_assign_local(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *idx,
+                )? {
+                    return Ok(flow);
                 }
-                rt.set_local_by_index(*idx, cur);
             }
             Op::IncLocal(idx) => {
-                let Some(cur) = rt.get_local_by_index(*idx) else {
-                    return Err(format!("Undefined local variable index: {}", idx));
-                };
-                if cur.is_int() {
-                    rt.set_local_by_index(*idx, Value::from_i64(cur.as_i64().wrapping_add(1)));
-                } else {
-                    let mut cur = cur;
-                    if let Err(e) =
-                        cur.bin_op_assign(xu_ir::BinaryOp::Add, Value::from_i64(1), &mut rt.heap)
-                    {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
-                        }
-                        continue;
-                    }
-                    rt.set_local_by_index(*idx, cur);
+                if let Some(flow) = assign::op_inc_local(
+                    rt,
+                    &mut ip,
+                    &mut handlers,
+                    &mut stack,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *idx,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Sub => {
@@ -530,217 +333,88 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::StrAppend => {
-                let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let a = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                if a.get_tag() == TAG_STR {
-                    let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                        s.clone()
-                    } else {
-                        return Err("Not a string".into());
-                    };
-                    sa.append_value(&b, &rt.heap);
-                    stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
-                } else {
-                    match add_with_heap(rt, a, b) {
-                        Ok(r) => stack.push(r),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = string::op_str_append(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::StrAppendNull => {
-                let a = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                if a.get_tag() == TAG_STR {
-                    let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                        s.clone()
-                    } else {
-                        return Err("Not a string".into());
-                    };
-                    sa.append_null();
-                    stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
-                } else {
-                    match add_with_heap(rt, a, Value::VOID) {
-                        Ok(r) => stack.push(r),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = string::op_str_append_null(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::StrAppendBool => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                if a.get_tag() == TAG_STR && b.is_bool() {
-                    let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                        s.clone()
-                    } else {
-                        return Err("Not a string".into());
-                    };
-                    sa.append_bool(b.as_bool());
-                    stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
-                } else {
-                    match add_with_heap(rt, a, b) {
-                        Ok(r) => stack.push(r),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = string::op_str_append_bool(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::StrAppendInt => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                if a.get_tag() == TAG_STR && b.is_int() {
-                    let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                        s.clone()
-                    } else {
-                        return Err("Not a string".into());
-                    };
-                    sa.append_i64(b.as_i64());
-                    stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
-                } else {
-                    match add_with_heap(rt, a, b) {
-                        Ok(r) => stack.push(r),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = string::op_str_append_int(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::StrAppendFloat => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                if a.get_tag() == TAG_STR && b.is_f64() {
-                    let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                        s.clone()
-                    } else {
-                        return Err("Not a string".into());
-                    };
-                    sa.append_f64(b.as_f64());
-                    stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
-                } else {
-                    match add_with_heap(rt, a, b) {
-                        Ok(r) => stack.push(r),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = string::op_str_append_float(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::StrAppendStr => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                if a.get_tag() == TAG_STR && b.get_tag() == TAG_STR {
-                    let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                        s.clone()
-                    } else {
-                        return Err("Not a string".into());
-                    };
-                    if let ManagedObject::Str(sb) = rt.heap.get(b.as_obj_id()) {
-                        sa.append_str(sb.as_str());
-                    }
-                    stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
-                } else {
-                    match add_with_heap(rt, a, b) {
-                        Ok(r) => stack.push(r),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = string::op_str_append_str(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Eq => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack
-                    .last_mut()
-                    .ok_or_else(|| "Stack underflow".to_string())?;
-                *a = Value::from_bool(rt.values_equal(a, &b));
+                compare::op_eq(rt, &mut stack)?;
             }
             Op::Ne => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack
-                    .last_mut()
-                    .ok_or_else(|| "Stack underflow".to_string())?;
-                *a = Value::from_bool(!rt.values_equal(a, &b));
+                compare::op_ne(rt, &mut stack)?;
             }
             Op::And => {
                 let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
@@ -793,159 +467,55 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::Gt => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack
-                    .last_mut()
-                    .ok_or_else(|| "Stack underflow".to_string())?;
-                if a.get_tag() == TAG_STR && b.get_tag() == TAG_STR {
-                    let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                        s.as_str()
-                    } else {
-                        ""
-                    };
-                    let sb = if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
-                        s.as_str()
-                    } else {
-                        ""
-                    };
-                    *a = Value::from_bool(sa > sb);
-                } else {
-                    match a.bin_op(xu_ir::BinaryOp::Gt, b) {
-                        Ok(r) => *a = r,
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = compare::op_gt(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Lt => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack
-                    .last_mut()
-                    .ok_or_else(|| "Stack underflow".to_string())?;
-                if a.get_tag() == TAG_STR && b.get_tag() == TAG_STR {
-                    let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                        s.as_str()
-                    } else {
-                        ""
-                    };
-                    let sb = if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
-                        s.as_str()
-                    } else {
-                        ""
-                    };
-                    *a = Value::from_bool(sa < sb);
-                } else {
-                    match a.bin_op(xu_ir::BinaryOp::Lt, b) {
-                        Ok(r) => *a = r,
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = compare::op_lt(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Ge => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack
-                    .last_mut()
-                    .ok_or_else(|| "Stack underflow".to_string())?;
-                if a.get_tag() == TAG_STR && b.get_tag() == TAG_STR {
-                    let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                        s.as_str()
-                    } else {
-                        ""
-                    };
-                    let sb = if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
-                        s.as_str()
-                    } else {
-                        ""
-                    };
-                    *a = Value::from_bool(sa >= sb);
-                } else {
-                    match a.bin_op(xu_ir::BinaryOp::Ge, b) {
-                        Ok(r) => *a = r,
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = compare::op_ge(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Le => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack
-                    .last_mut()
-                    .ok_or_else(|| "Stack underflow".to_string())?;
-                if a.get_tag() == TAG_STR && b.get_tag() == TAG_STR {
-                    let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                        s.as_str()
-                    } else {
-                        ""
-                    };
-                    let sb = if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
-                        s.as_str()
-                    } else {
-                        ""
-                    };
-                    *a = Value::from_bool(sa <= sb);
-                } else {
-                    match a.bin_op(xu_ir::BinaryOp::Le, b) {
-                        Ok(r) => *a = r,
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = compare::op_le(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Not => {
@@ -1039,138 +609,47 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::AssertType(idx) => {
-                let name = rt.get_const_str(*idx, &bc.constants);
-                let v = stack.last().ok_or_else(|| "Stack underflow".to_string())?;
-                if !type_matches(name, v, &rt.heap) {
-                    let msg = rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
-                        expected: name.to_string(),
-                        actual: v.type_name().to_string(),
-                    });
-                    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(msg.into())));
-                    if let Some(flow) = throw_value(
-                        rt,
-                        &mut ip,
-                        &mut handlers,
-                        &mut stack,
-                        &mut iters,
-                        &mut pending,
-                        &mut thrown,
-                        err_val,
-                    ) {
-                        return Ok(flow);
-                    }
-                    continue;
+                if let Some(flow) = types::op_assert_type(
+                    rt,
+                    bc,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *idx,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::DefineStruct(idx) => {
-                let c = rt.get_constant(*idx, &bc.constants);
-                if let xu_ir::Constant::Struct(def) = c {
-                    let layout: std::rc::Rc<[String]> =
-                        def.fields.iter().map(|f| f.name.clone()).collect();
-                    rt.struct_layouts.insert(def.name.clone(), layout);
-                    rt.structs.insert(def.name.clone(), def.clone());
-                }
+                types::op_define_struct(rt, bc, *idx);
             }
             Op::DefineEnum(idx) => {
-                let c = rt.get_constant(*idx, &bc.constants);
-                if let xu_ir::Constant::Enum(def) = c {
-                    rt.enums.insert(def.name.clone(), def.variants.to_vec());
-                }
+                types::op_define_enum(rt, bc, *idx);
             }
             Op::StructInit(t_idx, n_idx) => {
-                let ty = rt.get_const_str(*t_idx, &bc.constants).to_string();
-                let fields = rt.get_const_names(*n_idx, &bc.constants).to_vec();
-                let layout = if let Some(l) = rt.struct_layouts.get(&ty).cloned() {
-                    l
-                } else {
-                    let err_val = Value::str(
-                        rt.heap.alloc(ManagedObject::Str(
-                            rt.error(xu_syntax::DiagnosticKind::UnknownStruct(ty.clone()))
-                                .into(),
-                        )),
-                    );
-                    if let Some(flow) = throw_value(
-                        rt,
-                        &mut ip,
-                        &mut handlers,
-                        &mut stack,
-                        &mut iters,
-                        &mut pending,
-                        &mut thrown,
-                        err_val,
-                    ) {
-                        return Ok(flow);
-                    }
-                    continue;
-                };
-
-                let mut values = vec![Value::VOID; layout.len()];
-
-                // Apply default values from struct definition
-                if let Some(def) = rt.structs.get(&ty).cloned() {
-                    for (i, field) in def.fields.iter().enumerate() {
-                        if let Some(ref default_expr) = field.default {
-                            if i < values.len() {
-                                match rt.eval_expr(default_expr) {
-                                    Ok(v) => values[i] = v,
-                                    Err(e) => {
-                                        let err_val = Value::str(
-                                            rt.heap.alloc(ManagedObject::Str(e.into())),
-                                        );
-                                        if let Some(flow) = throw_value(
-                                            rt,
-                                            &mut ip,
-                                            &mut handlers,
-                                            &mut stack,
-                                            &mut iters,
-                                            &mut pending,
-                                            &mut thrown,
-                                            err_val,
-                                        ) {
-                                            return Ok(flow);
-                                        }
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                if let Some(flow) = types::op_struct_init(
+                    rt,
+                    bc,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *t_idx,
+                    *n_idx,
+                )? {
+                    return Ok(flow);
                 }
-
-                // Override with explicitly provided field values
-                for k in fields.iter().rev() {
-                    let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                    if let Some(pos) = layout.iter().position(|f| f == k) {
-                        values[pos] = v;
-                    }
-                }
-
-                let id = rt
-                    .heap
-                    .alloc(ManagedObject::Struct(Box::new(crate::core::value::StructInstance {
-                        ty: ty.clone(),
-                        ty_hash: xu_ir::stable_hash64(&ty),
-                        fields: values.into_boxed_slice(),
-                        field_names: layout.clone(),
-                    })));
-                stack.push(Value::struct_obj(id));
             }
             Op::EnumCtor(t_idx, v_idx) => {
-                let ty = rt.get_const_str(*t_idx, &bc.constants);
-                let variant = rt.get_const_str(*v_idx, &bc.constants);
-                let v = rt.enum_new_checked(ty, variant, Box::new([]))?;
-                stack.push(v);
+                types::op_enum_ctor(rt, bc, &mut stack, *t_idx, *v_idx)?;
             }
             Op::EnumCtorN(t_idx, v_idx, argc) => {
-                let ty = rt.get_const_str(*t_idx, &bc.constants);
-                let variant = rt.get_const_str(*v_idx, &bc.constants);
-                let mut payload: Vec<Value> = Vec::with_capacity(*argc);
-                for _ in 0..*argc {
-                    payload.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
-                }
-                payload.reverse();
-                let v = rt.enum_new_checked(ty, variant, payload.into_boxed_slice())?;
-                stack.push(v);
+                types::op_enum_ctor_n(rt, bc, &mut stack, *t_idx, *v_idx, *argc)?;
             }
             Op::MakeFunction(f_idx) => {
                 let c = rt.get_constant(*f_idx, &bc.constants);
@@ -1458,15 +937,16 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                     }
                                 }) {
                                     RawEntryMut::Occupied(mut o) => {
+                                        // 值更新 - 不增加版本号
                                         *o.get_mut() = value;
                                     }
                                     RawEntryMut::Vacant(vac) => {
-                                        // Only allocate key when inserting new entry
+                                        // 新 key - 增加版本号
                                         let key = DictKey::from_str(key_str);
                                         vac.insert(key, value);
+                                        me.ver += 1;
                                     }
                                 }
-                                me.ver += 1;
                             }
                             stack.truncate(args_start - 1);
                             stack.push(Value::VOID);
@@ -1583,738 +1063,109 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 stack.push(Value::range(id));
             }
             Op::GetMember(idx, slot_idx) => {
-                let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let tag = obj.get_tag();
-                let field = rt.get_const_str(*idx, &bc.constants);
-                if tag == crate::core::value::TAG_STRUCT {
-                    let id = obj.as_obj_id();
-                    if let ManagedObject::Struct(s) = rt.heap.get(id) {
-                        let field_hash = xu_ir::stable_hash64(field);
-                        // IC check
-                        let mut val = None;
-                        if let Some(idx_slot) = slot_idx {
-                            if *idx_slot < rt.ic_slots.len() {
-                                let c = &rt.ic_slots[*idx_slot];
-                                if c.struct_ty_hash == s.ty_hash && c.key_hash == field_hash {
-                                    if let Some(offset) = c.field_offset {
-                                        val = Some(s.fields[offset]);
-                                    }
-                                }
-                            }
-                        }
-
-                        if let Some(v) = val {
-                            stack.push(v);
-                        } else {
-                            // Slow path
-                            match rt.get_member_with_ic_raw(obj, field, *slot_idx) {
-                                Ok(v) => stack.push(v),
-                                Err(e) => {
-                                    let err_val =
-                                        Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                                    if let Some(flow) = throw_value(
-                                        rt,
-                                        &mut ip,
-                                        &mut handlers,
-                                        &mut stack,
-                                        &mut iters,
-                                        &mut pending,
-                                        &mut thrown,
-                                        err_val,
-                                    ) {
-                                        return Ok(flow);
-                                    }
-                                    ip += 1;
-                                    continue;
-                                }
-                            }
-                        }
-                        ip += 1;
-                        continue;
-                    } else {
-                        return Err("Not a struct".into());
-                    }
-                } else {
-                    match rt.get_member_with_ic_raw(obj, field, *slot_idx) {
-                        Ok(v) => stack.push(v),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = access::op_get_member(
+                    rt,
+                    bc,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *idx,
+                    *slot_idx,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::GetIndex(slot_cell) => {
-                let idx = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let tag = obj.get_tag();
-
-                if tag == TAG_DICT {
-                    let id = obj.as_obj_id();
-                    if let ManagedObject::Dict(me) = rt.heap.get(id) {
-                        let cur_ver = me.ver;
-                        let mut val = None;
-                        if idx.is_int() {
-                            let key = idx.as_i64();
-                            if key >= 0 && key < 1024 {
-                                let ui = key as usize;
-                                if ui < me.elements.len() {
-                                    let v = me.elements[ui];
-                                    if v.get_tag() != crate::core::value::TAG_VOID {
-                                        val = Some(v);
-                                    }
-                                }
-                            }
-
-                            if val.is_none() {
-                                if let Some(c) = rt.dict_cache_int_last.as_ref() {
-                                    if c.id == id.0 && c.ver == cur_ver && c.key == key {
-                                        val = Some(c.value);
-                                    }
-                                }
-                            }
-                            if val.is_none() {
-                                if let Some(v) = me.map.get(&crate::core::value::DictKey::Int(key)) {
-                                    val = Some(*v);
-                                    rt.dict_cache_int_last = Some(DictCacheIntLast {
-                                        id: id.0,
-                                        key,
-                                        ver: cur_ver,
-                                        value: *v,
-                                    });
-                                }
-                            }
-                        } else if idx.get_tag() == TAG_STR {
-                            // Fast path for string key
-                            let key_id = idx.as_obj_id();
-                            if let ManagedObject::Str(key_text) = rt.heap.get(key_id) {
-                                // Check shape-based cache first
-                                if let Some(shape_id) = me.shape {
-                                    if let ManagedObject::Shape(shape) = rt.heap.get(shape_id) {
-                                        if let Some(&off) = shape.prop_map.get(key_text.as_str()) {
-                                            val = Some(me.prop_values[off]);
-                                        }
-                                    }
-                                }
-                                // Check last cache
-                                if val.is_none() {
-                                    if let Some(c) = rt.dict_cache_last.as_ref() {
-                                        if c.id == id.0 && c.ver == cur_ver && c.key.as_str() == key_text.as_str() {
-                                            val = Some(c.value);
-                                        }
-                                    }
-                                }
-                                // Hash lookup
-                                if val.is_none() {
-                                    let key_hash = Runtime::hash_bytes(me.map.hasher(), key_text.as_bytes());
-                                    if let Some(v) = Runtime::dict_get_by_str_with_hash(me, key_text.as_str(), key_hash) {
-                                        val = Some(v);
-                                        rt.dict_cache_last = Some(DictCacheLast {
-                                            id: id.0,
-                                            key_hash,
-                                            ver: cur_ver,
-                                            key: key_text.clone(),
-                                            value: v,
-                                        });
-                                    }
-                                }
-                            }
-                        }
-
-                        if let Some(v) = val {
-                            stack.push(v);
-                            ip += 1;
-                            continue;
-                        }
-                    }
-                    // Slow path for Dict
-                    match rt.get_index_with_ic_raw(obj, idx, *slot_cell) {
-                        Ok(v) => stack.push(v),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                        }
-                    }
-                    ip += 1;
-                    continue;
-                } else if tag == TAG_LIST && idx.is_int() {
-                    let id = obj.as_obj_id();
-                    let i = idx.as_i64();
-                    if let ManagedObject::List(l) = rt.heap.get(id) {
-                        if i >= 0 && (i as usize) < l.len() {
-                            stack.push(l[i as usize]);
-                            ip += 1;
-                            continue;
-                        } else {
-                            match rt.get_index_with_ic_raw(obj, idx, *slot_cell) {
-                                Ok(v) => stack.push(v),
-                                Err(e) => {
-                                    let err_val =
-                                        Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                                    if let Some(flow) = throw_value(
-                                        rt,
-                                        &mut ip,
-                                        &mut handlers,
-                                        &mut stack,
-                                        &mut iters,
-                                        &mut pending,
-                                        &mut thrown,
-                                        err_val,
-                                    ) {
-                                        return Ok(flow);
-                                    }
-                                    ip += 1;
-                                    continue;
-                                }
-                            }
-                            ip += 1;
-                            continue;
-                        }
-                    } else {
-                        return Err("Not a list".into());
-                    }
-                } else if tag == TAG_TUPLE && idx.is_int() {
-                    let id = obj.as_obj_id();
-                    let i = idx.as_i64();
-                    if let ManagedObject::Tuple(t) = rt.heap.get(id) {
-                        if i >= 0 && (i as usize) < t.len() {
-                            stack.push(t[i as usize]);
-                            ip += 1;
-                            continue;
-                        }
-                    }
-                    match rt.get_index_with_ic_raw(obj, idx, *slot_cell) {
-                        Ok(v) => stack.push(v),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                        }
-                    }
-                } else {
-                    match rt.get_index_with_ic_raw(obj, idx, *slot_cell) {
-                        Ok(v) => stack.push(v),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = access::op_get_index(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *slot_cell,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::DictGetStrConst(idx, k_hash, slot) => {
-                let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                if obj.get_tag() != TAG_DICT {
-                    let err_val = Value::str(
-                        rt.heap.alloc(ManagedObject::Str(
-                            rt.error(xu_syntax::DiagnosticKind::FormatDictRequired)
-                                .into(),
-                        )),
-                    );
-                    if let Some(flow) = throw_value(
-                        rt,
-                        &mut ip,
-                        &mut handlers,
-                        &mut stack,
-                        &mut iters,
-                        &mut pending,
-                        &mut thrown,
-                        err_val,
-                    ) {
-                        return Ok(flow);
-                    }
-                    continue;
-                }
-                let id = obj.as_obj_id();
-                if let ManagedObject::Dict(me) = rt.heap.get(id) {
-                    let cur_ver = me.ver;
-                    let mut val = None;
-
-                    if let Some(idx_slot) = slot {
-                        if *idx_slot < rt.ic_slots.len() {
-                            let c = &rt.ic_slots[*idx_slot];
-                            if let Some(off) = c.field_offset {
-                                if let Some(sid) = me.shape {
-                                    if c.id == sid.0 {
-                                        val = Some(me.prop_values[off]);
-                                    }
-                                }
-                            } else {
-                                if c.id == id.0 && c.ver == me.ver && c.key_hash == *k_hash {
-                                    val = Some(c.value);
-                                }
-                            }
-                        }
-                    }
-
-                    if let Some(v) = val {
-                        stack.push(v);
-                    } else {
-                        let k = rt.get_const_str(*idx, &bc.constants);
-                        let internal_hash = Runtime::hash_bytes(me.map.hasher(), k.as_bytes());
-                        let out = Runtime::dict_get_by_str_with_hash(me, k, internal_hash);
-                        let Some(out) = out else {
-                            let err_val = Value::str(
-                                rt.heap.alloc(ManagedObject::Str(
-                                    rt.error(xu_syntax::DiagnosticKind::KeyNotFound(k.to_string()))
-                                        .into(),
-                                )),
-                            );
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        };
-                        if let Some(idx_slot) = slot {
-                            while rt.ic_slots.len() <= *idx_slot {
-                                rt.ic_slots.push(crate::ICSlot::default());
-                            }
-                            let mut shape_info = (id.0, None);
-                            if let Some(sid) = me.shape {
-                                if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
-                                    if let Some(&off) = shape.prop_map.get(k) {
-                                        shape_info = (sid.0, Some(off));
-                                    }
-                                }
-                            }
-
-                            rt.ic_slots[*idx_slot] = crate::ICSlot {
-                                id: shape_info.0,
-                                key_hash: *k_hash,
-                                ver: cur_ver,
-                                value: out,
-                                field_offset: shape_info.1,
-                                ..Default::default()
-                            };
-                        }
-                        stack.push(out);
-                    }
+                if let Some(flow) = access::op_dict_get_str_const(
+                    rt,
+                    bc,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *idx,
+                    *k_hash,
+                    *slot,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::DictGetIntConst(i, slot) => {
-                let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                if obj.get_tag() != TAG_DICT {
-                    let err_val = Value::str(
-                        rt.heap.alloc(ManagedObject::Str(
-                            rt.error(xu_syntax::DiagnosticKind::FormatDictRequired)
-                                .into(),
-                        )),
-                    );
-                    if let Some(flow) = throw_value(
-                        rt,
-                        &mut ip,
-                        &mut handlers,
-                        &mut stack,
-                        &mut iters,
-                        &mut pending,
-                        &mut thrown,
-                        err_val,
-                    ) {
-                        return Ok(flow);
-                    }
-                    continue;
-                }
-                let id = obj.as_obj_id();
-                if let ManagedObject::Dict(me) = rt.heap.get(id) {
-                    let mut val = None;
-                    if *i >= 0 && *i < 1024 {
-                        let ui = *i as usize;
-                        if ui < me.elements.len() {
-                            let v = me.elements[ui];
-                            if v.get_tag() != crate::core::value::TAG_VOID {
-                                val = Some(v);
-                            }
-                        }
-                    }
-
-                    let cur_ver = me.ver;
-                    if val.is_none() {
-                        if let Some(idx) = slot {
-                            if *idx < rt.ic_slots.len() {
-                                let c = &rt.ic_slots[*idx];
-                                let key_hash = Runtime::hash_dict_key_int(me.map.hasher(), *i);
-                                if c.id == id.0 && c.ver == cur_ver && c.key_hash == key_hash {
-                                    val = Some(c.value);
-                                }
-                            }
-                        }
-                    }
-
-                    if let Some(v) = val {
-                        stack.push(v);
-                    } else {
-                        let key_hash = Runtime::hash_dict_key_int(me.map.hasher(), *i);
-                        let out = me.map.get(&crate::core::value::DictKey::Int(*i)).cloned();
-                        let Some(out) = out else {
-                            let err_val = Value::str(
-                                rt.heap.alloc(ManagedObject::Str(
-                                    rt.error(xu_syntax::DiagnosticKind::KeyNotFound(i.to_string()))
-                                        .into(),
-                                )),
-                            );
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        };
-                        if let Some(idx) = slot {
-                            while rt.ic_slots.len() <= *idx {
-                                rt.ic_slots.push(crate::ICSlot::default());
-                            }
-                            rt.ic_slots[*idx] = crate::ICSlot {
-                                id: id.0,
-                                key_hash,
-                                ver: cur_ver,
-                                value: out,
-                                ..Default::default()
-                            };
-                        }
-                        stack.push(out);
-                    }
+                if let Some(flow) = access::op_dict_get_int_const(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *i,
+                    *slot,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::AssignMember(idx, op_type) => {
-                let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let rhs = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let field = rt.get_const_str(*idx, &bc.constants);
-                if let Err(e) = rt.assign_member(obj, field, *op_type, rhs) {
-                    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                    if let Some(flow) = throw_value(
-                        rt,
-                        &mut ip,
-                        &mut handlers,
-                        &mut stack,
-                        &mut iters,
-                        &mut pending,
-                        &mut thrown,
-                        err_val,
-                    ) {
-                        return Ok(flow);
-                    }
-                    continue;
+                if let Some(flow) = access::op_assign_member(
+                    rt,
+                    bc,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *idx,
+                    *op_type,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::AssignIndex(op) => {
-                let idxv = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let rhs = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                if let Err(e) = rt.assign_index(obj, idxv, *op, rhs) {
-                    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                    if let Some(flow) = throw_value(
-                        rt,
-                        &mut ip,
-                        &mut handlers,
-                        &mut stack,
-                        &mut iters,
-                        &mut pending,
-                        &mut thrown,
-                        err_val,
-                    ) {
-                        return Ok(flow);
-                    }
-                    continue;
+                if let Some(flow) = access::op_assign_index(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *op,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::ForEachInit(idx, var_idx, end) => {
-                let iterable = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let tag = iterable.get_tag();
-                let var = rt.get_const_str(*idx, &bc.constants);
-                let first_val = if tag == TAG_LIST {
-                    let id = iterable.as_obj_id();
-                    let len = match rt.heap.get(id) {
-                        ManagedObject::List(v) => v.len(),
-                        _ => {
-                            return Err(
-                                rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into()))
-                            );
-                        }
-                    };
-                    if len == 0 {
-                        ip = *end;
-                        continue;
-                    }
-                    let first = match rt.heap.get(id) {
-                        ManagedObject::List(v) => v.get(0).cloned().unwrap_or(Value::VOID),
-                        _ => {
-                            return Err(
-                                rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into()))
-                            );
-                        }
-                    };
-                    iters.push(IterState::List { id, idx: 1, len });
-                    first
-                } else if tag == TAG_RANGE {
-                    let id = iterable.as_obj_id();
-                    let (start, r_end, inclusive) = match rt.heap.get(id) {
-                        ManagedObject::Range(s, e, inc) => (*s, *e, *inc),
-                        _ => {
-                            return Err(
-                                rt.error(xu_syntax::DiagnosticKind::Raw("Not a range".into()))
-                            );
-                        }
-                    };
-                    let step = if start <= r_end { 1 } else { -1 };
-                    if !inclusive {
-                        if (step > 0 && start >= r_end) || (step < 0 && start <= r_end) {
-                            ip = *end;
-                            continue;
-                        }
-                    }
-                    let next = start.saturating_add(step);
-                    iters.push(IterState::Range {
-                        cur: next,
-                        end: r_end,
-                        step,
-                        inclusive,
-                    });
-                    Value::from_i64(start)
-                } else if tag == TAG_DICT {
-                    let id = iterable.as_obj_id();
-                    // 检查是否是解析器转换的键值对循环
-                    let is_kv_loop = var.starts_with("__tmp_foreach_");
-
-                    if is_kv_loop {
-                        // 键值对循环：返回 (key, value) 元组
-                        // 先收集原始数据，避免借用冲突
-                        let raw_pairs: Vec<(DictKey, Value)> = match rt.heap.get(id) {
-                            ManagedObject::Dict(d) => {
-                                let mut result = Vec::with_capacity(d.map.len());
-                                for (k, v) in d.map.iter() {
-                                    result.push((k.clone(), *v));
-                                }
-                                // 处理 shape 中的属性
-                                if let Some(sid) = d.shape {
-                                    if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
-                                        for (k, off) in shape.prop_map.iter() {
-                                            if let Some(v) = d.prop_values.get(*off) {
-                                                result.push((DictKey::from_str(k.as_str()), *v));
-                                            }
-                                        }
-                                    }
-                                }
-                                // 处理 elements 数组
-                                for (i, v) in d.elements.iter().enumerate() {
-                                    if v.get_tag() != crate::core::value::TAG_VOID {
-                                        result.push((DictKey::Int(i as i64), *v));
-                                    }
-                                }
-                                result
-                            }
-                            _ => {
-                                return Err(
-                                    rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into()))
-                                );
-                            }
-                        };
-                        if raw_pairs.is_empty() {
-                            ip = *end;
-                            continue;
-                        }
-                        // 现在分配内存创建元组
-                        let items: Vec<Value> = raw_pairs.into_iter().map(|(k, v)| {
-                            let key_val = match k {
-                                DictKey::Str { data, .. } => Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(&data)))),
-                                DictKey::Int(i) => Value::from_i64(i),
-                            };
-                            Value::tuple(rt.heap.alloc(ManagedObject::Tuple(vec![key_val, v])))
-                        }).collect();
-                        let first = items[0];
-                        iters.push(IterState::DictKV { items, idx: 1 });
-                        first
-                    } else {
-                        // 普通字典循环：只返回键
-                        let raw_keys: Vec<DictKey> = match rt.heap.get(id) {
-                            ManagedObject::Dict(d) => {
-                                d.map.keys().cloned().collect()
-                            }
-                            _ => {
-                                return Err(
-                                    rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into()))
-                                );
-                            }
-                        };
-                        if raw_keys.is_empty() {
-                            ip = *end;
-                            continue;
-                        }
-                        let keys: Vec<Value> = raw_keys.into_iter().map(|k| match k {
-                            DictKey::Str { data, .. } => Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(&data)))),
-                            DictKey::Int(i) => Value::from_i64(i),
-                        }).collect();
-                        let first = keys[0];
-                        iters.push(IterState::Dict { keys, idx: 1 });
-                        first
-                    }
-                } else {
-                    return Err(rt.error(xu_syntax::DiagnosticKind::InvalidIteratorType {
-                        expected: "list, range, or dict".to_string(),
-                        actual: iterable.type_name().to_string(),
-                        iter_desc: "bytecode foreach".to_string(),
-                    }));
-                };
-
-                if let Some(v_idx) = var_idx {
-                    rt.set_local_by_index(*v_idx, first_val);
-                } else if rt.locals.is_active() {
-                    if !rt.set_local(var, first_val) {
-                        rt.define_local(var.to_string(), first_val);
-                    }
-                } else {
-                    rt.env.define(var.to_string(), first_val);
+                if iter::op_foreach_init(rt, bc, &mut stack, &mut iters, &mut ip, *idx, *var_idx, *end)? {
+                    continue;
                 }
-                ip += 1;
-                continue;
             }
             Op::ForEachNext(idx, var_idx, loop_start, end) => {
-                let Some(state) = iters.last_mut() else {
-                    return Err(
-                        rt.error(xu_syntax::DiagnosticKind::Raw("Iterator underflow".into()))
-                    );
-                };
-                let var = rt.get_const_str(*idx, &bc.constants);
-                let next_val = match state {
-                    IterState::List { id, idx, len, .. } => {
-                        if *idx >= *len {
-                            None
-                        } else {
-                            let item = match rt.heap.get(*id) {
-                                ManagedObject::List(v) => {
-                                    v.get(*idx).cloned().unwrap_or(Value::VOID)
-                                }
-                                _ => {
-                                    return Err(rt.error(xu_syntax::DiagnosticKind::Raw(
-                                        "Not a list".into(),
-                                    )));
-                                }
-                            };
-                            *idx += 1;
-                            Some(item)
-                        }
-                    }
-                    IterState::Range {
-                        cur,
-                        end: r_end,
-                        step,
-                        inclusive,
-                        ..
-                    } => {
-                        let done = if *inclusive {
-                            (*step > 0 && *cur > *r_end) || (*step < 0 && *cur < *r_end)
-                        } else {
-                            (*step > 0 && *cur >= *r_end) || (*step < 0 && *cur <= *r_end)
-                        };
-                        if done {
-                            None
-                        } else {
-                            let item = Value::from_i64(*cur);
-                            *cur = cur.saturating_add(*step);
-                            Some(item)
-                        }
-                    }
-                    IterState::Dict { keys, idx } => {
-                        if *idx >= keys.len() {
-                            None
-                        } else {
-                            let item = keys[*idx];
-                            *idx += 1;
-                            Some(item)
-                        }
-                    }
-                    IterState::DictKV { items, idx } => {
-                        if *idx >= items.len() {
-                            None
-                        } else {
-                            let item = items[*idx];
-                            *idx += 1;
-                            Some(item)
-                        }
-                    }
-                };
-
-                if let Some(val) = next_val {
-                    if let Some(v_idx) = var_idx {
-                        rt.set_local_by_index(*v_idx, val);
-                    } else if rt.locals.is_active() {
-                        if !rt.set_local(var, val) {
-                            rt.define_local(var.to_string(), val);
-                        }
-                    } else {
-                        rt.env.define(var.to_string(), val);
-                    }
-                    ip = *loop_start;
-                    continue;
-                } else {
-                    iters.pop();
-                    ip = *end;
+                if iter::op_foreach_next(rt, bc, &mut iters, &mut ip, *idx, *var_idx, *loop_start, *end)? {
                     continue;
                 }
             }
             Op::IterPop => {
-                let _ = iters
-                    .pop()
-                    .ok_or_else(|| "Iterator underflow".to_string())?;
+                iter::op_iter_pop(&mut iters)?;
             }
             Op::EnvPush => rt.env.push(),
             Op::EnvPop => rt.env.pop(),
@@ -2339,268 +1190,37 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 continue;
             }
             Op::ListNew(n) => {
-                let mut items: Vec<Value> = Vec::with_capacity(*n);
-                for _ in 0..*n {
-                    items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
-                }
-                items.reverse();
-                let id = rt.heap.alloc(ManagedObject::List(items));
-                stack.push(Value::list(id));
+                collection::op_list_new(rt, &mut stack, *n)?;
             }
             Op::TupleNew(n) => {
-                if *n == 0 {
-                    stack.push(Value::VOID);
+                if collection::op_tuple_new(rt, &mut stack, *n)? {
                     ip += 1;
                     continue;
                 }
-                let mut items: Vec<Value> = Vec::with_capacity(*n);
-                for _ in 0..*n {
-                    items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
-                }
-                items.reverse();
-                let id = rt.heap.alloc(ManagedObject::Tuple(items));
-                stack.push(Value::tuple(id));
             }
             Op::DictNew(n) => {
-                let mut map = crate::core::value::dict_with_capacity(*n);
-                for _ in 0..*n {
-                    let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                    let k = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                    let key = if k.get_tag() == TAG_STR {
-                        if let ManagedObject::Str(s) = rt.heap.get(k.as_obj_id()) {
-                            DictKey::from_text(s)
-                        } else {
-                            return Err("Not a string".into());
-                        }
-                    } else if k.is_int() {
-                        DictKey::Int(k.as_i64())
-                    } else {
-                        return Err(rt.error(xu_syntax::DiagnosticKind::DictKeyRequired));
-                    };
-                    map.map.insert(key, v);
-                }
-                let id = rt.heap.alloc(ManagedObject::Dict(map));
-                stack.push(Value::dict(id));
+                collection::op_dict_new(rt, &mut stack, *n)?;
             }
             Op::BuilderNewCap(cap) => {
-                let s = rt.builder_pool_get(*cap);
-                let id = rt.heap.alloc(ManagedObject::Builder(s));
-                stack.push(Value::builder(id));
+                string::op_builder_new_cap(rt, &mut stack, *cap);
             }
             Op::BuilderAppend => {
-                let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                if b.get_tag() != TAG_BUILDER {
-                    return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
-                        method: "builder_push".to_string(),
-                        ty: b.type_name().to_string(),
-                    }));
-                }
-                let id = b.as_obj_id();
-                // Optimized: check most common cases first (int and str)
-                if v.is_int() {
-                    let mut buf = itoa::Buffer::new();
-                    let digits = buf.format(v.as_i64());
-                    if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
-                        s.push_str(digits);
-                    }
-                } else if v.get_tag() == TAG_STR {
-                    // Optimization: avoid clone by using raw pointer
-                    let str_id = v.as_obj_id();
-                    let ptr = if let ManagedObject::Str(s) = rt.heap.get(str_id) {
-                        s.as_str().as_ptr()
-                    } else {
-                        "".as_ptr()
-                    };
-                    let len = if let ManagedObject::Str(s) = rt.heap.get(str_id) {
-                        s.as_str().len()
-                    } else {
-                        0
-                    };
-                    if let ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
-                        // SAFETY: ptr/len are valid, builder and string are different objects
-                        let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
-                        let s_ref = unsafe { std::str::from_utf8_unchecked(slice) };
-                        sb.push_str(s_ref);
-                    }
-                } else if v.is_f64() {
-                    let f = v.as_f64();
-                    if f.fract() == 0.0 {
-                        let mut buf = itoa::Buffer::new();
-                        let digits = buf.format(f as i64);
-                        if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
-                            s.push_str(digits);
-                        }
-                    } else {
-                        let mut buf = ryu::Buffer::new();
-                        let digits = buf.format(f);
-                        if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
-                            s.push_str(digits);
-                        }
-                    }
-                } else if v.is_bool() {
-                    let piece = if v.as_bool() { "true" } else { "false" };
-                    if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
-                        s.push_str(piece);
-                    }
-                } else if v.is_void() {
-                    if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
-                        s.push_str("()");
-                    }
-                } else {
-                    let piece = crate::util::value_to_string(&v, &rt.heap);
-                    if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
-                        s.push_str(&piece);
-                    }
-                }
-                stack.push(b);
+                string::op_builder_append(rt, &mut stack)?;
             }
             Op::BuilderFinalize => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                if b.get_tag() != TAG_BUILDER {
-                    return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
-                        method: "builder_finalize".to_string(),
-                        ty: b.type_name().to_string(),
-                    }));
-                }
-                let id = b.as_obj_id();
-                // Take ownership of the builder string and return it to pool
-                let (out, builder_str) = if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
-                    let text = Text::from_str(s.as_str());
-                    let taken = std::mem::take(s);
-                    (text, Some(taken))
-                } else {
-                    return Err("Not a builder".into());
-                };
-                // Return the string to the pool for reuse
-                if let Some(s) = builder_str {
-                    rt.builder_pool_return(s);
-                }
-                let sid = rt.heap.alloc(ManagedObject::Str(out));
-                stack.push(Value::str(sid));
+                string::op_builder_finalize(rt, &mut stack)?;
             }
             Op::DictInsert => {
                 dict_ops::op_dict_insert(rt, &mut stack)?;
             }
-            Op::DictInsertStrConst(idx, _k_hash, slot) => {
-                let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let dict = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                if dict.get_tag() != TAG_DICT {
-                    return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
-                        method: "insert".to_string(),
-                        ty: dict.type_name().to_string(),
-                    }));
-                }
-                let id = dict.as_obj_id();
-
-                // Get the key string first (before any mutable borrows)
-                let k = rt.get_const_str(*idx, &bc.constants);
-                let k_bytes = k.as_bytes();
-                let k_len = k_bytes.len();
-
-                // Try IC cache first - fast path for short keys (<=16 bytes)
-                let mut cache_hit = false;
-                if let Some(idx_slot) = slot {
-                    if *idx_slot < rt.ic_slots.len() {
-                        let c = &rt.ic_slots[*idx_slot];
-                        // For short keys, compare directly; for long keys, compare hash
-                        let key_match = if k_len <= 16 {
-                            c.key_len == k_len as u8 && c.key_short[..k_len] == k_bytes[..]
-                        } else {
-                            c.key_len == k_len as u8 && c.key_hash != 0
-                        };
-                        if c.id == id.0 && key_match {
-                            let cached_hash = c.key_hash;
-                            if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
-                                match d.map.raw_entry_mut().from_hash(cached_hash, |key| {
-                                    match key {
-                                        DictKey::Str { data, .. } => data.as_str() == k,
-                                        _ => false,
-                                    }
-                                }) {
-                                    hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
-                                        *o.get_mut() = v;
-                                        d.ver += 1;
-                                        rt.dict_version_last = Some((id.0, d.ver));
-                                        cache_hit = true;
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if !cache_hit {
-                    // Slow path - compute hash and insert
-                    if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
-                        let internal_hash = Runtime::hash_bytes(d.map.hasher(), k.as_bytes());
-                        // Avoid creating DictKey for comparison - use closure with str comparison
-                        match d.map.raw_entry_mut().from_hash(internal_hash, |key| {
-                            match key {
-                                DictKey::Str { data, .. } => data.as_str() == k,
-                                _ => false,
-                            }
-                        }) {
-                            hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
-                                *o.get_mut() = v;
-                            }
-                            hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
-                                // Only allocate key when actually inserting new entry
-                                let key = DictKey::from_str(k);
-                                vac.insert(key, v);
-                            }
-                        }
-                        d.ver += 1;
-                        rt.dict_version_last = Some((id.0, d.ver));
-
-                        // Update IC cache with key info for fast comparison
-                        if let Some(idx_slot) = slot {
-                            while rt.ic_slots.len() <= *idx_slot {
-                                rt.ic_slots.push(crate::ICSlot::default());
-                            }
-                            let mut key_short = [0u8; 16];
-                            let key_bytes = k.as_bytes();
-                            let copy_len = key_bytes.len().min(16);
-                            key_short[..copy_len].copy_from_slice(&key_bytes[..copy_len]);
-                            rt.ic_slots[*idx_slot] = crate::ICSlot {
-                                id: id.0,
-                                key_hash: internal_hash,
-                                key_short,
-                                key_len: key_bytes.len() as u8,
-                                ver: d.ver,
-                                value: Value::VOID,
-                                ..Default::default()
-                            };
-                        }
-                    }
-                }
-                stack.push(dict);
+            Op::DictInsertStrConst(idx, k_hash, slot) => {
+                collection::op_dict_insert_str_const(rt, bc, &mut stack, *idx, *k_hash, *slot)?;
             }
             Op::DictMerge => {
                 dict_ops::op_dict_merge(rt, &mut stack)?;
             }
             Op::ListAppend(n) => {
-                let mut items: SmallVec<[Value; 8]> = SmallVec::with_capacity(*n);
-                for _ in 0..*n {
-                    items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
-                }
-                items.reverse();
-                let list = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                if list.get_tag() != TAG_LIST {
-                    return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
-                        method: "add".to_string(),
-                        ty: list.type_name().to_string(),
-                    }));
-                }
-                let id = list.as_obj_id();
-                if let ManagedObject::List(vs) = rt.heap.get_mut(id) {
-                    vs.reserve(items.len());
-                    for v in items {
-                        vs.push(v);
-                    }
-                }
-                stack.push(list);
+                collection::op_list_append(rt, &mut stack, *n)?;
             }
             Op::Print => {
                 let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
