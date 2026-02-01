@@ -1,10 +1,10 @@
 //! Garbage collection and heap management.
 
-use super::value::{Dict, DictStr, FileHandle, Function, ModuleInstance, StructInstance};
-use super::Value;
+use super::value::{Dict, DictStr, FileHandle, Function, ModuleInstance, StructInstance, DictKey};
+use xu_core::value::Value;
+pub use xu_core::gc::ObjectId;
+use xu_core::text::Text;
 use std::collections::HashSet;
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ObjectId(pub usize);
 
 #[derive(Clone)]
 pub enum ManagedObject {
@@ -17,10 +17,10 @@ pub enum ManagedObject {
     Struct(Box<StructInstance>),
     Module(Box<ModuleInstance>),
     Range(i64, i64, bool),
-    Enum(Box<(super::text::Text, super::text::Text, Box<[Value]>)>),
+    Enum(Box<(Text, Text, Box<[Value]>)>),
     OptionSome(Value), // Optimized Option::some with single value
     Function(Function),
-    Str(super::text::Text),
+    Str(Text),
     Shape(Box<super::value::Shape>),
 }
 
@@ -44,7 +44,7 @@ impl ManagedObject {
                 // More accurate sizing for hash maps
                 let map_size = d.map.capacity()
                     * (
-                        std::mem::size_of::<super::value::DictKey>()
+                        std::mem::size_of::<DictKey>()
                             + std::mem::size_of::<Value>()
                             + 16
                         // HashTable overhead per entry
@@ -196,7 +196,7 @@ impl Heap {
         // Clear marks at the beginning to avoid duplicate marking
         self.marks.clear();
         self.marked_frames.clear();
-        
+
         let mut pending_values: Vec<Value> = roots.to_vec();
 
         // Process environment stack values

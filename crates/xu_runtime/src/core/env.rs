@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use super::Value;
 use super::gc::{Heap, ObjectId};
-use super::value::{FastHashMap, fast_map_new};
+use super::value::{FastHashMap, fast_map_new, ValueExt};
 
 #[derive(Clone, Debug)]
 pub struct Scope {

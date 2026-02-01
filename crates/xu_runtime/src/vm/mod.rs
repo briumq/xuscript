@@ -3,6 +3,7 @@
 //! This module contains the bytecode interpreter and related operations.
 
 mod dispatch;
+mod exception;
 mod fast;
 pub(crate) mod ops;
 

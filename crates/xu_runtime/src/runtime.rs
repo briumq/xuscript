@@ -8,6 +8,7 @@ use smallvec::SmallVec;
 use xu_ir::{BinaryOp, Executable, Expr, Module, Stmt, StructDef};
 
 use crate::core::Value;
+use crate::core::value::ValueExt;
 use crate::core::Env;
 use crate::core::value::{Dict, DictKey, FastHashMap, fast_map_new};
 use crate::util as capabilities;

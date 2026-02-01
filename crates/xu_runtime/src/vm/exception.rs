@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use crate::Value;
 use crate::{Flow, Runtime};
-use crate::vm::{Handler, IterState, Pending};
+use super::{Handler, IterState, Pending};
 
 pub(crate) fn unwind_to_finally(
     rt: &mut Runtime,
@@ -67,4 +67,3 @@ pub(crate) fn throw_value(
     }
     Some(Flow::Throw(thrown.take().unwrap()))
 }
-

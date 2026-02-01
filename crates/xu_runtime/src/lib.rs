@@ -12,16 +12,14 @@ mod util;
 mod runtime;
 mod builtins;
 pub mod builtins_registry;
-mod ir_throw;
 mod methods;
-mod args_eval;
-mod stmt_exec;
 
 // Re-exports from core/
 pub use core::gc;
 pub use core::text;
 pub use core::text::Text;
 pub use core::value::Value;
+pub use core::value::ValueExt;
 pub use core::env::{Env, Scope};
 
 // Re-exports from vm/

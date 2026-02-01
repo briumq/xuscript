@@ -1,4 +1,5 @@
 use crate::core::Value;
+use crate::core::value::ValueExt;
 use crate::Runtime;
 use crate::core::gc::ManagedObject;
 use xu_ir::BinaryOp;

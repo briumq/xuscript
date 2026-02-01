@@ -1,4 +1,4 @@
-use crate::core::value::TAG_BUILDER;
+use crate::core::value::{TAG_BUILDER, ValueExt};
 
 use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
@@ -12,7 +12,7 @@ use crate::core::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_S
 use crate::util::{to_i64, type_matches, value_to_string};
 use crate::{Flow, Runtime};
 use crate::runtime::{DictCacheIntLast, DictCacheLast};
-use crate::ir_throw::throw_value;
+use super::exception::throw_value;
 
 use super::fast::run_bytecode_fast_params_only;
 use super::ops::dict as dict_ops;

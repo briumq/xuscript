@@ -5,6 +5,7 @@ edition = "2024"
 rust-version = "1.85"
 
 [dependencies]
+xu_core = { path = "../xu_core" }
 xu_ir = { path = "../xu_ir" }
 xu_syntax = { path = "../xu_syntax" }
 hashbrown = "0.14"
