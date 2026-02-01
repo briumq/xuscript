@@ -1,7 +1,7 @@
 use crate::core::Value;
 use crate::Runtime;
 use crate::core::gc::ManagedObject;
-use crate::vm::IterState;
+use crate::vm::stack::IterState;
 use crate::Flow;
 
 #[inline(always)]

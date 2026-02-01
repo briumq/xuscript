@@ -23,38 +23,12 @@ type HashMap<K, V> = FastHashMap<K, V>;
 // Re-exports
 pub use crate::core::text::Text;
 
-// These types are defined in this file, no need to re-export from crate
+// Import types from sibling modules
+use super::config::{ExecResult, Flow, RuntimeConfig};
+use super::cache::{ICSlot, MethodICSlot, DictCacheLast, DictCacheIntLast};
 
 pub(crate) use crate::methods::MethodKind;
 use crate::util::value_to_string;
-
-#[derive(Debug)]
-pub struct ExecResult {
-    pub value: Option<Value>,
-    pub output: String,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct RuntimeConfig {
-    pub strict_vars: bool,
-}
-
-impl Default for RuntimeConfig {
-    fn default() -> Self {
-        Self { strict_vars: true }
-    }
-}
-
-#[derive(Clone, Default)]
-pub struct MethodICSlot {
-    pub tag: u64,
-    pub method_hash: u64,
-    pub struct_ty_hash: u64,
-    pub(crate) kind: MethodKind,
-    pub cached_func: Value,
-    pub cached_user: Option<std::rc::Rc<crate::core::value::UserFunction>>,
-    pub cached_bytecode: Option<std::rc::Rc<crate::core::value::BytecodeFunction>>,
-}
 
 pub struct Runtime {
     pub(crate) env: Env,
@@ -107,45 +81,6 @@ pub struct Runtime {
     pub(crate) gc_temp_roots: Vec<Value>,
     /// Active VM stacks that need GC protection (raw pointers for performance)
     pub(crate) active_vm_stacks: Vec<*const Vec<Value>>,
-}
-
-#[derive(Clone)]
-pub(crate) struct DictCacheLast {
-    pub(crate) id: usize,
-    pub(crate) key_hash: u64,
-    pub(crate) ver: u64,
-    pub(crate) key: Text,
-    pub(crate) value: Value,
-}
-
-#[derive(Clone)]
-pub(crate) struct DictCacheIntLast {
-    pub(crate) id: usize,
-    pub(crate) key: i64,
-    pub(crate) ver: u64,
-    pub(crate) value: Value,
-}
-
-#[derive(Clone, Default)]
-pub struct ICSlot {
-    pub id: usize,
-    pub key_hash: u64,
-    pub key_id: usize, // Object ID of the key string for fast comparison
-    pub key_short: [u8; 16], // Short key content for fast comparison
-    pub key_len: u8,
-    pub ver: u64,
-    pub value: Value,
-    pub option_some_cached: Value, // Cached Option::some(value) result
-    pub struct_ty_hash: u64,
-    pub field_offset: Option<usize>,
-}
-
-pub enum Flow {
-    None,
-    Return(Value),
-    Break,
-    Continue,
-    Throw(Value),
 }
 
 impl Runtime {

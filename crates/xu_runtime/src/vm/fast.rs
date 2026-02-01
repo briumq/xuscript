@@ -4,7 +4,7 @@ use crate::core::gc::ManagedObject;
 
 use xu_ir::{Bytecode, Op};
 
-use super::dispatch::add_with_heap;
+use super::stack::add_with_heap;
 use crate::ICSlot;
 use crate::{Flow, Runtime};
 
