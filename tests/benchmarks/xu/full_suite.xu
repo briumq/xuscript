@@ -71,7 +71,6 @@ func bench_dict_intkey(N: int) -> float {
 }
 
 func bench_dict_hot(N: int) -> float {
-  // Build dict outside of timing (like Python/Node.js)
   let d: {string: int} = {}
   for i in [0..N-1] { d.insert(to_text(i), i) }
   func logic() {
@@ -132,7 +131,6 @@ func bench_list_push_pop(N: int) -> float {
 }
 
 func bench_dict_miss(N: int) -> float {
-  // Build dict outside of timing (like Python/Node.js)
   let d: {string: int} = {}
   for i in [0..N-1] { d.insert("k" + to_text(i), i) }
   func logic() {
@@ -143,7 +141,6 @@ func bench_dict_miss(N: int) -> float {
 }
 
 func bench_dict_update_hot(N: int) -> float {
-  // Create dict outside of timing (like Python/Node.js)
   let d: {string: int} = {}
   d.insert("hot", 0)
   func logic() {

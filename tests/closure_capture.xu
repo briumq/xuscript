@@ -1,0 +1,28 @@
+// 测试闭包捕获外部变量的正确性
+// 修复前：test2 会错误地访问 test1 的 dict，报错 "Key not found: k"
+
+func test1(N: int) {
+  func logic() {
+    let d: {string: int} = {}
+    for i in [0..N-1] { d.insert("k" + to_text(i), i) }
+    var sum = 0
+    for j in [0..N-1] { sum += d["k" + to_text(j)] }
+  }
+  logic(); logic(); logic()
+}
+
+func test2(N: int) {
+  let d: {string: int} = {}
+  for i in [0..N-1] { d.insert(to_text(i), i) }
+  func logic() {
+    for _ in [0..N-1] { let _v = d["0"] }
+  }
+  logic(); logic(); logic()
+}
+
+let N = 10000
+print("test1...")
+test1(N)
+print("test2...")
+test2(N)
+print("done")
