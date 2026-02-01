@@ -1,7 +1,7 @@
 use std::hash::{BuildHasher, Hash, Hasher};
 
 use crate::core::Value;
-use crate::core::gc::ManagedObject;
+use crate::core::heap::ManagedObject;
 use crate::core::value::{DictKey, TAG_DICT, TAG_STR};
 
 use crate::Runtime;

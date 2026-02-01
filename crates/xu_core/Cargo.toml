@@ -1,9 +1,0 @@
-[package]
-name = "xu_core"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.85"
-
-[dependencies]
-hashbrown = "0.14"
-ahash = "0.8"

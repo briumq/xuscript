@@ -26,9 +26,9 @@ impl BuiltinRegistry {
         self.entries.iter().map(|(n, _)| n.clone()).collect()
     }
 
-    pub fn install_into(self, env: &mut Env, heap: &mut crate::core::gc::Heap) {
+    pub fn install_into(self, env: &mut Env, heap: &mut crate::core::heap::Heap) {
         for (name, fun) in self.entries {
-            let id = heap.alloc(crate::core::gc::ManagedObject::Function(Function::Builtin(fun)));
+            let id = heap.alloc(crate::core::heap::ManagedObject::Function(Function::Builtin(fun)));
             env.define(name, Value::function(id));
         }
     }

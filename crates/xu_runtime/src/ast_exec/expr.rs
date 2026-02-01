@@ -46,7 +46,7 @@ impl Runtime {
             Expr::Bool(v) => Ok(Value::from_bool(*v)),
             Expr::Str(s) => Ok(Value::str(
                 self.heap
-                    .alloc(crate::core::gc::ManagedObject::Str(s.clone().into())),
+                    .alloc(crate::core::heap::ManagedObject::Str(s.clone().into())),
             )),
             Expr::InterpolatedString(parts) => {
                 let mut cap = 0;
@@ -65,7 +65,7 @@ impl Runtime {
                     sb.append_value(&v, &self.heap);
                 }
                 Ok(Value::str(
-                    self.heap.alloc(crate::core::gc::ManagedObject::Str(sb.into())),
+                    self.heap.alloc(crate::core::heap::ManagedObject::Str(sb.into())),
                 ))
             }
             Expr::Group(e) => self.eval_expr(e),
@@ -108,7 +108,7 @@ impl Runtime {
                                     } else if av.is_f64() && av.as_f64().fract() == 0.0 {
                                         Some(i64_to_text_fast(av.as_f64() as i64))
                                     } else if av.get_tag() == crate::core::value::TAG_STR {
-                                        if let crate::core::gc::ManagedObject::Str(s) =
+                                        if let crate::core::heap::ManagedObject::Str(s) =
                                             self.heap.get(av.as_obj_id())
                                         {
                                             Some(s.clone())
@@ -122,7 +122,7 @@ impl Runtime {
                                         let mut out = Text::from_str(prefix.as_str());
                                         out.push_str(d.as_str());
                                         return Ok(Value::str(
-                                            self.heap.alloc(crate::core::gc::ManagedObject::Str(out)),
+                                            self.heap.alloc(crate::core::heap::ManagedObject::Str(out)),
                                         ));
                                     }
                                 }
@@ -139,7 +139,7 @@ impl Runtime {
                 for e in items {
                     v.push(self.eval_expr(e)?);
                 }
-                Ok(Value::list(self.heap.alloc(crate::core::gc::ManagedObject::List(v))))
+                Ok(Value::list(self.heap.alloc(crate::core::heap::ManagedObject::List(v))))
             }
             Expr::Tuple(items) => {
                 if items.is_empty() {
@@ -149,7 +149,7 @@ impl Runtime {
                 for e in items {
                     v.push(self.eval_expr(e)?);
                 }
-                Ok(Value::tuple(self.heap.alloc(crate::core::gc::ManagedObject::Tuple(v))))
+                Ok(Value::tuple(self.heap.alloc(crate::core::heap::ManagedObject::Tuple(v))))
             }
             Expr::Range(r) => {
                 let a = self.eval_expr(&r.start)?;
@@ -158,7 +158,7 @@ impl Runtime {
                 let end = to_i64(&b)?;
                 Ok(Value::range(
                     self.heap
-                        .alloc(crate::core::gc::ManagedObject::Range(start, end, r.inclusive)),
+                        .alloc(crate::core::heap::ManagedObject::Range(start, end, r.inclusive)),
                 ))
             }
             Expr::IfExpr(e) => {
@@ -232,7 +232,7 @@ impl Runtime {
                     type_sig_ic: std::cell::Cell::new(None),
                 };
                 Ok(Value::function(self.heap.alloc(
-                    crate::core::gc::ManagedObject::Function(Function::User(Rc::new(func))),
+                    crate::core::heap::ManagedObject::Function(Function::User(Rc::new(func))),
                 )))
             }
             Expr::Dict(entries) => {
@@ -241,7 +241,7 @@ impl Runtime {
                     map.map
                         .insert(DictKey::from_str(k), self.eval_expr(v)?);
                 }
-                Ok(Value::dict(self.heap.alloc(crate::core::gc::ManagedObject::Dict(map))))
+                Ok(Value::dict(self.heap.alloc(crate::core::heap::ManagedObject::Dict(map))))
             }
             Expr::StructInit(s) => {
                 let layout = self.struct_layouts.get(&s.ty).cloned().ok_or_else(|| {
@@ -273,7 +273,7 @@ impl Runtime {
                             let base = self.eval_expr(e)?;
                             if base.get_tag() == crate::core::value::TAG_STRUCT {
                                 let id = base.as_obj_id();
-                                if let crate::core::gc::ManagedObject::Struct(si) = self.heap.get(id) {
+                                if let crate::core::heap::ManagedObject::Struct(si) = self.heap.get(id) {
                                     if si.ty.as_str() != s.ty.as_str() {
                                         return Err(self.error(xu_syntax::DiagnosticKind::TypeMismatch {
                                             expected: s.ty.clone(),
@@ -288,10 +288,10 @@ impl Runtime {
                                 }
                             } else if base.get_tag() == crate::core::value::TAG_DICT {
                                 let id = base.as_obj_id();
-                                if let crate::core::gc::ManagedObject::Dict(db) = self.heap.get(id) {
+                                if let crate::core::heap::ManagedObject::Dict(db) = self.heap.get(id) {
                                     for (pos, fname) in layout.iter().enumerate() {
                                         if let Some(sid) = db.shape {
-                                            if let crate::core::gc::ManagedObject::Shape(shape) =
+                                            if let crate::core::heap::ManagedObject::Shape(shape) =
                                                 self.heap.get(sid)
                                             {
                                                 if let Some(&off) = shape.prop_map.get(fname.as_str())
@@ -322,7 +322,7 @@ impl Runtime {
                     }
                 }
                 Ok(Value::struct_obj(self.heap.alloc(
-                    crate::core::gc::ManagedObject::Struct(Box::new(StructInstance {
+                    crate::core::heap::ManagedObject::Struct(Box::new(StructInstance {
                         ty: s.ty.clone(),
                         ty_hash: xu_ir::stable_hash64(s.ty.as_str()),
                         fields: values.into_boxed_slice(),

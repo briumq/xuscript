@@ -535,14 +535,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xu_core"
-version = "0.1.0"
-dependencies = [
- "ahash",
- "hashbrown",
-]
-
-[[package]]
 name = "xu_driver"
 version = "0.1.0"
 dependencies = [
@@ -595,7 +587,6 @@ dependencies = [
  "ryu",
  "serde_json",
  "smallvec",
- "xu_core",
  "xu_driver",
  "xu_ir",
  "xu_lexer",

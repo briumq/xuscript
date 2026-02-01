@@ -7,11 +7,13 @@
 //! - `Text` - Optimized string type
 //! - `LocalSlots` - Local variable slot allocation
 
-pub mod gc;
+pub mod heap;
 pub mod text;
 pub mod value;
 pub mod env;
 pub(crate) mod slot_allocator;
 
 pub use value::*;
+pub use heap::ObjectId;
+pub use text::Text;
 pub use env::{Env, Scope};

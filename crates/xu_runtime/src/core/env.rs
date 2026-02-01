@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::Value;
-use super::gc::{Heap, ObjectId};
+use super::heap::{Heap, ObjectId};
 use super::value::{FastHashMap, fast_map_new, ValueExt};
 
 #[derive(Clone, Debug)]

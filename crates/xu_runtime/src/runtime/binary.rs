@@ -9,7 +9,7 @@ use std::collections::HashSet;
 
 use xu_ir::BinaryOp;
 
-use crate::core::gc::ManagedObject;
+use crate::core::heap::ManagedObject;
 use crate::core::value::ValueExt;
 use crate::core::Value;
 use crate::runtime::Text;
@@ -20,7 +20,7 @@ impl Runtime {
     /// Evaluate a binary operation on two values.
     pub(crate) fn eval_binary(&mut self, op: BinaryOp, a: Value, b: Value) -> Result<Value, String> {
         let debug_err =
-            |e: String, a: &Value, b: &Value, op: BinaryOp, heap: &crate::core::gc::Heap| {
+            |e: String, a: &Value, b: &Value, op: BinaryOp, heap: &crate::core::heap::Heap| {
                 let sa = value_to_string(a, heap);
                 let sb = value_to_string(b, heap);
                 println!("BinaryOp Error: {} {:?} {} -> {}", sa, op, sb, e);

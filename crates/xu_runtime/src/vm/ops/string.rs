@@ -4,7 +4,7 @@
 //! - StrAppend*: String concatenation operations
 //! - Builder*: String builder operations
 
-use crate::core::gc::ManagedObject;
+use crate::core::heap::ManagedObject;
 use crate::core::value::{TAG_BUILDER, TAG_STR};
 use crate::core::Value;
 use crate::util::Appendable;

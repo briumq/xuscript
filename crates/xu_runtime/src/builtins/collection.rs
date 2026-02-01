@@ -15,8 +15,8 @@ pub fn builtin_contains(rt: &mut Runtime, args: &[Value]) -> Result<Value, Strin
 
     // Get references without cloning
     let result = if let (
-        crate::core::gc::ManagedObject::Str(hs),
-        crate::core::gc::ManagedObject::Str(ns),
+        crate::core::heap::ManagedObject::Str(hs),
+        crate::core::heap::ManagedObject::Str(ns),
     ) = (rt.heap.get(hay_id), rt.heap.get(needle_id)) {
         hs.as_str().contains(ns.as_str())
     } else {
@@ -39,8 +39,8 @@ pub fn builtin_starts_with(rt: &mut Runtime, args: &[Value]) -> Result<Value, St
 
     // Get references without cloning
     let result = if let (
-        crate::core::gc::ManagedObject::Str(hs),
-        crate::core::gc::ManagedObject::Str(ps),
+        crate::core::heap::ManagedObject::Str(hs),
+        crate::core::heap::ManagedObject::Str(ps),
     ) = (rt.heap.get(hay_id), rt.heap.get(prefix_id)) {
         hs.as_str().starts_with(ps.as_str())
     } else {
@@ -63,8 +63,8 @@ pub fn builtin_ends_with(rt: &mut Runtime, args: &[Value]) -> Result<Value, Stri
 
     // Get references without cloning
     let result = if let (
-        crate::core::gc::ManagedObject::Str(hs),
-        crate::core::gc::ManagedObject::Str(ss),
+        crate::core::heap::ManagedObject::Str(hs),
+        crate::core::heap::ManagedObject::Str(ss),
     ) = (rt.heap.get(hay_id), rt.heap.get(suffix_id)) {
         hs.as_str().ends_with(ss.as_str())
     } else {
@@ -82,7 +82,7 @@ pub fn builtin_set_from_list(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
     if list.get_tag() != crate::core::value::TAG_LIST {
         return Err("__set_from_list expects list".into());
     }
-    let items = if let crate::core::gc::ManagedObject::List(items) = rt.heap.get(list.as_obj_id()) {
+    let items = if let crate::core::heap::ManagedObject::List(items) = rt.heap.get(list.as_obj_id()) {
         items.clone()
     } else {
         return Err("__set_from_list expects list".into());
@@ -91,7 +91,7 @@ pub fn builtin_set_from_list(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
     let mut dict = crate::core::value::dict_with_capacity(items.len());
     for item in items {
         let key = if item.get_tag() == crate::core::value::TAG_STR {
-            if let crate::core::gc::ManagedObject::Str(s) = rt.heap.get(item.as_obj_id()) {
+            if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(item.as_obj_id()) {
                 crate::core::value::DictKey::from_text(s)
             } else {
                 return Err("Invalid set item".into());
@@ -104,5 +104,5 @@ pub fn builtin_set_from_list(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
         dict.map.insert(key, Value::VOID);
     }
 
-    Ok(Value::dict(rt.heap.alloc(crate::core::gc::ManagedObject::Dict(dict))))
+    Ok(Value::dict(rt.heap.alloc(crate::core::heap::ManagedObject::Dict(dict))))
 }

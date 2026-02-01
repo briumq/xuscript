@@ -1,6 +1,6 @@
 use crate::core::Value;
 use crate::core::value::ValueExt;
-use crate::core::gc::ManagedObject;
+use crate::core::heap::ManagedObject;
 
 use xu_ir::{Bytecode, Op};
 

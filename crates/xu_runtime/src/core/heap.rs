@@ -1,10 +1,12 @@
 //! Garbage collection and heap management.
 
-use super::value::{Dict, DictStr, FileHandle, Function, ModuleInstance, StructInstance, DictKey};
-use xu_core::value::Value;
-pub use xu_core::gc::ObjectId;
-use xu_core::text::Text;
+use super::value::{Dict, DictStr, FileHandle, Function, ModuleInstance, StructInstance, DictKey, Value};
+use super::text::Text;
 use std::collections::HashSet;
+
+/// Handle to a heap-allocated object.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ObjectId(pub usize);
 
 #[derive(Clone)]
 pub enum ManagedObject {

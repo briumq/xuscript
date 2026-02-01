@@ -3,7 +3,6 @@ resolver = "2"
 
 members = [
   "crates/xu_cli",
-  "crates/xu_core",
   "crates/xu_driver",
   "crates/xu_ir",
   "crates/xu_lexer",

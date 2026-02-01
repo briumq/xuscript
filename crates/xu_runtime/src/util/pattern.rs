@@ -2,7 +2,7 @@ use xu_ir::Pattern;
 
 use crate::Runtime;
 use crate::core::Value;
-use crate::core::gc::ManagedObject;
+use crate::core::heap::ManagedObject;
 use crate::core::value::{TAG_TUPLE, TAG_STR, TAG_OPTION, TAG_ENUM};
 
 pub(crate) fn match_pattern(

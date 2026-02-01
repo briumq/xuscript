@@ -13,7 +13,7 @@
 use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
 
-use crate::core::gc::ManagedObject;
+use crate::core::heap::ManagedObject;
 use crate::core::value::{DictKey, Function, TAG_DICT, TAG_STR};
 use crate::core::Value;
 use crate::vm::exception::throw_value;

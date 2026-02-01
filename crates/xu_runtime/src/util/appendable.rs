@@ -1,7 +1,7 @@
 use super::helpers::value_to_string;
 use crate::Text;
 use crate::Value;
-use crate::core::gc::Heap;
+use crate::core::heap::Heap;
 
 pub trait Appendable {
     fn append_str(&mut self, s: &str);
@@ -44,7 +44,7 @@ impl Appendable for String {
         } else if v.is_void() {
             self.append_null();
         } else if v.get_tag() == crate::core::value::TAG_STR {
-            if let crate::core::gc::ManagedObject::Str(s) = heap.get(v.as_obj_id()) {
+            if let crate::core::heap::ManagedObject::Str(s) = heap.get(v.as_obj_id()) {
                 self.append_str(s.as_str());
             }
         } else {
@@ -84,7 +84,7 @@ impl Appendable for Text {
         } else if v.is_void() {
             self.append_null();
         } else if v.get_tag() == crate::core::value::TAG_STR {
-            if let crate::core::gc::ManagedObject::Str(s) = heap.get(v.as_obj_id()) {
+            if let crate::core::heap::ManagedObject::Str(s) = heap.get(v.as_obj_id()) {
                 self.append_str(s.as_str());
             }
         } else {

@@ -37,7 +37,7 @@ pub fn err(rt: &Runtime, kind: xu_syntax::DiagnosticKind) -> String {
 pub fn expect_list(rt: &Runtime, value: Value) -> Result<&Vec<Value>, String> {
     let id = value.as_obj_id();
     let obj = rt.heap.get(id);
-    if let crate::core::gc::ManagedObject::List(list) = obj {
+    if let crate::core::heap::ManagedObject::List(list) = obj {
         Ok(list)
     } else {
         Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())))
@@ -50,7 +50,7 @@ pub fn expect_list_mut(rt: &mut Runtime, value: Value) -> Result<&mut Vec<Value>
     {
         let id = value.as_obj_id();
         let obj = rt.heap.get(id);
-        if !matches!(obj, crate::core::gc::ManagedObject::List(_)) {
+        if !matches!(obj, crate::core::heap::ManagedObject::List(_)) {
             return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())));
         }
     }
@@ -60,7 +60,7 @@ pub fn expect_list_mut(rt: &mut Runtime, value: Value) -> Result<&mut Vec<Value>
     let obj = rt.heap.get_mut(id);
     // 由于前面已经检查过类型，这里可以安全地使用unwrap
     match obj {
-        crate::core::gc::ManagedObject::List(list) => Ok(list),
+        crate::core::heap::ManagedObject::List(list) => Ok(list),
         _ => unreachable!(),
     }
 }
@@ -69,7 +69,7 @@ pub fn expect_list_mut(rt: &mut Runtime, value: Value) -> Result<&mut Vec<Value>
 pub fn expect_dict(rt: &Runtime, value: Value) -> Result<&crate::core::value::Dict, String> {
     let id = value.as_obj_id();
     let obj = rt.heap.get(id);
-    if let crate::core::gc::ManagedObject::Dict(dict) = obj {
+    if let crate::core::heap::ManagedObject::Dict(dict) = obj {
         Ok(dict)
     } else {
         Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())))
@@ -82,7 +82,7 @@ pub fn expect_dict_mut(rt: &mut Runtime, value: Value) -> Result<&mut crate::cor
     {
         let id = value.as_obj_id();
         let obj = rt.heap.get(id);
-        if !matches!(obj, crate::core::gc::ManagedObject::Dict(_)) {
+        if !matches!(obj, crate::core::heap::ManagedObject::Dict(_)) {
             return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
         }
     }
@@ -92,7 +92,7 @@ pub fn expect_dict_mut(rt: &mut Runtime, value: Value) -> Result<&mut crate::cor
     let obj = rt.heap.get_mut(id);
     // 由于前面已经检查过类型，这里可以安全地使用unwrap
     match obj {
-        crate::core::gc::ManagedObject::Dict(dict) => Ok(dict),
+        crate::core::heap::ManagedObject::Dict(dict) => Ok(dict),
         _ => unreachable!(),
     }
 }
@@ -101,7 +101,7 @@ pub fn expect_dict_mut(rt: &mut Runtime, value: Value) -> Result<&mut crate::cor
 pub fn expect_str(rt: &Runtime, value: Value) -> Result<&crate::Text, String> {
     let id = value.as_obj_id();
     let obj = rt.heap.get(id);
-    if let crate::core::gc::ManagedObject::Str(s) = obj {
+    if let crate::core::heap::ManagedObject::Str(s) = obj {
         Ok(s)
     } else {
         Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a string".into())))
@@ -112,7 +112,7 @@ pub fn expect_str(rt: &Runtime, value: Value) -> Result<&crate::Text, String> {
 pub fn expect_option_some(rt: &Runtime, value: Value) -> Result<Value, String> {
     let id = value.as_obj_id();
     let obj = rt.heap.get(id);
-    if let crate::core::gc::ManagedObject::OptionSome(v) = obj {
+    if let crate::core::heap::ManagedObject::OptionSome(v) = obj {
         Ok(*v)
     } else {
         Err(rt.error(xu_syntax::DiagnosticKind::Raw("Invalid OptionSome".into())))
@@ -179,12 +179,12 @@ pub fn get_dict_key_from_value(rt: &Runtime, value: &Value) -> Result<crate::cor
 
 /// 创建字符串Value的辅助函数
 pub fn create_str_value(rt: &mut Runtime, s: &str) -> Value {
-    Value::str(rt.heap.alloc(crate::core::gc::ManagedObject::Str(s.into())))
+    Value::str(rt.heap.alloc(crate::core::heap::ManagedObject::Str(s.into())))
 }
 
 /// 创建列表Value的辅助函数
 pub fn create_list_value(rt: &mut Runtime, items: Vec<Value>) -> Value {
-    Value::list(rt.heap.alloc(crate::core::gc::ManagedObject::List(items)))
+    Value::list(rt.heap.alloc(crate::core::heap::ManagedObject::List(items)))
 }
 
 /// 验证参数是否为字符串类型

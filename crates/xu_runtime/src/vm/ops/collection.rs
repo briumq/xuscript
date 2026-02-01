@@ -10,7 +10,7 @@
 use smallvec::SmallVec;
 use xu_ir::Bytecode;
 
-use crate::core::gc::ManagedObject;
+use crate::core::heap::ManagedObject;
 use crate::core::value::{DictKey, TAG_DICT, TAG_LIST, TAG_STR};
 use crate::core::Value;
 use crate::Runtime;

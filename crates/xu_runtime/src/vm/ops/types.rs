@@ -10,7 +10,7 @@
 
 use xu_ir::Bytecode;
 
-use crate::core::gc::ManagedObject;
+use crate::core::heap::ManagedObject;
 use crate::core::Value;
 use crate::util::type_matches;
 use crate::vm::exception::throw_value;

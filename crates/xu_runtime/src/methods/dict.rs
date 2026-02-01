@@ -52,7 +52,7 @@ pub(super) fn dispatch(
         }
         MethodKind::DictInsert | MethodKind::ListInsert => {
             validate_arity(rt, method, args.len(), 2, 2)?;
-            
+
             let key = get_dict_key_from_value(rt, &args[0])?;
             let value = args[1].clone();
 
@@ -60,56 +60,42 @@ pub(super) fn dispatch(
             let mut hasher = me.map.hasher().build_hasher();
             key.hash(&mut hasher);
             let h = hasher.finish();
-            let mut changed = false;
-            
+
             match me.map.raw_entry_mut().from_hash(h, |kk| kk == &key) {
                 RawEntryMut::Occupied(mut o) => {
-                    let prev = o.get().clone();
-                    *o.get_mut() = value.clone();
-                    if prev != value {
-                        changed = true;
-                    }
+                    // 值更新 - 不增加版本号
+                    *o.get_mut() = value;
                 }
                 RawEntryMut::Vacant(vac) => {
+                    // 新 key - 增加版本号
                     vac.insert(key, value);
-                    changed = true;
+                    me.ver += 1;
+                    rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                 }
-            }
-            
-            if changed {
-                me.ver += 1;
-                rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
             }
             Ok(Value::VOID)
         }
         MethodKind::DictInsertInt => {
             validate_arity(rt, method, args.len(), 2, 2)?;
-            
+
             let i = to_i64(&args[0])?;
             let value = args[1].clone();
             let me = expect_dict_mut(rt, recv)?;
-            
+
             let h = Runtime::hash_dict_key_int(me.map.hasher(), i);
-            let mut changed = false;
             let key = DictKey::Int(i);
-            
+
             match me.map.raw_entry_mut().from_hash(h, |kk| kk == &key) {
                 RawEntryMut::Occupied(mut o) => {
-                    let prev = o.get().clone();
-                    *o.get_mut() = value.clone();
-                    if prev != value {
-                        changed = true;
-                    }
+                    // 值更新 - 不增加版本号
+                    *o.get_mut() = value;
                 }
                 RawEntryMut::Vacant(vac) => {
-                    vac.insert(key, value.clone());
-                    changed = true;
+                    // 新 key - 增加版本号
+                    vac.insert(key, value);
+                    me.ver += 1;
+                    rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                 }
-            }
-            
-            if changed {
-                me.ver += 1;
-                rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
             }
             Ok(Value::VOID)
         }
@@ -190,7 +176,7 @@ pub(super) fn dispatch(
             let me = expect_dict(rt, recv)?;
             
             if let Some(sid) = me.shape {
-                if let crate::core::gc::ManagedObject::Shape(shape) = rt.heap.get(sid) {
+                if let crate::core::heap::ManagedObject::Shape(shape) = rt.heap.get(sid) {
                     if let Some(&off) = shape.prop_map.get(key.as_str()) {
                         let ok = me
                             .prop_values

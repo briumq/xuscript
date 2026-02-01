@@ -8,7 +8,7 @@
 //! - Ge: Greater than or equal comparison
 //! - Le: Less than or equal comparison
 
-use crate::core::gc::ManagedObject;
+use crate::core::heap::ManagedObject;
 use crate::core::value::{ValueExt, TAG_STR};
 use crate::core::Value;
 use crate::vm::exception::throw_value;

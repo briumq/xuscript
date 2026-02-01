@@ -15,7 +15,7 @@ pub mod builtins_registry;
 mod methods;
 
 // Re-exports from core/
-pub use core::gc;
+pub use core::heap;
 pub use core::text;
 pub use core::text::Text;
 pub use core::value::Value;

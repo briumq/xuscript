@@ -17,7 +17,7 @@ impl Runtime {
             )));
         }
         let id = f.as_obj_id();
-        let func_obj = if let crate::core::gc::ManagedObject::Function(f) = self.heap.get(id) {
+        let func_obj = if let crate::core::heap::ManagedObject::Function(f) = self.heap.get(id) {
             f.clone()
         } else {
             return Err("Not a function".to_string());
@@ -71,7 +71,7 @@ impl Runtime {
                         let mut x = v.get_tag() as u64;
                         if v.get_tag() == crate::core::value::TAG_STRUCT {
                             let id = v.as_obj_id();
-                            if let crate::core::gc::ManagedObject::Struct(si) = self.heap.get(id) {
+                            if let crate::core::heap::ManagedObject::Struct(si) = self.heap.get(id) {
                                 x ^= si.ty_hash;
                             }
                         }
@@ -183,7 +183,7 @@ impl Runtime {
                 let mut x = v.get_tag() as u64;
                 if v.get_tag() == crate::core::value::TAG_STRUCT {
                     let id = v.as_obj_id();
-                    if let crate::core::gc::ManagedObject::Struct(si) = self.heap.get(id) {
+                    if let crate::core::heap::ManagedObject::Struct(si) = self.heap.get(id) {
                         x ^= si.ty_hash;
                     }
                 }
@@ -366,7 +366,7 @@ impl Runtime {
                 let mut x = v.get_tag() as u64;
                 if v.get_tag() == crate::core::value::TAG_STRUCT {
                     let id = v.as_obj_id();
-                    if let crate::core::gc::ManagedObject::Struct(si) = self.heap.get(id) {
+                    if let crate::core::heap::ManagedObject::Struct(si) = self.heap.get(id) {
                         x ^= si.ty_hash;
                     }
                 }

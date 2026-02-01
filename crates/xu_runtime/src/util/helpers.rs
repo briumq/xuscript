@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::Value;
-use crate::core::gc::Heap;
+use crate::core::heap::Heap;
 use crate::core::value::{DictKey, i64_to_string_fast};
 
 pub(crate) fn value_to_string(v: &Value, heap: &Heap) -> String {
@@ -32,7 +32,7 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
         let id = v.as_obj_id();
         match tag {
             crate::core::value::TAG_STR => {
-                if let crate::core::gc::ManagedObject::Str(s) = heap.get(id) {
+                if let crate::core::heap::ManagedObject::Str(s) = heap.get(id) {
                     s.to_string()
                 } else {
                     "".to_string()
@@ -43,7 +43,7 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                     return "[...]".to_string();
                 }
                 visited.insert(id.0);
-                if let crate::core::gc::ManagedObject::List(items) = heap.get(id) {
+                if let crate::core::heap::ManagedObject::List(items) = heap.get(id) {
                     let strs: Vec<_> = items
                         .iter()
                         .map(|item| value_to_string_impl(item, heap, visited))
@@ -58,7 +58,7 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                     return "(...)".to_string();
                 }
                 visited.insert(id.0);
-                if let crate::core::gc::ManagedObject::Tuple(items) = heap.get(id) {
+                if let crate::core::heap::ManagedObject::Tuple(items) = heap.get(id) {
                     let strs: Vec<_> = items
                         .iter()
                         .map(|item| value_to_string_impl(item, heap, visited))
@@ -73,7 +73,7 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                     return "{...}".to_string();
                 }
                 visited.insert(id.0);
-                if let crate::core::gc::ManagedObject::Dict(items) = heap.get(id) {
+                if let crate::core::heap::ManagedObject::Dict(items) = heap.get(id) {
                     let strs: Vec<_> = items
                         .map
                         .iter()
@@ -96,7 +96,7 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                     return "{...}".to_string();
                 }
                 visited.insert(id.0);
-                if let crate::core::gc::ManagedObject::Struct(s) = heap.get(id) {
+                if let crate::core::heap::ManagedObject::Struct(s) = heap.get(id) {
                     let mut strs = Vec::with_capacity(s.fields.len());
                     for i in 0..s.fields.len() {
                         let k = &s.field_names[i];
@@ -109,7 +109,7 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                 }
             }
             crate::core::value::TAG_ENUM => {
-                if let crate::core::gc::ManagedObject::Enum(e) = heap.get(id) {
+                if let crate::core::heap::ManagedObject::Enum(e) = heap.get(id) {
                     let (ty, variant, _) = e.as_ref();
                     format!("{}#{}", ty, variant)
                 } else {
@@ -118,14 +118,14 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
             }
             crate::core::value::TAG_FUNC => "function".to_string(),
             crate::core::value::TAG_FILE => {
-                if let crate::core::gc::ManagedObject::File(h) = heap.get(id) {
+                if let crate::core::heap::ManagedObject::File(h) = heap.get(id) {
                     format!("file({})", h.path)
                 } else {
                     "file".into()
                 }
             }
             crate::core::value::TAG_RANGE => {
-                if let crate::core::gc::ManagedObject::Range(start, end, inclusive) = heap.get(id) {
+                if let crate::core::heap::ManagedObject::Range(start, end, inclusive) = heap.get(id) {
                     if *inclusive {
                         format!("[{start}..={end}]")
                     } else {
@@ -136,14 +136,14 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                 }
             }
             crate::core::value::TAG_BUILDER => {
-                if let crate::core::gc::ManagedObject::Builder(s) = heap.get(id) {
+                if let crate::core::heap::ManagedObject::Builder(s) = heap.get(id) {
                     s.clone()
                 } else {
                     "".into()
                 }
             }
             crate::core::value::TAG_OPTION => {
-                if let crate::core::gc::ManagedObject::OptionSome(inner) = heap.get(id) {
+                if let crate::core::heap::ManagedObject::OptionSome(inner) = heap.get(id) {
                     value_to_string_impl(inner, heap, visited)
                 } else {
                     "Option#some(?)".into()
@@ -171,13 +171,13 @@ pub(crate) fn type_matches(ty: &str, v: &Value, heap: &Heap) -> bool {
         _ => {
             let tag = v.get_tag();
             if tag == crate::core::value::TAG_STRUCT {
-                if let crate::core::gc::ManagedObject::Struct(s) = heap.get(v.as_obj_id()) {
+                if let crate::core::heap::ManagedObject::Struct(s) = heap.get(v.as_obj_id()) {
                     s.ty == ty
                 } else {
                     false
                 }
             } else if tag == crate::core::value::TAG_ENUM {
-                if let crate::core::gc::ManagedObject::Enum(e) = heap.get(v.as_obj_id()) {
+                if let crate::core::heap::ManagedObject::Enum(e) = heap.get(v.as_obj_id()) {
                     let (ety, _, _) = e.as_ref();
                     ety.as_str() == ty
                 } else {

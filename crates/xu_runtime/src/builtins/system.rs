@@ -62,12 +62,12 @@ pub fn builtin_os_args(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
         .map(|s| {
             Value::str(
                 rt.heap
-                    .alloc(crate::core::gc::ManagedObject::Str(s.clone().into())),
+                    .alloc(crate::core::heap::ManagedObject::Str(s.clone().into())),
             )
         })
         .collect::<Vec<_>>();
     Ok(Value::list(
-        rt.heap.alloc(crate::core::gc::ManagedObject::List(items)),
+        rt.heap.alloc(crate::core::heap::ManagedObject::List(items)),
     ))
 }
 
@@ -76,7 +76,7 @@ pub fn builtin_env_get(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
         return Err("env_get expects 1 argument".into());
     }
     let key = if args[0].get_tag() == crate::core::value::TAG_STR {
-        if let crate::core::gc::ManagedObject::Str(s) = rt.heap.get(args[0].as_obj_id()) {
+        if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(args[0].as_obj_id()) {
             s.as_str().to_string()
         } else {
             return Err("env_get expects string".into());
@@ -87,11 +87,11 @@ pub fn builtin_env_get(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
     match std::env::var(&key) {
         Ok(val) => Ok(Value::str(
             rt.heap
-                .alloc(crate::core::gc::ManagedObject::Str(val.into())),
+                .alloc(crate::core::heap::ManagedObject::Str(val.into())),
         )),
         Err(_) => Ok(Value::str(
             rt.heap
-                .alloc(crate::core::gc::ManagedObject::Str("".into())),
+                .alloc(crate::core::heap::ManagedObject::Str("".into())),
         )),
     }
 }
@@ -132,7 +132,7 @@ pub fn builtin_heap_stats(rt: &mut Runtime, _args: &[Value]) -> Result<Value, St
         std::mem::size_of::<crate::Text>(),
         std::mem::size_of::<crate::core::value::DictKey>(),
         std::mem::size_of::<Value>(),
-        std::mem::size_of::<crate::core::gc::ManagedObject>()
+        std::mem::size_of::<crate::core::heap::ManagedObject>()
     ));
     Ok(Value::VOID)
 }
@@ -181,7 +181,7 @@ pub fn builtin_builder_new(rt: &mut Runtime, args: &[Value]) -> Result<Value, St
     }
     Ok(Value::builder(
         rt.heap
-            .alloc(crate::core::gc::ManagedObject::Builder(String::new())),
+            .alloc(crate::core::heap::ManagedObject::Builder(String::new())),
     ))
 }
 
@@ -203,7 +203,7 @@ pub fn builtin_builder_new_with_capacity(
         return Err("builder_new_cap expects non-negative number".into());
     };
     Ok(Value::builder(rt.heap.alloc(
-        crate::core::gc::ManagedObject::Builder(String::with_capacity(cap)),
+        crate::core::heap::ManagedObject::Builder(String::with_capacity(cap)),
     )))
 }
 
@@ -219,18 +219,18 @@ pub fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<Value, S
 
     let v = &args[1];
     if v.is_void() {
-        if let crate::core::gc::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
             sb.push_str("()");
         }
     } else if v.is_bool() {
         let s = if v.as_bool() { "true" } else { "false" };
-        if let crate::core::gc::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
             sb.push_str(s);
         }
     } else if v.is_int() {
         let mut buf = itoa::Buffer::new();
         let digits = buf.format(v.as_i64());
-        if let crate::core::gc::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
             sb.push_str(digits);
         }
     } else if v.is_f64() {
@@ -241,30 +241,30 @@ pub fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<Value, S
         } else {
             f.to_string()
         };
-        if let crate::core::gc::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
             sb.push_str(&s);
         }
     } else if v.get_tag() == crate::core::value::TAG_STR {
-        let text = if let crate::core::gc::ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
+        let text = if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
             s.clone()
         } else {
             "".into()
         };
-        if let crate::core::gc::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
             sb.push_str(text.as_str());
         }
     } else if v.get_tag() == crate::core::value::TAG_BUILDER {
-        let s = if let crate::core::gc::ManagedObject::Builder(s) = rt.heap.get(v.as_obj_id()) {
+        let s = if let crate::core::heap::ManagedObject::Builder(s) = rt.heap.get(v.as_obj_id()) {
             s.clone()
         } else {
             String::new()
         };
-        if let crate::core::gc::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
             sb.push_str(&s);
         }
     } else {
         let s = super::super::util::value_to_string(v, &rt.heap);
-        if let crate::core::gc::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
             sb.push_str(&s);
         }
     }
@@ -279,10 +279,10 @@ pub fn builtin_builder_finalize(rt: &mut Runtime, args: &[Value]) -> Result<Valu
     let v = &args[0];
     if v.get_tag() == crate::core::value::TAG_BUILDER {
         let id = v.as_obj_id();
-        if let crate::core::gc::ManagedObject::Builder(s) = rt.heap.get(id) {
+        if let crate::core::heap::ManagedObject::Builder(s) = rt.heap.get(id) {
             Ok(Value::str(
                 rt.heap
-                    .alloc(crate::core::gc::ManagedObject::Str(s.clone().into())),
+                    .alloc(crate::core::heap::ManagedObject::Str(s.clone().into())),
             ))
         } else {
             Err("Not a builder".into())

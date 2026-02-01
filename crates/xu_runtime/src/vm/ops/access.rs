@@ -10,7 +10,7 @@
 
 use xu_ir::Bytecode;
 
-use crate::core::gc::ManagedObject;
+use crate::core::heap::ManagedObject;
 use crate::core::value::{TAG_DICT, TAG_LIST, TAG_STR, TAG_TUPLE};
 use crate::core::Value;
 use crate::runtime::{DictCacheIntLast, DictCacheLast};

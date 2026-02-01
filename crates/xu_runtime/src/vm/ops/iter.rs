@@ -7,7 +7,7 @@
 
 use xu_ir::Bytecode;
 
-use crate::core::gc::ManagedObject;
+use crate::core::heap::ManagedObject;
 use crate::core::text::Text;
 use crate::core::value::{DictKey, TAG_DICT, TAG_LIST, TAG_RANGE};
 use crate::core::Value;

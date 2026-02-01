@@ -30,7 +30,7 @@ pub(crate) use crate::methods::MethodKind;
 pub struct Runtime {
     pub(crate) env: Env,
     pub(crate) env_pool: Vec<Env>,
-    pub(crate) heap: crate::core::gc::Heap,
+    pub(crate) heap: crate::core::heap::Heap,
     caps: capabilities::Capabilities,
     pub(crate) module_loader: Box<dyn modules::ModuleLoader>,
     pub(crate) frontend: Option<Box<dyn xu_ir::Frontend>>,
@@ -94,7 +94,7 @@ impl Runtime {
         let mut rt = Self {
             env,
             env_pool: Vec::new(),
-            heap: crate::core::gc::Heap::new(),
+            heap: crate::core::heap::Heap::new(),
             caps: capabilities::Capabilities::default(),
             module_loader: Box::new(modules::StdModuleLoader),
             frontend: None,
@@ -167,7 +167,7 @@ impl Runtime {
         }
         // Slow path: create and cache the value
         let text = self.intern_string(s);
-        let val = Value::str(self.heap.alloc(crate::core::gc::ManagedObject::Str(text)));
+        let val = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(text)));
 
         let cache = self.bytecode_string_cache.entry(bc_ptr).or_insert_with(Vec::new);
         let idx_usize = idx as usize;
@@ -184,7 +184,7 @@ impl Runtime {
         }
         static OPTION: &str = "Option";
         static NONE: &str = "none";
-        let v = Value::enum_obj(self.heap.alloc(crate::core::gc::ManagedObject::Enum(Box::new((
+        let v = Value::enum_obj(self.heap.alloc(crate::core::heap::ManagedObject::Enum(Box::new((
             crate::Text::from_str(OPTION),
             crate::Text::from_str(NONE),
             Box::new([]),
@@ -195,7 +195,7 @@ impl Runtime {
 
     pub(crate) fn option_some(&mut self, v: Value) -> Value {
         // Use optimized OptionSome variant to avoid Box allocation
-        Value::option_some(self.heap.alloc(crate::core::gc::ManagedObject::OptionSome(v)))
+        Value::option_some(self.heap.alloc(crate::core::heap::ManagedObject::OptionSome(v)))
     }
 
     /// Get a String from the builder pool, or create a new one with the given capacity
@@ -262,7 +262,7 @@ impl Runtime {
                 )));
             }
         }
-        let id = self.heap.alloc(crate::core::gc::ManagedObject::Enum(Box::new((
+        let id = self.heap.alloc(crate::core::heap::ManagedObject::Enum(Box::new((
             ty.to_string().into(),
             variant.to_string().into(),
             payload,
@@ -279,7 +279,7 @@ impl Runtime {
             return Err(self.error(xu_syntax::DiagnosticKind::Raw("Non-enum object".into())));
         }
         match self.heap.get(v.as_obj_id()) {
-            crate::core::gc::ManagedObject::Enum(e) => {
+            crate::core::heap::ManagedObject::Enum(e) => {
                 let (ty, variant, payload) = e.as_ref();
                 Ok((
                     ty.clone(),
@@ -557,12 +557,12 @@ impl Runtime {
         self.locals.clear();
 
         self.env = Env::new();
-        self.heap = crate::core::gc::Heap::new();
+        self.heap = crate::core::heap::Heap::new();
         self.install_builtins();
         for (k, v) in &self.predefined_constants {
             let s = self
                 .heap
-                .alloc(crate::core::gc::ManagedObject::Str(v.to_string().into()));
+                .alloc(crate::core::heap::ManagedObject::Str(v.to_string().into()));
             self.env.define(k.clone(), Value::str(s));
         }
         self.method_cache.clear();
@@ -735,7 +735,7 @@ impl Runtime {
                 if slot.tag == tag && slot.method_hash == method_hash {
                     if tag == crate::core::value::TAG_STRUCT {
                         let id = recv.as_obj_id();
-                        if let crate::core::gc::ManagedObject::Struct(s) = self.heap.get(id) {
+                        if let crate::core::heap::ManagedObject::Struct(s) = self.heap.get(id) {
                             if slot.struct_ty_hash == s.ty_hash {
                                 if let Some(f) = slot.cached_bytecode.as_ref() {
                                     if args.is_empty() {
@@ -758,7 +758,7 @@ impl Runtime {
                         }
                     } else if tag == crate::core::value::TAG_ENUM {
                         let id = recv.as_obj_id();
-                        if let crate::core::gc::ManagedObject::Enum(e) =
+                        if let crate::core::heap::ManagedObject::Enum(e) =
                             self.heap.get(id)
                         {
                             let (ty, _variant, _payload) = e.as_ref();
@@ -794,7 +794,7 @@ impl Runtime {
 
         if tag == crate::core::value::TAG_MODULE {
             let id = recv.as_obj_id();
-            let callee = if let crate::core::gc::ManagedObject::Module(m) = self.heap.get(id) {
+            let callee = if let crate::core::heap::ManagedObject::Module(m) = self.heap.get(id) {
                 m.exports.map.get(method).cloned().ok_or_else(|| {
                     self.error(xu_syntax::DiagnosticKind::UnknownMember(method.to_string()))
                 })?
@@ -815,7 +815,7 @@ impl Runtime {
                     struct_ty_hash: 0,
                     kind: MethodKind::Unknown,
                     cached_func: callee,
-                    cached_user: if let crate::core::gc::ManagedObject::Function(
+                    cached_user: if let crate::core::heap::ManagedObject::Function(
                         crate::core::value::Function::User(f),
                     ) = self.heap.get(callee.as_obj_id())
                     {
@@ -823,7 +823,7 @@ impl Runtime {
                     } else {
                         None
                     },
-                    cached_bytecode: if let crate::core::gc::ManagedObject::Function(
+                    cached_bytecode: if let crate::core::heap::ManagedObject::Function(
                         crate::core::value::Function::Bytecode(f),
                     ) = self.heap.get(callee.as_obj_id())
                     {
@@ -836,7 +836,7 @@ impl Runtime {
             self.call_function(callee, &args)
         } else if tag == crate::core::value::TAG_STRUCT {
             let id = recv.as_obj_id();
-            let callee = match if let crate::core::gc::ManagedObject::Struct(s) = self.heap.get(id) {
+            let callee = match if let crate::core::heap::ManagedObject::Struct(s) = self.heap.get(id) {
                 let ty = s.ty.as_str();
                 let hash = {
                     let mut h = self.method_cache.hasher().build_hasher();
@@ -875,14 +875,14 @@ impl Runtime {
                 self.ic_method_slots[idx] = MethodICSlot {
                     tag,
                     method_hash,
-                    struct_ty_hash: if let crate::core::gc::ManagedObject::Struct(s) = self.heap.get(id) {
+                    struct_ty_hash: if let crate::core::heap::ManagedObject::Struct(s) = self.heap.get(id) {
                         s.ty_hash
                     } else {
                         0
                     },
                     kind: MethodKind::Unknown,
                     cached_func: callee,
-                    cached_user: if let crate::core::gc::ManagedObject::Function(
+                    cached_user: if let crate::core::heap::ManagedObject::Function(
                         crate::core::value::Function::User(f),
                     ) = self.heap.get(callee.as_obj_id())
                     {
@@ -890,7 +890,7 @@ impl Runtime {
                     } else {
                         None
                     },
-                    cached_bytecode: if let crate::core::gc::ManagedObject::Function(
+                    cached_bytecode: if let crate::core::heap::ManagedObject::Function(
                         crate::core::value::Function::Bytecode(f),
                     ) = self.heap.get(callee.as_obj_id())
                     {
@@ -908,7 +908,7 @@ impl Runtime {
         } else if tag == crate::core::value::TAG_ENUM {
             let id = recv.as_obj_id();
             let (callee, ty_hash) =
-                match if let crate::core::gc::ManagedObject::Enum(e) =
+                match if let crate::core::heap::ManagedObject::Enum(e) =
                     self.heap.get(id)
                 {
                     let (ty, _variant, _payload) = e.as_ref();
@@ -974,7 +974,7 @@ impl Runtime {
                     struct_ty_hash: ty_hash,
                     kind: MethodKind::Unknown,
                     cached_func: callee,
-                    cached_user: if let crate::core::gc::ManagedObject::Function(crate::core::value::Function::User(
+                    cached_user: if let crate::core::heap::ManagedObject::Function(crate::core::value::Function::User(
                         f,
                     )) = self.heap.get(callee.as_obj_id())
                     {
@@ -982,7 +982,7 @@ impl Runtime {
                     } else {
                         None
                     },
-                    cached_bytecode: if let crate::core::gc::ManagedObject::Function(
+                    cached_bytecode: if let crate::core::heap::ManagedObject::Function(
                         crate::core::value::Function::Bytecode(f),
                     ) = self.heap.get(callee.as_obj_id())
                     {
@@ -1030,7 +1030,7 @@ impl Runtime {
 
     pub(crate) fn format_throw(&self, v: &Value) -> String {
         if v.get_tag() == crate::core::value::TAG_STR {
-            if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(v.as_obj_id()) {
+            if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(v.as_obj_id()) {
                 return s.to_string();
             }
         }

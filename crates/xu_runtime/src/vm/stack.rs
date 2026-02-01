@@ -5,7 +5,7 @@
 //! - `Handler`: Exception handler state
 //! - `Pending`: Pending operations (for exception handling)
 
-use crate::core::gc::{ManagedObject, ObjectId};
+use crate::core::heap::{ManagedObject, ObjectId};
 use crate::core::Value;
 use crate::core::value::ValueExt;
 use crate::util::Appendable;

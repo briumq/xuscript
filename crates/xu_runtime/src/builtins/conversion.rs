@@ -8,7 +8,7 @@ pub fn builtin_parse_int(rt: &mut Runtime, args: &[Value]) -> Result<Value, Stri
     }
     let v = &args[0];
     if v.get_tag() == crate::core::value::TAG_STR {
-        if let crate::core::gc::ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
+        if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
             let ss = s.trim();
             if let Ok(v) = ss.parse::<i64>() {
                 Ok(Value::from_i64(v))
@@ -35,7 +35,7 @@ pub fn builtin_parse_float(rt: &mut Runtime, args: &[Value]) -> Result<Value, St
     }
     let v = &args[0];
     if v.get_tag() == crate::core::value::TAG_STR {
-        if let crate::core::gc::ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
+        if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
             let ss = s.trim();
             let v = ss
                 .parse::<f64>()
@@ -59,7 +59,7 @@ pub fn builtin_to_text(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
     }
     let v = &args[0];
     let s = if v.get_tag() == crate::core::value::TAG_STR {
-        if let crate::core::gc::ManagedObject::Str(x) = rt.heap.get(v.as_obj_id()) {
+        if let crate::core::heap::ManagedObject::Str(x) = rt.heap.get(v.as_obj_id()) {
             x.clone()
         } else {
             "text".into()
@@ -84,5 +84,5 @@ pub fn builtin_to_text(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
     } else {
         super::super::util::value_to_string(v, &rt.heap).into()
     };
-    Ok(Value::str(rt.heap.alloc(crate::core::gc::ManagedObject::Str(s))))
+    Ok(Value::str(rt.heap.alloc(crate::core::heap::ManagedObject::Str(s))))
 }
