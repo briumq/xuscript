@@ -126,7 +126,7 @@ def bench_once(scale):
         env["BENCH_SCALE"] = str(scale)
         env["BENCH_SMOKE"] = "0"
         try:
-            p = subprocess.run([xu_bin, "run", "--no-diags", "tests/benchmarks/xu/suite_fixed.xu"],
+            p = subprocess.run([xu_bin, "run", "--no-diags", "tests/benchmarks/xu/full_suite.xu"],
                              capture_output=True, text=True, env=env, timeout=SINGLE_RUN_TIMEOUT)
             for line in p.stdout.splitlines():
                 line = line.strip()

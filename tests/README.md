@@ -16,7 +16,7 @@ This directory contains the test suite for Xu Language.
 *   **`integration_en/`**: Optional English-only integration tests (golden-based).
     *   Golden files are located in `crates/xu_runtime/tests/golden/integration_en/`.
 *   **`benchmarks/`**: Performance benchmarks.
-    *   `xu/suite.xu`: Unified benchmark suite file.
+    *   `xu/full_suite.xu`: Unified benchmark suite file.
 *   **`../examples/`**: Examples (also part of the golden-based baseline).
     *   Golden files are located in `crates/xu_runtime/tests/golden/examples/`.
 
@@ -71,7 +71,7 @@ cargo test -p xu_runtime --test perf_benchmarks -- --ignored
 
 Scripts in `scripts/` directory facilitate cross-language benchmarking and reporting.
 
-*   **`scripts/run_cross_lang_bench.sh [SCALE]`**: Runs benchmarks for Python, Node.js, and Xu (via `xu/suite.xu`) at a given scale.
+*   **`scripts/run_cross_lang_bench.sh [SCALE]`**: Runs benchmarks for Python, Node.js, and Xu (via `xu/full_suite.xu`) at a given scale.
 *   **`scripts/bench_report.py`**: Orchestrates multiple runs of `run_cross_lang_bench.sh` and generates a Markdown report in `docs/`.
 
 Example usage:

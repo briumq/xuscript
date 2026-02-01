@@ -1,7 +1,0 @@
-func _inner() {
-  return 1
-}
-
-func outer() {
-  return 2
-}

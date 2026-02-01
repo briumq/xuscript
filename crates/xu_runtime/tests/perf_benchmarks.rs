@@ -41,7 +41,7 @@ fn perf_benchmarks_suite() {
         .and_then(|p| p.parent())
         .unwrap();
     let dir = root.join("tests/benchmarks/xu");
-    let output = run_file(&dir.join("suite.xu"));
+    let output = run_file(&dir.join("full_suite.xu"));
 
     // Parse output lines "key=value"
     let mut results = HashMap::new();
