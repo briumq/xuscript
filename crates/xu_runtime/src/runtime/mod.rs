@@ -5,11 +5,16 @@
 
 mod config;
 mod cache;
+mod binary;
+mod gc;
 
 // Re-export all public types
 pub use config::{ExecResult, Flow, RuntimeConfig};
 pub use cache::{ICSlot, MethodICSlot};
 pub(crate) use cache::{DictCacheLast, DictCacheIntLast};
+
+// Re-export Text for use in submodules
+pub use crate::core::text::Text;
 
 // The main Runtime implementation is in core.rs
 mod core;

@@ -1,0 +1,513 @@
+//! Member access operations for the VM.
+//!
+//! This module contains operations for:
+//! - GetMember: Access struct/object members
+//! - GetIndex: Array/dict indexing
+//! - DictGetStrConst: Dict access with string constant key
+//! - DictGetIntConst: Dict access with integer constant key
+//! - AssignMember: Assign to struct/object members
+//! - AssignIndex: Assign to array/dict elements
+
+use xu_ir::Bytecode;
+
+use crate::core::gc::ManagedObject;
+use crate::core::value::{TAG_DICT, TAG_LIST, TAG_STR, TAG_TUPLE};
+use crate::core::Value;
+use crate::runtime::{DictCacheIntLast, DictCacheLast};
+use crate::vm::exception::throw_value;
+use crate::vm::stack::{Handler, IterState, Pending};
+use crate::{Flow, Runtime};
+
+/// Execute Op::GetMember - access struct/object member
+#[inline(always)]
+pub(crate) fn op_get_member(
+    rt: &mut Runtime,
+    bc: &Bytecode,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    idx: u32,
+    slot_idx: Option<usize>,
+) -> Result<Option<Flow>, String> {
+    let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let tag = obj.get_tag();
+    let field = rt.get_const_str(idx, &bc.constants);
+
+    if tag == crate::core::value::TAG_STRUCT {
+        let id = obj.as_obj_id();
+        if let ManagedObject::Struct(s) = rt.heap.get(id) {
+            let field_hash = xu_ir::stable_hash64(field);
+            // IC check
+            let mut val = None;
+            if let Some(idx_slot) = slot_idx {
+                if idx_slot < rt.ic_slots.len() {
+                    let c = &rt.ic_slots[idx_slot];
+                    if c.struct_ty_hash == s.ty_hash && c.key_hash == field_hash {
+                        if let Some(offset) = c.field_offset {
+                            val = Some(s.fields[offset]);
+                        }
+                    }
+                }
+            }
+
+            if let Some(v) = val {
+                stack.push(v);
+            } else {
+                // Slow path
+                match rt.get_member_with_ic_raw(obj, field, slot_idx) {
+                    Ok(v) => stack.push(v),
+                    Err(e) => {
+                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                        if let Some(flow) = throw_value(
+                            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                        ) {
+                            return Ok(Some(flow));
+                        }
+                        *ip += 1;
+                        return Ok(None);
+                    }
+                }
+            }
+            return Ok(None);
+        } else {
+            return Err("Not a struct".into());
+        }
+    } else {
+        match rt.get_member_with_ic_raw(obj, field, slot_idx) {
+            Ok(v) => stack.push(v),
+            Err(e) => {
+                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                if let Some(flow) = throw_value(
+                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                ) {
+                    return Ok(Some(flow));
+                }
+                return Ok(None);
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Execute Op::GetIndex - array/dict indexing
+#[inline(always)]
+pub(crate) fn op_get_index(
+    rt: &mut Runtime,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    slot_cell: Option<usize>,
+) -> Result<Option<Flow>, String> {
+    let idx = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let tag = obj.get_tag();
+
+    if tag == TAG_DICT {
+        let id = obj.as_obj_id();
+        if let ManagedObject::Dict(me) = rt.heap.get(id) {
+            let cur_ver = me.ver;
+            let mut val = None;
+            if idx.is_int() {
+                let key = idx.as_i64();
+                if key >= 0 && key < 1024 {
+                    let ui = key as usize;
+                    if ui < me.elements.len() {
+                        let v = me.elements[ui];
+                        if v.get_tag() != crate::core::value::TAG_VOID {
+                            val = Some(v);
+                        }
+                    }
+                }
+
+                if val.is_none() {
+                    if let Some(c) = rt.dict_cache_int_last.as_ref() {
+                        if c.id == id.0 && c.ver == cur_ver && c.key == key {
+                            val = Some(c.value);
+                        }
+                    }
+                }
+                if val.is_none() {
+                    if let Some(v) = me.map.get(&crate::core::value::DictKey::Int(key)) {
+                        val = Some(*v);
+                        rt.dict_cache_int_last = Some(DictCacheIntLast {
+                            id: id.0,
+                            key,
+                            ver: cur_ver,
+                            value: *v,
+                        });
+                    }
+                }
+            } else if idx.get_tag() == TAG_STR {
+                // Fast path for string key
+                let key_id = idx.as_obj_id();
+                if let ManagedObject::Str(key_text) = rt.heap.get(key_id) {
+                    // Check shape-based cache first
+                    if let Some(shape_id) = me.shape {
+                        if let ManagedObject::Shape(shape) = rt.heap.get(shape_id) {
+                            if let Some(&off) = shape.prop_map.get(key_text.as_str()) {
+                                val = Some(me.prop_values[off]);
+                            }
+                        }
+                    }
+                    // Check last cache
+                    if val.is_none() {
+                        if let Some(c) = rt.dict_cache_last.as_ref() {
+                            if c.id == id.0
+                                && c.ver == cur_ver
+                                && c.key.as_str() == key_text.as_str()
+                            {
+                                val = Some(c.value);
+                            }
+                        }
+                    }
+                    // Hash lookup
+                    if val.is_none() {
+                        let key_hash = Runtime::hash_bytes(me.map.hasher(), key_text.as_bytes());
+                        if let Some(v) =
+                            Runtime::dict_get_by_str_with_hash(me, key_text.as_str(), key_hash)
+                        {
+                            val = Some(v);
+                            rt.dict_cache_last = Some(DictCacheLast {
+                                id: id.0,
+                                key_hash,
+                                ver: cur_ver,
+                                key: key_text.clone(),
+                                value: v,
+                            });
+                        }
+                    }
+                }
+            }
+
+            if let Some(v) = val {
+                stack.push(v);
+                return Ok(None);
+            }
+        }
+        // Slow path for Dict
+        match rt.get_index_with_ic_raw(obj, idx, slot_cell) {
+            Ok(v) => stack.push(v),
+            Err(e) => {
+                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                if let Some(flow) = throw_value(
+                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                ) {
+                    return Ok(Some(flow));
+                }
+            }
+        }
+        return Ok(None);
+    } else if tag == TAG_LIST && idx.is_int() {
+        let id = obj.as_obj_id();
+        let i = idx.as_i64();
+        if let ManagedObject::List(l) = rt.heap.get(id) {
+            if i >= 0 && (i as usize) < l.len() {
+                stack.push(l[i as usize]);
+                return Ok(None);
+            } else {
+                match rt.get_index_with_ic_raw(obj, idx, slot_cell) {
+                    Ok(v) => stack.push(v),
+                    Err(e) => {
+                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                        if let Some(flow) = throw_value(
+                            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                        ) {
+                            return Ok(Some(flow));
+                        }
+                        return Ok(None);
+                    }
+                }
+                return Ok(None);
+            }
+        } else {
+            return Err("Not a list".into());
+        }
+    } else if tag == TAG_TUPLE && idx.is_int() {
+        let id = obj.as_obj_id();
+        let i = idx.as_i64();
+        if let ManagedObject::Tuple(t) = rt.heap.get(id) {
+            if i >= 0 && (i as usize) < t.len() {
+                stack.push(t[i as usize]);
+                return Ok(None);
+            }
+        }
+        match rt.get_index_with_ic_raw(obj, idx, slot_cell) {
+            Ok(v) => stack.push(v),
+            Err(e) => {
+                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                if let Some(flow) = throw_value(
+                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                ) {
+                    return Ok(Some(flow));
+                }
+            }
+        }
+    } else {
+        match rt.get_index_with_ic_raw(obj, idx, slot_cell) {
+            Ok(v) => stack.push(v),
+            Err(e) => {
+                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                if let Some(flow) = throw_value(
+                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                ) {
+                    return Ok(Some(flow));
+                }
+                return Ok(None);
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Execute Op::DictGetStrConst - dict access with string constant key
+#[inline(always)]
+pub(crate) fn op_dict_get_str_const(
+    rt: &mut Runtime,
+    bc: &Bytecode,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    idx: u32,
+    k_hash: u64,
+    slot: Option<usize>,
+) -> Result<Option<Flow>, String> {
+    let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    if obj.get_tag() != TAG_DICT {
+        let err_val = Value::str(
+            rt.heap.alloc(ManagedObject::Str(
+                rt.error(xu_syntax::DiagnosticKind::FormatDictRequired)
+                    .into(),
+            )),
+        );
+        if let Some(flow) = throw_value(
+            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+        ) {
+            return Ok(Some(flow));
+        }
+        return Ok(None);
+    }
+    let id = obj.as_obj_id();
+    if let ManagedObject::Dict(me) = rt.heap.get(id) {
+        let cur_ver = me.ver;
+        let mut val = None;
+
+        if let Some(idx_slot) = slot {
+            if idx_slot < rt.ic_slots.len() {
+                let c = &rt.ic_slots[idx_slot];
+                if let Some(off) = c.field_offset {
+                    if let Some(sid) = me.shape {
+                        if c.id == sid.0 {
+                            val = Some(me.prop_values[off]);
+                        }
+                    }
+                } else {
+                    if c.id == id.0 && c.ver == me.ver && c.key_hash == k_hash {
+                        val = Some(c.value);
+                    }
+                }
+            }
+        }
+
+        if let Some(v) = val {
+            stack.push(v);
+        } else {
+            let k = rt.get_const_str(idx, &bc.constants);
+            let internal_hash = Runtime::hash_bytes(me.map.hasher(), k.as_bytes());
+            let out = Runtime::dict_get_by_str_with_hash(me, k, internal_hash);
+            let Some(out) = out else {
+                let err_val = Value::str(
+                    rt.heap.alloc(ManagedObject::Str(
+                        rt.error(xu_syntax::DiagnosticKind::KeyNotFound(k.to_string()))
+                            .into(),
+                    )),
+                );
+                if let Some(flow) = throw_value(
+                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                ) {
+                    return Ok(Some(flow));
+                }
+                return Ok(None);
+            };
+            if let Some(idx_slot) = slot {
+                while rt.ic_slots.len() <= idx_slot {
+                    rt.ic_slots.push(crate::ICSlot::default());
+                }
+                let mut shape_info = (id.0, None);
+                if let Some(sid) = me.shape {
+                    if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
+                        if let Some(&off) = shape.prop_map.get(k) {
+                            shape_info = (sid.0, Some(off));
+                        }
+                    }
+                }
+
+                rt.ic_slots[idx_slot] = crate::ICSlot {
+                    id: shape_info.0,
+                    key_hash: k_hash,
+                    ver: cur_ver,
+                    value: out,
+                    field_offset: shape_info.1,
+                    ..Default::default()
+                };
+            }
+            stack.push(out);
+        }
+    }
+    Ok(None)
+}
+
+/// Execute Op::DictGetIntConst - dict access with integer constant key
+#[inline(always)]
+pub(crate) fn op_dict_get_int_const(
+    rt: &mut Runtime,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    i: i64,
+    slot: Option<usize>,
+) -> Result<Option<Flow>, String> {
+    let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    if obj.get_tag() != TAG_DICT {
+        let err_val = Value::str(
+            rt.heap.alloc(ManagedObject::Str(
+                rt.error(xu_syntax::DiagnosticKind::FormatDictRequired)
+                    .into(),
+            )),
+        );
+        if let Some(flow) = throw_value(
+            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+        ) {
+            return Ok(Some(flow));
+        }
+        return Ok(None);
+    }
+    let id = obj.as_obj_id();
+    if let ManagedObject::Dict(me) = rt.heap.get(id) {
+        let mut val = None;
+        if i >= 0 && i < 1024 {
+            let ui = i as usize;
+            if ui < me.elements.len() {
+                let v = me.elements[ui];
+                if v.get_tag() != crate::core::value::TAG_VOID {
+                    val = Some(v);
+                }
+            }
+        }
+
+        let cur_ver = me.ver;
+        if val.is_none() {
+            if let Some(idx) = slot {
+                if idx < rt.ic_slots.len() {
+                    let c = &rt.ic_slots[idx];
+                    let key_hash = Runtime::hash_dict_key_int(me.map.hasher(), i);
+                    if c.id == id.0 && c.ver == cur_ver && c.key_hash == key_hash {
+                        val = Some(c.value);
+                    }
+                }
+            }
+        }
+
+        if let Some(v) = val {
+            stack.push(v);
+        } else {
+            let key_hash = Runtime::hash_dict_key_int(me.map.hasher(), i);
+            let out = me.map.get(&crate::core::value::DictKey::Int(i)).cloned();
+            let Some(out) = out else {
+                let err_val = Value::str(
+                    rt.heap.alloc(ManagedObject::Str(
+                        rt.error(xu_syntax::DiagnosticKind::KeyNotFound(i.to_string()))
+                            .into(),
+                    )),
+                );
+                if let Some(flow) = throw_value(
+                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                ) {
+                    return Ok(Some(flow));
+                }
+                return Ok(None);
+            };
+            if let Some(idx) = slot {
+                while rt.ic_slots.len() <= idx {
+                    rt.ic_slots.push(crate::ICSlot::default());
+                }
+                rt.ic_slots[idx] = crate::ICSlot {
+                    id: id.0,
+                    key_hash,
+                    ver: cur_ver,
+                    value: out,
+                    ..Default::default()
+                };
+            }
+            stack.push(out);
+        }
+    }
+    Ok(None)
+}
+
+/// Execute Op::AssignMember - assign to struct/object member
+#[inline(always)]
+pub(crate) fn op_assign_member(
+    rt: &mut Runtime,
+    bc: &Bytecode,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    idx: u32,
+    op_type: xu_ir::AssignOp,
+) -> Result<Option<Flow>, String> {
+    let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let rhs = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let field = rt.get_const_str(idx, &bc.constants);
+    if let Err(e) = rt.assign_member(obj, field, op_type, rhs) {
+        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+        if let Some(flow) = throw_value(
+            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+        ) {
+            return Ok(Some(flow));
+        }
+        return Ok(None);
+    }
+    Ok(None)
+}
+
+/// Execute Op::AssignIndex - assign to array/dict element
+#[inline(always)]
+pub(crate) fn op_assign_index(
+    rt: &mut Runtime,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    op: xu_ir::AssignOp,
+) -> Result<Option<Flow>, String> {
+    let idxv = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let rhs = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    if let Err(e) = rt.assign_index(obj, idxv, op, rhs) {
+        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+        if let Some(flow) = throw_value(
+            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+        ) {
+            return Ok(Some(flow));
+        }
+        return Ok(None);
+    }
+    Ok(None)
+}

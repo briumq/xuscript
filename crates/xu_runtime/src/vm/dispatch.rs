@@ -16,6 +16,8 @@ use super::exception::throw_value;
 
 use super::fast::run_bytecode_fast_params_only;
 use super::ops::dict as dict_ops;
+#[allow(unused_imports)]
+use super::ops::{access, assign, call, collection, compare, iter, string, types};
 use super::stack::{add_with_heap, stack_underflow, Handler, IterState, Pending};
 
 pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, String> {

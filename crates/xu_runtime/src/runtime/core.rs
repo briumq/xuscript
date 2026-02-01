@@ -1,14 +1,12 @@
-use std::collections::HashSet;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use hashbrown::hash_map::RawEntryMut;
 use smallvec::SmallVec;
-use xu_ir::{BinaryOp, Executable, Expr, Module, Stmt, StructDef};
+use xu_ir::{Executable, Expr, Module, Stmt, StructDef};
 
 use crate::core::Value;
-use crate::core::value::ValueExt;
 use crate::core::Env;
 use crate::core::value::{Dict, DictKey, FastHashMap, fast_map_new};
 use crate::util as capabilities;
@@ -28,7 +26,6 @@ use super::config::{ExecResult, Flow, RuntimeConfig};
 use super::cache::{ICSlot, MethodICSlot, DictCacheLast, DictCacheIntLast};
 
 pub(crate) use crate::methods::MethodKind;
-use crate::util::value_to_string;
 
 pub struct Runtime {
     pub(crate) env: Env,
@@ -55,9 +52,9 @@ pub struct Runtime {
     pub(crate) compiled_locals_idx: HashMap<String, HashMap<String, usize>>,
     pub(crate) current_func: Option<String>,
     pub(crate) current_param_bindings: Option<Vec<(String, usize)>>,
-    method_cache: HashMap<(String, String), Value>,
-    dict_cache: HashMap<(usize, u64), (u64, Text, Value)>,
-    dict_cache_int: HashMap<(usize, i64), (u64, Value)>,
+    pub(crate) method_cache: HashMap<(String, String), Value>,
+    pub(crate) dict_cache: HashMap<(usize, u64), (u64, Text, Value)>,
+    pub(crate) dict_cache_int: HashMap<(usize, i64), (u64, Value)>,
     pub(crate) dict_cache_last: Option<DictCacheLast>,
     pub(crate) dict_cache_int_last: Option<DictCacheIntLast>,
     pub(crate) dict_version_last: Option<(usize, u64)>,
@@ -66,7 +63,7 @@ pub struct Runtime {
     pub(crate) string_pool: HashMap<String, Rc<String>>,
     /// Pre-allocated string constant Values per Bytecode (keyed by Bytecode pointer)
     /// Each entry maps constant index to pre-allocated Value
-    bytecode_string_cache: HashMap<usize, Vec<Option<Value>>>,
+    pub(crate) bytecode_string_cache: HashMap<usize, Vec<Option<Value>>>,
     pub(crate) stdlib_path: Option<String>,
     pub(crate) args: Vec<String>,
     pub(crate) call_stack_depth: usize,
@@ -1031,191 +1028,6 @@ impl Runtime {
         }
     }
 
-    pub(crate) fn eval_binary(&mut self, op: BinaryOp, a: Value, b: Value) -> Result<Value, String> {
-        let debug_err = |e: String, a: &Value, b: &Value, op: BinaryOp, heap: &crate::core::gc::Heap| {
-            let sa = value_to_string(a, heap);
-            let sb = value_to_string(b, heap);
-            println!("BinaryOp Error: {} {:?} {} -> {}", sa, op, sb, e);
-            Err(e)
-        };
-
-        match op {
-            BinaryOp::Eq => Ok(Value::from_bool(self.values_equal(&a, &b))),
-            BinaryOp::Ne => Ok(Value::from_bool(!self.values_equal(&a, &b))),
-            BinaryOp::Add => {
-                let at = a.get_tag();
-                let bt = b.get_tag();
-                if at == crate::core::value::TAG_STR && bt == crate::core::value::TAG_STR {
-                    // Fast path: both are strings - use Text::concat2
-                    let ta = if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(a.as_obj_id()) {
-                        s.clone()
-                    } else {
-                        Text::new()
-                    };
-                    let tb = if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(b.as_obj_id()) {
-                        s.clone()
-                    } else {
-                        Text::new()
-                    };
-                    let result = Text::concat2(&ta, &tb);
-                    Ok(Value::str(
-                        self.heap.alloc(crate::core::gc::ManagedObject::Str(result)),
-                    ))
-                } else if at == crate::core::value::TAG_STR || bt == crate::core::value::TAG_STR {
-                    let sa = value_to_string(&a, &self.heap);
-                    let sb = value_to_string(&b, &self.heap);
-                    // Pre-allocate capacity to avoid intermediate allocations
-                    let mut result = String::with_capacity(sa.len() + sb.len());
-                    result.push_str(&sa);
-                    result.push_str(&sb);
-                    Ok(Value::str(
-                        self.heap
-                            .alloc(crate::core::gc::ManagedObject::Str(result.into())),
-                    ))
-                } else {
-                    a.bin_op(op, b)
-                        .or_else(|e| debug_err(e, &a, &b, op, &self.heap))
-                }
-            }
-            BinaryOp::Gt | BinaryOp::Lt | BinaryOp::Ge | BinaryOp::Le => {
-                if a.get_tag() == crate::core::value::TAG_STR && b.get_tag() == crate::core::value::TAG_STR {
-                    let sa = if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(a.as_obj_id())
-                    {
-                        s.as_str().to_string()
-                    } else {
-                        String::new()
-                    };
-                    let sb = if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(b.as_obj_id())
-                    {
-                        s.as_str().to_string()
-                    } else {
-                        String::new()
-                    };
-                    let res = match op {
-                        BinaryOp::Gt => sa > sb,
-                        BinaryOp::Lt => sa < sb,
-                        BinaryOp::Ge => sa >= sb,
-                        BinaryOp::Le => sa <= sb,
-                        _ => unreachable!(),
-                    };
-                    Ok(Value::from_bool(res))
-                } else {
-                    a.bin_op(op, b)
-                        .or_else(|e| debug_err(e, &a, &b, op, &self.heap))
-                }
-            }
-            _ => a
-                .bin_op(op, b)
-                .or_else(|e| debug_err(e, &a, &b, op, &self.heap)),
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn values_equal(&self, a: &Value, b: &Value) -> bool {
-        if a == b {
-            return true;
-        }
-        let mut seen: HashSet<(usize, usize)> = HashSet::new();
-        self.values_equal_inner(a, b, &mut seen)
-    }
-
-    fn values_equal_inner(&self, a: &Value, b: &Value, seen: &mut HashSet<(usize, usize)>) -> bool {
-        if a == b {
-            return true;
-        }
-
-        if a.is_int() && b.is_f64() {
-            return (a.as_i64() as f64) == b.as_f64();
-        }
-        if a.is_f64() && b.is_int() {
-            return a.as_f64() == (b.as_i64() as f64);
-        }
-
-        let at = a.get_tag();
-        let bt = b.get_tag();
-        if at != bt {
-            return false;
-        }
-
-        if a.is_obj() {
-            let aid = a.as_obj_id();
-            let bid = b.as_obj_id();
-            let key = (aid.0, bid.0);
-            if !seen.insert(key) {
-                return true;
-            }
-
-            match (self.heap.get(aid), self.heap.get(bid)) {
-                (crate::core::gc::ManagedObject::Str(x), crate::core::gc::ManagedObject::Str(y)) => x == y,
-                (
-                    crate::core::gc::ManagedObject::List(a_list),
-                    crate::core::gc::ManagedObject::List(b_list),
-                ) => {
-                    if a_list.len() != b_list.len() {
-                        return false;
-                    }
-                    for (x, y) in a_list.iter().zip(b_list.iter()) {
-                        if !self.values_equal_inner(x, y, seen) {
-                            return false;
-                        }
-                    }
-                    true
-                }
-                (
-                    crate::core::gc::ManagedObject::Dict(a_dict),
-                    crate::core::gc::ManagedObject::Dict(b_dict),
-                ) => {
-                    if a_dict.map.len() != b_dict.map.len() {
-                        return false;
-                    }
-                    for (k, av) in a_dict.map.iter() {
-                        let Some(bv) = b_dict.map.get(k) else {
-                            return false;
-                        };
-                        if !self.values_equal_inner(av, bv, seen) {
-                            return false;
-                        }
-                    }
-                    true
-                }
-                (
-                    crate::core::gc::ManagedObject::Range(a1, a2, ai),
-                    crate::core::gc::ManagedObject::Range(b1, b2, bi),
-                ) => a1 == b1 && a2 == b2 && ai == bi,
-                (
-                    crate::core::gc::ManagedObject::Enum(ea),
-                    crate::core::gc::ManagedObject::Enum(eb),
-                ) => {
-                    let (ta, va, pa) = ea.as_ref();
-                    let (tb, vb, pb) = eb.as_ref();
-                    if ta != tb || va != vb || pa.len() != pb.len() {
-                        return false;
-                    }
-                    for (x, y) in pa.iter().zip(pb.iter()) {
-                        if !self.values_equal_inner(x, y, seen) {
-                            return false;
-                        }
-                    }
-                    true
-                }
-                (crate::core::gc::ManagedObject::Struct(as_), crate::core::gc::ManagedObject::Struct(bs)) => {
-                    if as_.ty != bs.ty || as_.fields.len() != bs.fields.len() {
-                        return false;
-                    }
-                    for i in 0..as_.fields.len() {
-                        if !self.values_equal_inner(&as_.fields[i], &bs.fields[i], seen) {
-                            return false;
-                        }
-                    }
-                    true
-                }
-                _ => false,
-            }
-        } else {
-            false
-        }
-    }
-
     pub(crate) fn format_throw(&self, v: &Value) -> String {
         if v.get_tag() == crate::core::value::TAG_STR {
             if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(v.as_obj_id()) {
@@ -1377,78 +1189,6 @@ impl Runtime {
             Expr::Group(e) => Self::precompile_expr(e),
             Expr::Ident(..) | Expr::Int(_) | Expr::Float(_) | Expr::Bool(_) => Ok(()),
             _ => Ok(()),
-        }
-    }
-    pub fn gc(&mut self, extra_roots: &[Value]) {
-        // Clear caches that are safe to clear (don't affect correctness)
-        self.method_cache.clear();
-        self.dict_cache.clear();
-        self.dict_cache_int.clear();
-        self.dict_cache_last = None;
-        self.dict_cache_int_last = None;
-        self.dict_version_last = None;
-        self.ic_slots.clear();
-        self.ic_method_slots.clear();
-
-        // Create roots vector
-        let mut roots: Vec<Value> = Vec::new();
-        roots.extend_from_slice(extra_roots);
-
-        // Add temporary GC roots (e.g., function arguments being evaluated)
-        roots.extend_from_slice(&self.gc_temp_roots);
-
-        // Add values from active VM stacks
-        for stack_ptr in &self.active_vm_stacks {
-            // SAFETY: The stack pointer is valid as long as the VM frame is active
-            let stack = unsafe { &**stack_ptr };
-            for val in stack {
-                roots.push(*val);
-            }
-        }
-
-        // Add stack values as roots
-        for val in &self.env.stack {
-            roots.push(val.clone());
-        }
-
-        // Add all frame values as roots (not just global frame)
-        for frame in &self.env.frames {
-            let scope = frame.scope.borrow();
-            for val in &scope.values {
-                roots.push(val.clone());
-            }
-        }
-
-        // Add local slot values as roots
-        for frame_values in &self.locals.values {
-            for val in frame_values {
-                roots.push(val.clone());
-            }
-        }
-
-        // Add bytecode string cache values as roots
-        for cache in self.bytecode_string_cache.values() {
-            for val in cache.iter().flatten() {
-                roots.push(*val);
-            }
-        }
-
-        // Mark all reachable objects
-        self.heap.mark_all(&roots, &[&self.env], &[&self.locals]);
-
-        // Sweep phase
-        self.heap.sweep();
-    }
-
-    pub(crate) fn maybe_gc(&mut self) {
-        if self.heap.should_gc() {
-            self.gc(&[]);
-        }
-    }
-
-    pub(crate) fn maybe_gc_with_roots(&mut self, roots: &[Value]) {
-        if self.heap.should_gc() {
-            self.gc(roots);
         }
     }
 }
