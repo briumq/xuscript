@@ -784,10 +784,10 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let tag = recv.get_tag();
 
                 // Fast path for dict.get with string key - inline the entire operation
-                if tag == TAG_DICT && n == 1 {
+                if tag == TAG_DICT {
                     static GET_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
                     let get_hash = *GET_HASH.get_or_init(|| xu_ir::stable_hash64("get"));
-                    if *method_hash == get_hash {
+                    if n == 1 && *method_hash == get_hash {
                         let key_val = stack[args_start];
                         if key_val.get_tag() == TAG_STR {
                             let dict_id = recv.as_obj_id();
