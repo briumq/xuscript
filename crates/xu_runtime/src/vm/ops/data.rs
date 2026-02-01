@@ -1,8 +1,7 @@
-use crate::Value;
+use crate::core::Value;
 use crate::Runtime;
-use crate::gc::ManagedObject;
-use crate::value::{StructInstance, set_with_capacity, TAG_STR, TAG_DICT, DictKey, TAG_BUILDER};
-use smallvec::SmallVec;
+use crate::core::gc::ManagedObject;
+use crate::core::value::{StructInstance, TAG_STR, DictKey, TAG_BUILDER};
 
 #[inline(always)]
 pub(super) fn op_load_local(rt: &mut Runtime, stack: &mut Vec<Value>, idx: usize) -> Result<(), String> {
@@ -76,12 +75,12 @@ pub(super) fn op_struct_init(
         }
     }
 
-    let id = rt.heap.alloc(ManagedObject::Struct(StructInstance {
+    let id = rt.heap.alloc(ManagedObject::Struct(Box::new(StructInstance {
         ty: ty.to_string(),
         ty_hash: xu_ir::stable_hash64(ty),
         fields: values.into_boxed_slice(),
         field_names: layout,
-    }));
+    })));
     stack.push(Value::struct_obj(id));
     Ok(())
 }
@@ -116,7 +115,7 @@ pub(super) fn op_tuple_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -
 
 #[inline(always)]
 pub(super) fn op_dict_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -> Result<(), String> {
-    let mut map = crate::value::dict_with_capacity(n);
+    let mut map = crate::core::value::dict_with_capacity(n);
     for _ in 0..n {
         let v = stack.pop().ok_or("Stack underflow")?;
         let k = stack.pop().ok_or("Stack underflow")?;
@@ -138,32 +137,11 @@ pub(super) fn op_dict_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) ->
     Ok(())
 }
 
-#[inline(always)]
-pub(super) fn op_set_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -> Result<(), String> {
-    let mut items: Vec<Value> = Vec::with_capacity(n);
-    for _ in 0..n {
-        items.push(stack.pop().ok_or("Stack underflow")?);
-    }
-    items.reverse();
-    let mut set = set_with_capacity(n);
-    for v in items {
-        let key = if v.get_tag() == TAG_STR {
-            if let ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
-                DictKey::from_text(s)
-            } else {
-                return Err("Not a string".into());
-            }
-        } else if v.is_int() {
-            DictKey::Int(v.as_i64())
-        } else {
-            return Err(rt.error(xu_syntax::DiagnosticKind::DictKeyRequired));
-        };
-        set.map.insert(key, ());
-    }
-    let id = rt.heap.alloc(ManagedObject::Set(set));
-    stack.push(Value::set(id));
-    Ok(())
-}
+// TODO: Set type not yet implemented
+// #[inline(always)]
+// pub(super) fn op_set_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -> Result<(), String> {
+//     ...
+// }
 
 #[inline(always)]
 pub(super) fn op_builder_append(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), String> {

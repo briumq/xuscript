@@ -4,7 +4,7 @@ use super::MethodKind;
 use super::Runtime;
 
 fn enum_new(rt: &mut Runtime, ty: &str, variant: &str, payload: Vec<Value>) -> Value {
-    Value::enum_obj(rt.heap.alloc(crate::gc::ManagedObject::Enum(Box::new((
+    Value::enum_obj(rt.heap.alloc(crate::core::gc::ManagedObject::Enum(Box::new((
         ty.to_string().into(),
         variant.to_string().into(),
         payload.into_boxed_slice(),
@@ -18,7 +18,7 @@ pub(super) fn dispatch(
     args: &[Value],
     method: &str,
 ) -> Result<Value, String> {
-    if recv.get_tag() != crate::value::TAG_ENUM {
+    if recv.get_tag() != crate::core::value::TAG_ENUM {
         return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedReceiver(
             recv.type_name().to_string(),
         )));

@@ -1,12 +1,12 @@
 use std::hash::{BuildHasher, Hash, Hasher};
 
-use crate::Value;
-use crate::gc::ManagedObject;
-use crate::value::{DictKey, TAG_DICT, TAG_STR};
+use crate::core::Value;
+use crate::core::gc::ManagedObject;
+use crate::core::value::{DictKey, TAG_DICT, TAG_STR};
 
-use super::Runtime;
+use crate::Runtime;
 
-pub(super) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), String> {
+pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), String> {
     let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     let k = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     let dict = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
@@ -60,7 +60,7 @@ pub(super) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
     }
 }
 
-pub(super) fn op_dict_merge(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), String> {
+pub(crate) fn op_dict_merge(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), String> {
     let other = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     let dict = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     if dict.get_tag() == TAG_DICT && other.get_tag() == TAG_DICT {

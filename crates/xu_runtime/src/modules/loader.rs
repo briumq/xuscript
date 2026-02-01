@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use super::Runtime;
+use crate::Runtime;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ImportStamp {

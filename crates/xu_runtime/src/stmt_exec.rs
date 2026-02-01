@@ -1,10 +1,10 @@
 use xu_ir::{Expr, Stmt};
 use crate::Value;
 
-use super::{Flow, Runtime};
+use crate::{Flow, Runtime};
 
 impl Runtime {
-    pub(super) fn exec_if_branches(
+    pub(crate) fn exec_if_branches(
         &mut self,
         branches: &[(Expr, Box<[Stmt]>)],
         else_branch: Option<&Box<[Stmt]>>,
@@ -20,13 +20,13 @@ impl Runtime {
                         ));
                     let err_val = Value::str(
                         self.heap
-                            .alloc(crate::gc::ManagedObject::Str(err_msg.into())),
+                            .alloc(crate::core::gc::ManagedObject::Str(err_msg.into())),
                     );
                     return Flow::Throw(err_val);
                 }
                 Err(e) => {
                     let err_val = Value::str(
-                        self.heap.alloc(crate::gc::ManagedObject::Str(e.into())),
+                        self.heap.alloc(crate::core::gc::ManagedObject::Str(e.into())),
                     );
                     return Flow::Throw(err_val);
                 }
@@ -39,7 +39,7 @@ impl Runtime {
         }
     }
 
-    pub(super) fn exec_while_loop(&mut self, cond: &Expr, body: &Box<[Stmt]>) -> Flow {
+    pub(crate) fn exec_while_loop(&mut self, cond: &Expr, body: &Box<[Stmt]>) -> Flow {
         loop {
             let cond_v = match self.eval_expr(cond) {
                 Ok(v) if v.is_bool() => v.as_bool(),
@@ -50,13 +50,13 @@ impl Runtime {
                         ));
                     let err_val = Value::str(
                         self.heap
-                            .alloc(crate::gc::ManagedObject::Str(err_msg.into())),
+                            .alloc(crate::core::gc::ManagedObject::Str(err_msg.into())),
                     );
                     return Flow::Throw(err_val);
                 }
                 Err(e) => {
                     let err_val =
-                        Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(e.into())));
+                        Value::str(self.heap.alloc(crate::core::gc::ManagedObject::Str(e.into())));
                     return Flow::Throw(err_val);
                 }
             };

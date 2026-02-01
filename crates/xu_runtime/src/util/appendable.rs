@@ -1,7 +1,7 @@
-use super::util::value_to_string;
+use super::helpers::value_to_string;
 use crate::Text;
 use crate::Value;
-use crate::gc::Heap;
+use crate::core::gc::Heap;
 
 pub trait Appendable {
     fn append_str(&mut self, s: &str);
@@ -43,8 +43,8 @@ impl Appendable for String {
             self.append_bool(v.as_bool());
         } else if v.is_void() {
             self.append_null();
-        } else if v.get_tag() == crate::value::TAG_STR {
-            if let crate::gc::ManagedObject::Str(s) = heap.get(v.as_obj_id()) {
+        } else if v.get_tag() == crate::core::value::TAG_STR {
+            if let crate::core::gc::ManagedObject::Str(s) = heap.get(v.as_obj_id()) {
                 self.append_str(s.as_str());
             }
         } else {
@@ -83,8 +83,8 @@ impl Appendable for Text {
             self.append_bool(v.as_bool());
         } else if v.is_void() {
             self.append_null();
-        } else if v.get_tag() == crate::value::TAG_STR {
-            if let crate::gc::ManagedObject::Str(s) = heap.get(v.as_obj_id()) {
+        } else if v.get_tag() == crate::core::value::TAG_STR {
+            if let crate::core::gc::ManagedObject::Str(s) = heap.get(v.as_obj_id()) {
                 self.append_str(s.as_str());
             }
         } else {

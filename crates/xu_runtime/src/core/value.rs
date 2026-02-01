@@ -2,8 +2,8 @@
 //!
 //! Defines the runtime value representation, including primitives and heap-managed objects.
 
-use crate::gc::{Heap, ObjectId};
-use crate::Text;
+use super::gc::{Heap, ObjectId};
+use super::text::Text;
 use ahash::RandomState;
 use hashbrown::HashMap;
 use std::fmt;
@@ -446,7 +446,7 @@ pub enum Function {
 #[derive(Clone)]
 pub struct UserFunction {
     pub def: FuncDef,
-    pub env: crate::Env,
+    pub env: super::Env,
     pub needs_env_frame: bool,
     pub fast_param_indices: Option<Box<[usize]>>,
     pub fast_locals_size: Option<usize>,
@@ -458,7 +458,7 @@ pub struct UserFunction {
 pub struct BytecodeFunction {
     pub def: FuncDef,
     pub bytecode: Rc<Bytecode>,
-    pub env: crate::Env,
+    pub env: super::Env,
     pub needs_env_frame: bool,
     pub locals_count: usize,
     pub type_sig_ic: std::cell::Cell<Option<u64>>,
@@ -562,12 +562,12 @@ impl Value {
                     let id = self.as_obj_id();
                     if other.get_tag() == TAG_STR {
                         let other_id = other.as_obj_id();
-                        let other_s = if let crate::gc::ManagedObject::Str(s) = heap.get(other_id) {
+                        let other_s = if let super::gc::ManagedObject::Str(s) = heap.get(other_id) {
                             s.as_str().to_string()
                         } else {
                             return Err("Not a string".to_string());
                         };
-                        let s_ptr = if let crate::gc::ManagedObject::Str(s) = heap.get_mut(id) {
+                        let s_ptr = if let super::gc::ManagedObject::Str(s) = heap.get_mut(id) {
                             s
                         } else {
                             return Err("Not a string".to_string());
@@ -576,7 +576,7 @@ impl Value {
                         Ok(())
                     } else {
                         let bs = other.to_string_lossy(heap);
-                        let s_ptr = if let crate::gc::ManagedObject::Str(s) = heap.get_mut(id) {
+                        let s_ptr = if let super::gc::ManagedObject::Str(s) = heap.get_mut(id) {
                             s
                         } else {
                             return Err("Not a string".to_string());
@@ -758,7 +758,7 @@ impl Value {
                 f.to_string()
             }
         } else if self.get_tag() == TAG_STR {
-            if let crate::gc::ManagedObject::Str(s) = heap.get(self.as_obj_id()) {
+            if let super::gc::ManagedObject::Str(s) = heap.get(self.as_obj_id()) {
                 s.as_str().to_string()
             } else {
                 format!("{:?}", self)

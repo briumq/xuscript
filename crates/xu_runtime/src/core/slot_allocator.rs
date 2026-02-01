@@ -1,5 +1,5 @@
-use crate::Value;
-use crate::value::{FastHashMap, fast_map_new};
+use super::Value;
+use super::value::{FastHashMap, fast_map_new};
 
 pub(crate) struct LocalSlots {
     pub(crate) maps: Vec<FastHashMap<String, usize>>,

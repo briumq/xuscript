@@ -1,11 +1,11 @@
-use crate::Value;
-use crate::gc::ManagedObject;
+use crate::core::Value;
+use crate::core::gc::ManagedObject;
 
 use xu_ir::{Bytecode, Op};
 
-use super::add_with_heap;
-use super::super::ICSlot;
-use super::{Flow, Runtime};
+use super::dispatch::add_with_heap;
+use crate::ICSlot;
+use crate::{Flow, Runtime};
 
 pub(crate) fn run_bytecode_fast(
     rt: &mut Runtime,
@@ -373,7 +373,7 @@ pub(crate) fn run_bytecode_fast_params_only(
                     return Some(Err("Stack underflow".into()));
                 }
                 let obj = stack[sp - 1];
-                if obj.get_tag() != crate::value::TAG_DICT {
+                if obj.get_tag() != crate::core::value::TAG_DICT {
                     return None;
                 }
                 let id = obj.as_obj_id();
@@ -447,7 +447,7 @@ pub(crate) fn run_bytecode_fast_params_only(
                     return Some(Err("Stack underflow".into()));
                 }
                 let obj = stack[sp - 1];
-                if obj.get_tag() != crate::value::TAG_DICT {
+                if obj.get_tag() != crate::core::value::TAG_DICT {
                     return None;
                 }
                 let id = obj.as_obj_id();
@@ -471,7 +471,7 @@ pub(crate) fn run_bytecode_fast_params_only(
                     stack[sp - 1] = v;
                 } else {
                     let out = if let ManagedObject::Dict(me) = rt.heap.get(id) {
-                        me.map.get(&crate::value::DictKey::Int(*i)).cloned()
+                        me.map.get(&crate::core::value::DictKey::Int(*i)).cloned()
                     } else {
                         None
                     };

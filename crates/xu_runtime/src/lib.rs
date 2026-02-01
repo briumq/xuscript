@@ -1,38 +1,41 @@
-//! 
-//! 
-pub mod gc;
-pub mod text;
-mod value;
-mod runtime;
+//!
+//!
 
-// Runtime modules
-mod appendable;
-mod builtins;
-pub mod builtins_registry;
-mod capabilities;
-mod diag;
-mod env;
-mod executor;
-mod stmt_exec;
-mod args_eval;
-mod ir;
-mod ir_throw;
-mod pattern;
-mod methods;
-mod module_loader;
+// Reorganized module structure
+pub mod core;
+pub mod vm;
+mod ast_exec;
 mod modules;
-mod op_dispatch;
-mod slot_allocator;
 mod util;
 
-// Re-exports
-pub use appendable::Appendable;
+// Remaining modules at root level
+mod runtime;
+mod builtins;
+pub mod builtins_registry;
+mod ir_throw;
+mod methods;
+mod args_eval;
+mod stmt_exec;
+
+// Re-exports from core/
+pub use core::gc;
+pub use core::text;
+pub use core::text::Text;
+pub use core::value::Value;
+pub use core::env::{Env, Scope};
+
+// Re-exports from vm/
+pub use vm::VM;
+
+// Re-exports from modules/
+pub use modules::{ImportStamp, ModuleLoader, StdModuleLoader};
+
+// Re-exports from util/
+pub use util::Appendable;
+pub use util::{Capabilities, Clock, FileStat, FileSystem, RngAlgorithm};
+
+// Re-exports from other modules
 pub use builtins_registry::{BuiltinProvider, BuiltinRegistry, StdBuiltinProvider};
-pub use capabilities::{Clock, FileStat, FileSystem, RngAlgorithm};
-pub use env::{Env, Scope};
-pub use ir::VM;
-pub use text::Text;
-pub use value::Value;
 pub use xu_ir::{Bytecode, Op};
 
 // Runtime structs and enums

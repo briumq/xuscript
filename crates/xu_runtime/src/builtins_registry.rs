@@ -1,9 +1,9 @@
 use crate::Value;
-use crate::value::Function;
+use crate::core::value::Function;
 
 use super::Runtime;
 use super::builtins;
-use super::env::Env;
+use crate::core::env::Env;
 
 pub type BuiltinFn = fn(&mut Runtime, &[Value]) -> Result<Value, String>;
 
@@ -26,9 +26,9 @@ impl BuiltinRegistry {
         self.entries.iter().map(|(n, _)| n.clone()).collect()
     }
 
-    pub fn install_into(self, env: &mut Env, heap: &mut crate::gc::Heap) {
+    pub fn install_into(self, env: &mut Env, heap: &mut crate::core::gc::Heap) {
         for (name, fun) in self.entries {
-            let id = heap.alloc(crate::gc::ManagedObject::Function(Function::Builtin(fun)));
+            let id = heap.alloc(crate::core::gc::ManagedObject::Function(Function::Builtin(fun)));
             env.define(name, Value::function(id));
         }
     }

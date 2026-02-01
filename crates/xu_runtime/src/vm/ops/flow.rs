@@ -1,8 +1,8 @@
-use crate::Value;
+use crate::core::Value;
 use crate::Runtime;
-use crate::gc::ManagedObject;
-use xu_ir::Op;
-use super::{IterState, Flow};
+use crate::core::gc::ManagedObject;
+use crate::vm::IterState;
+use crate::Flow;
 
 #[inline(always)]
 pub(super) fn op_jump(ip: &mut usize, to: usize) {
@@ -79,11 +79,11 @@ pub(super) fn op_foreach_init(
     end: usize,
     constants: &[xu_ir::Constant],
 ) -> Result<(), String> {
-    use crate::value::{TAG_LIST, TAG_RANGE};
+    use crate::core::value::{TAG_LIST, TAG_RANGE};
 
     let iterable = stack.pop().ok_or("Stack underflow")?;
     let tag = iterable.get_tag();
-    let var = rt.get_const_str(idx, constants);
+    let var = rt.get_const_str(idx as u32, constants);
 
     let first_val = if tag == TAG_LIST {
         let id = iterable.as_obj_id();
@@ -157,7 +157,7 @@ pub(super) fn op_foreach_next(
     let Some(state) = iters.last_mut() else {
         return Err("Iterator underflow".into());
     };
-    let var = rt.get_const_str(idx, constants);
+    let var = rt.get_const_str(idx as u32, constants);
 
     let next_val = match state {
         IterState::List { id, idx, len, .. } => {
@@ -185,6 +185,9 @@ pub(super) fn op_foreach_next(
                 *cur = cur.saturating_add(*step);
                 Some(item)
             }
+        }
+        IterState::Dict { .. } | IterState::DictKV { .. } => {
+            return Err("Dict iteration not supported in bytecode foreach".into());
         }
     };
 

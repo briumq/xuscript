@@ -1,7 +1,7 @@
 //! Garbage collection and heap management.
 
-use crate::value::{Dict, DictStr, FileHandle, Function, ModuleInstance, StructInstance};
-use crate::Value;
+use super::value::{Dict, DictStr, FileHandle, Function, ModuleInstance, StructInstance};
+use super::Value;
 use std::collections::HashSet;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ObjectId(pub usize);
@@ -17,11 +17,11 @@ pub enum ManagedObject {
     Struct(Box<StructInstance>),
     Module(Box<ModuleInstance>),
     Range(i64, i64, bool),
-    Enum(Box<(crate::Text, crate::Text, Box<[Value]>)>),
+    Enum(Box<(super::text::Text, super::text::Text, Box<[Value]>)>),
     OptionSome(Value), // Optimized Option::some with single value
     Function(Function),
-    Str(crate::Text),
-    Shape(Box<crate::value::Shape>),
+    Str(super::text::Text),
+    Shape(Box<super::value::Shape>),
 }
 
 impl ManagedObject {
@@ -44,7 +44,7 @@ impl ManagedObject {
                 // More accurate sizing for hash maps
                 let map_size = d.map.capacity()
                     * (
-                        std::mem::size_of::<crate::value::DictKey>()
+                        std::mem::size_of::<super::value::DictKey>()
                             + std::mem::size_of::<Value>()
                             + 16
                         // HashTable overhead per entry
@@ -190,8 +190,8 @@ impl Heap {
     pub(crate) fn mark_all(
         &mut self,
         roots: &[Value],
-        envs: &[&crate::Env],
-        locals: &[&crate::slot_allocator::LocalSlots],
+        envs: &[&super::Env],
+        locals: &[&super::slot_allocator::LocalSlots],
     ) {
         // Clear marks at the beginning to avoid duplicate marking
         self.marks.clear();

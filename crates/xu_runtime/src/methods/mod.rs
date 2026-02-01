@@ -158,12 +158,12 @@ pub(super) fn dispatch_builtin_method(
     
     // 根据接收者类型分发到不同的处理函数
     match tag {
-        crate::value::TAG_LIST => list::dispatch(rt, recv, kind, args, method),
-        crate::value::TAG_DICT => dict::dispatch(rt, recv, kind, args, method),
-        crate::value::TAG_FILE => file::dispatch(rt, recv, kind, args, method),
-        crate::value::TAG_STR => str::dispatch(rt, recv, kind, args, method),
-        crate::value::TAG_ENUM => enum_::dispatch(rt, recv, kind, args, method),
-        crate::value::TAG_OPTION => dispatch_option_some(rt, recv, kind, args, method),
+        crate::core::value::TAG_LIST => list::dispatch(rt, recv, kind, args, method),
+        crate::core::value::TAG_DICT => dict::dispatch(rt, recv, kind, args, method),
+        crate::core::value::TAG_FILE => file::dispatch(rt, recv, kind, args, method),
+        crate::core::value::TAG_STR => str::dispatch(rt, recv, kind, args, method),
+        crate::core::value::TAG_ENUM => enum_::dispatch(rt, recv, kind, args, method),
+        crate::core::value::TAG_OPTION => dispatch_option_some(rt, recv, kind, args, method),
         _ => dispatch_primitive_methods(rt, recv, kind, args, method),
     }
 }

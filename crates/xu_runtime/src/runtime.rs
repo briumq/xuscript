@@ -7,21 +7,20 @@ use hashbrown::hash_map::RawEntryMut;
 use smallvec::SmallVec;
 use xu_ir::{BinaryOp, Executable, Expr, Module, Stmt, StructDef};
 
-use crate::Value;
-use crate::Env;
-use crate::value::{Dict, DictKey, FastHashMap, fast_map_new};
-use crate::capabilities;
-use crate::module_loader;
+use crate::core::Value;
+use crate::core::Env;
+use crate::core::value::{Dict, DictKey, FastHashMap, fast_map_new};
+use crate::util as capabilities;
 use crate::modules;
-use crate::slot_allocator;
-use crate::ir;
+use crate::core::slot_allocator;
+use crate::vm as ir;
 use crate::builtins_registry;
 use crate::methods;
 
 type HashMap<K, V> = FastHashMap<K, V>;
 
 // Re-exports
-pub use crate::text::Text;
+pub use crate::core::text::Text;
 
 // These types are defined in this file, no need to re-export from crate
 
@@ -52,16 +51,16 @@ pub struct MethodICSlot {
     pub struct_ty_hash: u64,
     pub(crate) kind: MethodKind,
     pub cached_func: Value,
-    pub cached_user: Option<std::rc::Rc<crate::value::UserFunction>>,
-    pub cached_bytecode: Option<std::rc::Rc<crate::value::BytecodeFunction>>,
+    pub cached_user: Option<std::rc::Rc<crate::core::value::UserFunction>>,
+    pub cached_bytecode: Option<std::rc::Rc<crate::core::value::BytecodeFunction>>,
 }
 
 pub struct Runtime {
     pub(crate) env: Env,
     pub(crate) env_pool: Vec<Env>,
-    pub(crate) heap: crate::gc::Heap,
+    pub(crate) heap: crate::core::gc::Heap,
     caps: capabilities::Capabilities,
-    pub(crate) module_loader: Box<dyn module_loader::ModuleLoader>,
+    pub(crate) module_loader: Box<dyn modules::ModuleLoader>,
     pub(crate) frontend: Option<Box<dyn xu_ir::Frontend>>,
     pub(crate) output: String,
     pub(crate) stmt_count: usize,
@@ -162,9 +161,9 @@ impl Runtime {
         let mut rt = Self {
             env,
             env_pool: Vec::new(),
-            heap: crate::gc::Heap::new(),
+            heap: crate::core::gc::Heap::new(),
             caps: capabilities::Capabilities::default(),
-            module_loader: Box::new(module_loader::StdModuleLoader),
+            module_loader: Box::new(modules::StdModuleLoader),
             frontend: None,
             output: String::new(),
             stmt_count: 0,
@@ -235,7 +234,7 @@ impl Runtime {
         }
         // Slow path: create and cache the value
         let text = self.intern_string(s);
-        let val = Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(text)));
+        let val = Value::str(self.heap.alloc(crate::core::gc::ManagedObject::Str(text)));
 
         let cache = self.bytecode_string_cache.entry(bc_ptr).or_insert_with(Vec::new);
         let idx_usize = idx as usize;
@@ -252,7 +251,7 @@ impl Runtime {
         }
         static OPTION: &str = "Option";
         static NONE: &str = "none";
-        let v = Value::enum_obj(self.heap.alloc(crate::gc::ManagedObject::Enum(Box::new((
+        let v = Value::enum_obj(self.heap.alloc(crate::core::gc::ManagedObject::Enum(Box::new((
             crate::Text::from_str(OPTION),
             crate::Text::from_str(NONE),
             Box::new([]),
@@ -263,7 +262,7 @@ impl Runtime {
 
     pub(crate) fn option_some(&mut self, v: Value) -> Value {
         // Use optimized OptionSome variant to avoid Box allocation
-        Value::option_some(self.heap.alloc(crate::gc::ManagedObject::OptionSome(v)))
+        Value::option_some(self.heap.alloc(crate::core::gc::ManagedObject::OptionSome(v)))
     }
 
     /// Get a String from the builder pool, or create a new one with the given capacity
@@ -330,7 +329,7 @@ impl Runtime {
                 )));
             }
         }
-        let id = self.heap.alloc(crate::gc::ManagedObject::Enum(Box::new((
+        let id = self.heap.alloc(crate::core::gc::ManagedObject::Enum(Box::new((
             ty.to_string().into(),
             variant.to_string().into(),
             payload,
@@ -343,11 +342,11 @@ impl Runtime {
         &self,
         v: Value,
     ) -> Result<(crate::Text, crate::Text, Box<[Value]>), String> {
-        if v.get_tag() != crate::value::TAG_ENUM {
+        if v.get_tag() != crate::core::value::TAG_ENUM {
             return Err(self.error(xu_syntax::DiagnosticKind::Raw("Non-enum object".into())));
         }
         match self.heap.get(v.as_obj_id()) {
-            crate::gc::ManagedObject::Enum(e) => {
+            crate::core::gc::ManagedObject::Enum(e) => {
                 let (ty, variant, payload) = e.as_ref();
                 Ok((
                     ty.clone(),
@@ -375,7 +374,7 @@ impl Runtime {
         self.caps.rng = rng;
     }
 
-    pub fn set_module_loader(&mut self, loader: Box<dyn module_loader::ModuleLoader>) {
+    pub fn set_module_loader(&mut self, loader: Box<dyn modules::ModuleLoader>) {
         self.module_loader = loader;
     }
 
@@ -625,12 +624,12 @@ impl Runtime {
         self.locals.clear();
 
         self.env = Env::new();
-        self.heap = crate::gc::Heap::new();
+        self.heap = crate::core::gc::Heap::new();
         self.install_builtins();
         for (k, v) in &self.predefined_constants {
             let s = self
                 .heap
-                .alloc(crate::gc::ManagedObject::Str(v.to_string().into()));
+                .alloc(crate::core::gc::ManagedObject::Str(v.to_string().into()));
             self.env.define(k.clone(), Value::str(s));
         }
         self.method_cache.clear();
@@ -652,7 +651,7 @@ impl Runtime {
         let Some(v) = self.env.get("main") else {
             return Ok(());
         };
-        if v.get_tag() == crate::value::TAG_FUNC {
+        if v.get_tag() == crate::core::value::TAG_FUNC {
             self.main_invoked = true;
             let _ = self.call_function(v, &[])?;
             Ok(())
@@ -801,9 +800,9 @@ impl Runtime {
             if idx < self.ic_method_slots.len() {
                 let slot = &self.ic_method_slots[idx];
                 if slot.tag == tag && slot.method_hash == method_hash {
-                    if tag == crate::value::TAG_STRUCT {
+                    if tag == crate::core::value::TAG_STRUCT {
                         let id = recv.as_obj_id();
-                        if let crate::gc::ManagedObject::Struct(s) = self.heap.get(id) {
+                        if let crate::core::gc::ManagedObject::Struct(s) = self.heap.get(id) {
                             if slot.struct_ty_hash == s.ty_hash {
                                 if let Some(f) = slot.cached_bytecode.as_ref() {
                                     if args.is_empty() {
@@ -824,9 +823,9 @@ impl Runtime {
                                 return self.call_function(slot.cached_func, &all_args);
                             }
                         }
-                    } else if tag == crate::value::TAG_ENUM {
+                    } else if tag == crate::core::value::TAG_ENUM {
                         let id = recv.as_obj_id();
-                        if let crate::gc::ManagedObject::Enum(e) =
+                        if let crate::core::gc::ManagedObject::Enum(e) =
                             self.heap.get(id)
                         {
                             let (ty, _variant, _payload) = e.as_ref();
@@ -860,16 +859,16 @@ impl Runtime {
             }
         }
 
-        if tag == crate::value::TAG_MODULE {
+        if tag == crate::core::value::TAG_MODULE {
             let id = recv.as_obj_id();
-            let callee = if let crate::gc::ManagedObject::Module(m) = self.heap.get(id) {
+            let callee = if let crate::core::gc::ManagedObject::Module(m) = self.heap.get(id) {
                 m.exports.map.get(method).cloned().ok_or_else(|| {
                     self.error(xu_syntax::DiagnosticKind::UnknownMember(method.to_string()))
                 })?
             } else {
                 return Err(self.error(xu_syntax::DiagnosticKind::Raw("Non-module object".into())));
             };
-            if callee.get_tag() != crate::value::TAG_FUNC {
+            if callee.get_tag() != crate::core::value::TAG_FUNC {
                 return Err(self.error(xu_syntax::DiagnosticKind::NotCallable(method.to_string())));
             }
             // Update IC
@@ -883,16 +882,16 @@ impl Runtime {
                     struct_ty_hash: 0,
                     kind: MethodKind::Unknown,
                     cached_func: callee,
-                    cached_user: if let crate::gc::ManagedObject::Function(
-                        crate::value::Function::User(f),
+                    cached_user: if let crate::core::gc::ManagedObject::Function(
+                        crate::core::value::Function::User(f),
                     ) = self.heap.get(callee.as_obj_id())
                     {
                         Some(f.clone())
                     } else {
                         None
                     },
-                    cached_bytecode: if let crate::gc::ManagedObject::Function(
-                        crate::value::Function::Bytecode(f),
+                    cached_bytecode: if let crate::core::gc::ManagedObject::Function(
+                        crate::core::value::Function::Bytecode(f),
                     ) = self.heap.get(callee.as_obj_id())
                     {
                         Some(f.clone())
@@ -902,9 +901,9 @@ impl Runtime {
                 };
             }
             self.call_function(callee, &args)
-        } else if tag == crate::value::TAG_STRUCT {
+        } else if tag == crate::core::value::TAG_STRUCT {
             let id = recv.as_obj_id();
-            let callee = match if let crate::gc::ManagedObject::Struct(s) = self.heap.get(id) {
+            let callee = match if let crate::core::gc::ManagedObject::Struct(s) = self.heap.get(id) {
                 let ty = s.ty.as_str();
                 let hash = {
                     let mut h = self.method_cache.hasher().build_hasher();
@@ -943,23 +942,23 @@ impl Runtime {
                 self.ic_method_slots[idx] = MethodICSlot {
                     tag,
                     method_hash,
-                    struct_ty_hash: if let crate::gc::ManagedObject::Struct(s) = self.heap.get(id) {
+                    struct_ty_hash: if let crate::core::gc::ManagedObject::Struct(s) = self.heap.get(id) {
                         s.ty_hash
                     } else {
                         0
                     },
                     kind: MethodKind::Unknown,
                     cached_func: callee,
-                    cached_user: if let crate::gc::ManagedObject::Function(
-                        crate::value::Function::User(f),
+                    cached_user: if let crate::core::gc::ManagedObject::Function(
+                        crate::core::value::Function::User(f),
                     ) = self.heap.get(callee.as_obj_id())
                     {
                         Some(f.clone())
                     } else {
                         None
                     },
-                    cached_bytecode: if let crate::gc::ManagedObject::Function(
-                        crate::value::Function::Bytecode(f),
+                    cached_bytecode: if let crate::core::gc::ManagedObject::Function(
+                        crate::core::value::Function::Bytecode(f),
                     ) = self.heap.get(callee.as_obj_id())
                     {
                         Some(f.clone())
@@ -973,10 +972,10 @@ impl Runtime {
             all_args.push(recv);
             all_args.extend(args.iter().cloned());
             self.call_function(callee, &all_args)
-        } else if tag == crate::value::TAG_ENUM {
+        } else if tag == crate::core::value::TAG_ENUM {
             let id = recv.as_obj_id();
             let (callee, ty_hash) =
-                match if let crate::gc::ManagedObject::Enum(e) =
+                match if let crate::core::gc::ManagedObject::Enum(e) =
                     self.heap.get(id)
                 {
                     let (ty, _variant, _payload) = e.as_ref();
@@ -1042,7 +1041,7 @@ impl Runtime {
                     struct_ty_hash: ty_hash,
                     kind: MethodKind::Unknown,
                     cached_func: callee,
-                    cached_user: if let crate::gc::ManagedObject::Function(crate::value::Function::User(
+                    cached_user: if let crate::core::gc::ManagedObject::Function(crate::core::value::Function::User(
                         f,
                     )) = self.heap.get(callee.as_obj_id())
                     {
@@ -1050,8 +1049,8 @@ impl Runtime {
                     } else {
                         None
                     },
-                    cached_bytecode: if let crate::gc::ManagedObject::Function(
-                        crate::value::Function::Bytecode(f),
+                    cached_bytecode: if let crate::core::gc::ManagedObject::Function(
+                        crate::core::value::Function::Bytecode(f),
                     ) = self.heap.get(callee.as_obj_id())
                     {
                         Some(f.clone())
@@ -1061,7 +1060,7 @@ impl Runtime {
                 };
             }
 
-            if callee.get_tag() != crate::value::TAG_FUNC {
+            if callee.get_tag() != crate::core::value::TAG_FUNC {
                 return Err(self.error(xu_syntax::DiagnosticKind::NotCallable(method.to_string())));
             }
             let mut all_args: SmallVec<[Value; 4]> = SmallVec::with_capacity(args.len() + 1);
@@ -1097,7 +1096,7 @@ impl Runtime {
     }
 
     pub(crate) fn eval_binary(&mut self, op: BinaryOp, a: Value, b: Value) -> Result<Value, String> {
-        let debug_err = |e: String, a: &Value, b: &Value, op: BinaryOp, heap: &crate::gc::Heap| {
+        let debug_err = |e: String, a: &Value, b: &Value, op: BinaryOp, heap: &crate::core::gc::Heap| {
             let sa = value_to_string(a, heap);
             let sb = value_to_string(b, heap);
             println!("BinaryOp Error: {} {:?} {} -> {}", sa, op, sb, e);
@@ -1110,23 +1109,23 @@ impl Runtime {
             BinaryOp::Add => {
                 let at = a.get_tag();
                 let bt = b.get_tag();
-                if at == crate::value::TAG_STR && bt == crate::value::TAG_STR {
+                if at == crate::core::value::TAG_STR && bt == crate::core::value::TAG_STR {
                     // Fast path: both are strings - use Text::concat2
-                    let ta = if let crate::gc::ManagedObject::Str(s) = self.heap.get(a.as_obj_id()) {
+                    let ta = if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(a.as_obj_id()) {
                         s.clone()
                     } else {
                         Text::new()
                     };
-                    let tb = if let crate::gc::ManagedObject::Str(s) = self.heap.get(b.as_obj_id()) {
+                    let tb = if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(b.as_obj_id()) {
                         s.clone()
                     } else {
                         Text::new()
                     };
                     let result = Text::concat2(&ta, &tb);
                     Ok(Value::str(
-                        self.heap.alloc(crate::gc::ManagedObject::Str(result)),
+                        self.heap.alloc(crate::core::gc::ManagedObject::Str(result)),
                     ))
-                } else if at == crate::value::TAG_STR || bt == crate::value::TAG_STR {
+                } else if at == crate::core::value::TAG_STR || bt == crate::core::value::TAG_STR {
                     let sa = value_to_string(&a, &self.heap);
                     let sb = value_to_string(&b, &self.heap);
                     // Pre-allocate capacity to avoid intermediate allocations
@@ -1135,7 +1134,7 @@ impl Runtime {
                     result.push_str(&sb);
                     Ok(Value::str(
                         self.heap
-                            .alloc(crate::gc::ManagedObject::Str(result.into())),
+                            .alloc(crate::core::gc::ManagedObject::Str(result.into())),
                     ))
                 } else {
                     a.bin_op(op, b)
@@ -1143,14 +1142,14 @@ impl Runtime {
                 }
             }
             BinaryOp::Gt | BinaryOp::Lt | BinaryOp::Ge | BinaryOp::Le => {
-                if a.get_tag() == crate::value::TAG_STR && b.get_tag() == crate::value::TAG_STR {
-                    let sa = if let crate::gc::ManagedObject::Str(s) = self.heap.get(a.as_obj_id())
+                if a.get_tag() == crate::core::value::TAG_STR && b.get_tag() == crate::core::value::TAG_STR {
+                    let sa = if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(a.as_obj_id())
                     {
                         s.as_str().to_string()
                     } else {
                         String::new()
                     };
-                    let sb = if let crate::gc::ManagedObject::Str(s) = self.heap.get(b.as_obj_id())
+                    let sb = if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(b.as_obj_id())
                     {
                         s.as_str().to_string()
                     } else {
@@ -1211,10 +1210,10 @@ impl Runtime {
             }
 
             match (self.heap.get(aid), self.heap.get(bid)) {
-                (crate::gc::ManagedObject::Str(x), crate::gc::ManagedObject::Str(y)) => x == y,
+                (crate::core::gc::ManagedObject::Str(x), crate::core::gc::ManagedObject::Str(y)) => x == y,
                 (
-                    crate::gc::ManagedObject::List(a_list),
-                    crate::gc::ManagedObject::List(b_list),
+                    crate::core::gc::ManagedObject::List(a_list),
+                    crate::core::gc::ManagedObject::List(b_list),
                 ) => {
                     if a_list.len() != b_list.len() {
                         return false;
@@ -1227,8 +1226,8 @@ impl Runtime {
                     true
                 }
                 (
-                    crate::gc::ManagedObject::Dict(a_dict),
-                    crate::gc::ManagedObject::Dict(b_dict),
+                    crate::core::gc::ManagedObject::Dict(a_dict),
+                    crate::core::gc::ManagedObject::Dict(b_dict),
                 ) => {
                     if a_dict.map.len() != b_dict.map.len() {
                         return false;
@@ -1244,12 +1243,12 @@ impl Runtime {
                     true
                 }
                 (
-                    crate::gc::ManagedObject::Range(a1, a2, ai),
-                    crate::gc::ManagedObject::Range(b1, b2, bi),
+                    crate::core::gc::ManagedObject::Range(a1, a2, ai),
+                    crate::core::gc::ManagedObject::Range(b1, b2, bi),
                 ) => a1 == b1 && a2 == b2 && ai == bi,
                 (
-                    crate::gc::ManagedObject::Enum(ea),
-                    crate::gc::ManagedObject::Enum(eb),
+                    crate::core::gc::ManagedObject::Enum(ea),
+                    crate::core::gc::ManagedObject::Enum(eb),
                 ) => {
                     let (ta, va, pa) = ea.as_ref();
                     let (tb, vb, pb) = eb.as_ref();
@@ -1263,7 +1262,7 @@ impl Runtime {
                     }
                     true
                 }
-                (crate::gc::ManagedObject::Struct(as_), crate::gc::ManagedObject::Struct(bs)) => {
+                (crate::core::gc::ManagedObject::Struct(as_), crate::core::gc::ManagedObject::Struct(bs)) => {
                     if as_.ty != bs.ty || as_.fields.len() != bs.fields.len() {
                         return false;
                     }
@@ -1282,8 +1281,8 @@ impl Runtime {
     }
 
     pub(crate) fn format_throw(&self, v: &Value) -> String {
-        if v.get_tag() == crate::value::TAG_STR {
-            if let crate::gc::ManagedObject::Str(s) = self.heap.get(v.as_obj_id()) {
+        if v.get_tag() == crate::core::value::TAG_STR {
+            if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(v.as_obj_id()) {
                 return s.to_string();
             }
         }

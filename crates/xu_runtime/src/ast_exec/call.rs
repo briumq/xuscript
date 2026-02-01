@@ -1,20 +1,20 @@
 use std::rc::Rc;
 
 use crate::Value;
-use crate::value::{BytecodeFunction, Function, UserFunction};
+use crate::core::value::{BytecodeFunction, Function, UserFunction};
 
-use super::super::{Flow, Runtime};
-use super::super::util::type_matches;
+use crate::{Flow, Runtime};
+use crate::util::type_matches;
 
 impl Runtime {
     pub(crate) fn call_function(&mut self, f: Value, args: &[Value]) -> Result<Value, String> {
-        if f.get_tag() != crate::value::TAG_FUNC {
+        if f.get_tag() != crate::core::value::TAG_FUNC {
             return Err(self.error(xu_syntax::DiagnosticKind::NotCallable(
                 f.type_name().to_string(),
             )));
         }
         let id = f.as_obj_id();
-        let func_obj = if let crate::gc::ManagedObject::Function(f) = self.heap.get(id) {
+        let func_obj = if let crate::core::gc::ManagedObject::Function(f) = self.heap.get(id) {
             f.clone()
         } else {
             return Err("Not a function".to_string());
@@ -66,9 +66,9 @@ impl Runtime {
                     type_sig = 1469598103934665603u64;
                     for v in args {
                         let mut x = v.get_tag() as u64;
-                        if v.get_tag() == crate::value::TAG_STRUCT {
+                        if v.get_tag() == crate::core::value::TAG_STRUCT {
                             let id = v.as_obj_id();
-                            if let crate::gc::ManagedObject::Struct(si) = self.heap.get(id) {
+                            if let crate::core::gc::ManagedObject::Struct(si) = self.heap.get(id) {
                                 x ^= si.ty_hash;
                             }
                         }
@@ -98,7 +98,7 @@ impl Runtime {
                         fun.type_sig_ic.set(Some(type_sig));
                     }
                 }
-                if let Some(res) = super::super::ir::run_bytecode_fast_params_only(
+                if let Some(res) = crate::vm::run_bytecode_fast_params_only(
                     self,
                     &fun.bytecode,
                     &fun.def.params,
@@ -121,7 +121,7 @@ impl Runtime {
             }
         }
 
-        let mut call_env = self.env_pool.pop().unwrap_or_else(super::super::Env::new);
+        let mut call_env = self.env_pool.pop().unwrap_or_else(crate::Env::new);
         call_env.reset_for_call_from(&fun.env);
         let saved_env = std::mem::replace(&mut self.env, call_env);
         let mut saved_env = Some(saved_env);
@@ -178,9 +178,9 @@ impl Runtime {
             type_sig = 1469598103934665603u64;
             for v in args {
                 let mut x = v.get_tag() as u64;
-                if v.get_tag() == crate::value::TAG_STRUCT {
+                if v.get_tag() == crate::core::value::TAG_STRUCT {
                     let id = v.as_obj_id();
-                    if let crate::gc::ManagedObject::Struct(si) = self.heap.get(id) {
+                    if let crate::core::gc::ManagedObject::Struct(si) = self.heap.get(id) {
                         x ^= si.ty_hash;
                     }
                 }
@@ -241,10 +241,10 @@ impl Runtime {
         }
 
         let exec = if !fun.needs_env_frame {
-            super::super::ir::run_bytecode_fast(self, &fun.bytecode)
-                .unwrap_or_else(|| super::super::ir::run_bytecode(self, &fun.bytecode))
+            crate::vm::run_bytecode_fast(self, &fun.bytecode)
+                .unwrap_or_else(|| crate::vm::run_bytecode(self, &fun.bytecode))
         } else {
-            super::super::ir::run_bytecode(self, &fun.bytecode)
+            crate::vm::run_bytecode(self, &fun.bytecode)
         };
         let flow = match exec {
             Ok(v) => v,
@@ -302,7 +302,7 @@ impl Runtime {
 
     fn call_user_function_impl(&mut self, fun: &UserFunction, args: &[Value]) -> Result<Value, String>
     {
-        let mut call_env = self.env_pool.pop().unwrap_or_else(super::super::Env::new);
+        let mut call_env = self.env_pool.pop().unwrap_or_else(crate::Env::new);
         call_env.reset_for_call_from(&fun.env);
         let saved_env = std::mem::replace(&mut self.env, call_env);
         let mut saved_env = Some(saved_env);
@@ -361,9 +361,9 @@ impl Runtime {
             type_sig = 1469598103934665603u64;
             for v in args {
                 let mut x = v.get_tag() as u64;
-                if v.get_tag() == crate::value::TAG_STRUCT {
+                if v.get_tag() == crate::core::value::TAG_STRUCT {
                     let id = v.as_obj_id();
-                    if let crate::gc::ManagedObject::Struct(si) = self.heap.get(id) {
+                    if let crate::core::gc::ManagedObject::Struct(si) = self.heap.get(id) {
                         x ^= si.ty_hash;
                     }
                 }

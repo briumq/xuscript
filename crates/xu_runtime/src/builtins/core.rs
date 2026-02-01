@@ -33,8 +33,8 @@ pub fn builtin_open(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
     if args.len() != 1 {
         return Err("open expects 1 argument".into());
     }
-    let path = if args[0].get_tag() == crate::value::TAG_STR {
-        if let crate::gc::ManagedObject::Str(s) = rt.heap.get(args[0].as_obj_id()) {
+    let path = if args[0].get_tag() == crate::core::value::TAG_STR {
+        if let crate::core::gc::ManagedObject::Str(s) = rt.heap.get(args[0].as_obj_id()) {
             s.to_string()
         } else {
             return Err("open expects text".into());
@@ -43,8 +43,8 @@ pub fn builtin_open(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
         return Err("open expects text".into());
     };
     rt.fs_metadata(&path)?;
-    Ok(Value::file(rt.heap.alloc(crate::gc::ManagedObject::File(
-        Box::new(crate::value::FileHandle {
+    Ok(Value::file(rt.heap.alloc(crate::core::gc::ManagedObject::File(
+        Box::new(crate::core::value::FileHandle {
             path,
             open: true,
             content: "".to_string(),
@@ -62,7 +62,7 @@ pub fn builtin_input(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> 
     let mut line = String::new();
     let mut stdin = std::io::stdin().lock();
     let _ = stdin.read_line(&mut line);
-    Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+    Ok(Value::str(rt.heap.alloc(crate::core::gc::ManagedObject::Str(
         line.trim_end_matches(['\n', '\r']).to_string().into(),
     ))))
 }

@@ -4,7 +4,7 @@ use hashbrown::hash_map::RawEntryMut;
 
 use crate::Value;
 use crate::util::to_i64;
-use crate::value::DictKey;
+use crate::core::value::DictKey;
 
 use super::super::runtime::{DictCacheIntLast, DictCacheLast};
 use super::{MethodKind, Runtime};
@@ -190,12 +190,12 @@ pub(super) fn dispatch(
             let me = expect_dict(rt, recv)?;
             
             if let Some(sid) = me.shape {
-                if let crate::gc::ManagedObject::Shape(shape) = rt.heap.get(sid) {
+                if let crate::core::gc::ManagedObject::Shape(shape) = rt.heap.get(sid) {
                     if let Some(&off) = shape.prop_map.get(key.as_str()) {
                         let ok = me
                             .prop_values
                             .get(off)
-                            .is_some_and(|v| v.get_tag() != crate::value::TAG_VOID);
+                            .is_some_and(|v| v.get_tag() != crate::core::value::TAG_VOID);
                         return Ok(Value::from_bool(ok));
                     }
                 }
@@ -209,7 +209,7 @@ pub(super) fn dispatch(
             validate_arity(rt, method, args.len(), 1, 1)?;
             
             // Optimize: use pointer comparison to avoid cloning the key
-            if args[0].get_tag() == crate::value::TAG_STR {
+            if args[0].get_tag() == crate::core::value::TAG_STR {
                 let key_ptr = expect_str(rt, args[0])?.as_str();
                 let me = expect_dict(rt, recv)?;
                 
@@ -356,7 +356,7 @@ pub(super) fn dispatch(
             let mut n = me.map.len();
             n += me.prop_values.len();
             for ev in &me.elements {
-                if ev.get_tag() != crate::value::TAG_VOID {
+                if ev.get_tag() != crate::core::value::TAG_VOID {
                     n += 1;
                 }
             }

@@ -37,7 +37,7 @@ pub fn err(rt: &Runtime, kind: xu_syntax::DiagnosticKind) -> String {
 pub fn expect_list(rt: &Runtime, value: Value) -> Result<&Vec<Value>, String> {
     let id = value.as_obj_id();
     let obj = rt.heap.get(id);
-    if let crate::gc::ManagedObject::List(list) = obj {
+    if let crate::core::gc::ManagedObject::List(list) = obj {
         Ok(list)
     } else {
         Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())))
@@ -50,7 +50,7 @@ pub fn expect_list_mut(rt: &mut Runtime, value: Value) -> Result<&mut Vec<Value>
     {
         let id = value.as_obj_id();
         let obj = rt.heap.get(id);
-        if !matches!(obj, crate::gc::ManagedObject::List(_)) {
+        if !matches!(obj, crate::core::gc::ManagedObject::List(_)) {
             return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())));
         }
     }
@@ -60,16 +60,16 @@ pub fn expect_list_mut(rt: &mut Runtime, value: Value) -> Result<&mut Vec<Value>
     let obj = rt.heap.get_mut(id);
     // 由于前面已经检查过类型，这里可以安全地使用unwrap
     match obj {
-        crate::gc::ManagedObject::List(list) => Ok(list),
+        crate::core::gc::ManagedObject::List(list) => Ok(list),
         _ => unreachable!(),
     }
 }
 
 /// 验证值是否为字典类型
-pub fn expect_dict(rt: &Runtime, value: Value) -> Result<&crate::value::Dict, String> {
+pub fn expect_dict(rt: &Runtime, value: Value) -> Result<&crate::core::value::Dict, String> {
     let id = value.as_obj_id();
     let obj = rt.heap.get(id);
-    if let crate::gc::ManagedObject::Dict(dict) = obj {
+    if let crate::core::gc::ManagedObject::Dict(dict) = obj {
         Ok(dict)
     } else {
         Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())))
@@ -77,12 +77,12 @@ pub fn expect_dict(rt: &Runtime, value: Value) -> Result<&crate::value::Dict, St
 }
 
 /// 验证值是否为可变字典类型
-pub fn expect_dict_mut(rt: &mut Runtime, value: Value) -> Result<&mut crate::value::Dict, String> {
+pub fn expect_dict_mut(rt: &mut Runtime, value: Value) -> Result<&mut crate::core::value::Dict, String> {
     // 先使用不可变引用检查类型
     {
         let id = value.as_obj_id();
         let obj = rt.heap.get(id);
-        if !matches!(obj, crate::gc::ManagedObject::Dict(_)) {
+        if !matches!(obj, crate::core::gc::ManagedObject::Dict(_)) {
             return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
         }
     }
@@ -92,7 +92,7 @@ pub fn expect_dict_mut(rt: &mut Runtime, value: Value) -> Result<&mut crate::val
     let obj = rt.heap.get_mut(id);
     // 由于前面已经检查过类型，这里可以安全地使用unwrap
     match obj {
-        crate::gc::ManagedObject::Dict(dict) => Ok(dict),
+        crate::core::gc::ManagedObject::Dict(dict) => Ok(dict),
         _ => unreachable!(),
     }
 }
@@ -101,7 +101,7 @@ pub fn expect_dict_mut(rt: &mut Runtime, value: Value) -> Result<&mut crate::val
 pub fn expect_str(rt: &Runtime, value: Value) -> Result<&crate::Text, String> {
     let id = value.as_obj_id();
     let obj = rt.heap.get(id);
-    if let crate::gc::ManagedObject::Str(s) = obj {
+    if let crate::core::gc::ManagedObject::Str(s) = obj {
         Ok(s)
     } else {
         Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a string".into())))
@@ -112,7 +112,7 @@ pub fn expect_str(rt: &Runtime, value: Value) -> Result<&crate::Text, String> {
 pub fn expect_option_some(rt: &Runtime, value: Value) -> Result<Value, String> {
     let id = value.as_obj_id();
     let obj = rt.heap.get(id);
-    if let crate::gc::ManagedObject::OptionSome(v) = obj {
+    if let crate::core::gc::ManagedObject::OptionSome(v) = obj {
         Ok(*v)
     } else {
         Err(rt.error(xu_syntax::DiagnosticKind::Raw("Invalid OptionSome".into())))
@@ -151,7 +151,7 @@ pub fn validate_insert_index_mut(rt: &mut Runtime, index: i64, length: usize) ->
 
 /// 从Value中获取字符串的辅助函数
 pub fn get_str_from_value(rt: &Runtime, value: &Value) -> Result<String, String> {
-    if value.get_tag() == crate::value::TAG_STR {
+    if value.get_tag() == crate::core::value::TAG_STR {
         let s = expect_str(rt, *value)?;
         Ok(s.as_str().to_string())
     } else {
@@ -163,12 +163,12 @@ pub fn get_str_from_value(rt: &Runtime, value: &Value) -> Result<String, String>
 }
 
 /// 从Value中获取字典键的辅助函数
-pub fn get_dict_key_from_value(rt: &Runtime, value: &Value) -> Result<crate::value::DictKey, String> {
-    if value.get_tag() == crate::value::TAG_STR {
+pub fn get_dict_key_from_value(rt: &Runtime, value: &Value) -> Result<crate::core::value::DictKey, String> {
+    if value.get_tag() == crate::core::value::TAG_STR {
         let s = expect_str(rt, *value)?;
-        Ok(crate::value::DictKey::from_text(s))
+        Ok(crate::core::value::DictKey::from_text(s))
     } else if value.is_int() {
-        Ok(crate::value::DictKey::Int(value.as_i64()))
+        Ok(crate::core::value::DictKey::Int(value.as_i64()))
     } else {
         Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
             expected: "text or int".to_string(),
@@ -179,17 +179,17 @@ pub fn get_dict_key_from_value(rt: &Runtime, value: &Value) -> Result<crate::val
 
 /// 创建字符串Value的辅助函数
 pub fn create_str_value(rt: &mut Runtime, s: &str) -> Value {
-    Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(s.into())))
+    Value::str(rt.heap.alloc(crate::core::gc::ManagedObject::Str(s.into())))
 }
 
 /// 创建列表Value的辅助函数
 pub fn create_list_value(rt: &mut Runtime, items: Vec<Value>) -> Value {
-    Value::list(rt.heap.alloc(crate::gc::ManagedObject::List(items)))
+    Value::list(rt.heap.alloc(crate::core::gc::ManagedObject::List(items)))
 }
 
 /// 验证参数是否为字符串类型
 pub fn validate_str_param(rt: &Runtime, param: &Value, _param_name: &str) -> Result<(), String> {
-    if param.get_tag() != crate::value::TAG_STR {
+    if param.get_tag() != crate::core::value::TAG_STR {
         return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
             expected: "string".to_string(),
             actual: param.type_name().to_string(),
@@ -200,7 +200,7 @@ pub fn validate_str_param(rt: &Runtime, param: &Value, _param_name: &str) -> Res
 
 /// 验证参数是否为字典类型
 pub fn validate_dict_param(rt: &Runtime, param: &Value, _param_name: &str) -> Result<(), String> {
-    if param.get_tag() != crate::value::TAG_DICT {
+    if param.get_tag() != crate::core::value::TAG_DICT {
         return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
             expected: "dict".to_string(),
             actual: param.type_name().to_string(),

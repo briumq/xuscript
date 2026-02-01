@@ -4,12 +4,12 @@ use xu_ir::{AssignOp, AssignStmt, BinaryOp, Expr, Stmt};
 
 use crate::Text;
 use crate::Value;
-use crate::value::{DictKey, Function, UserFunction};
+use crate::core::value::{DictKey, Function, UserFunction};
 
-use super::closure_analysis::{has_ident_assign, needs_env_frame, params_all_slotted};
-use super::super::appendable::Appendable;
-use super::super::util::type_matches;
-use super::super::{Flow, Runtime};
+use super::closure::{has_ident_assign, needs_env_frame, params_all_slotted};
+use crate::util::Appendable;
+use crate::util::type_matches;
+use crate::{Flow, Runtime};
 
 impl Runtime {
     pub(crate) fn exec_stmts(&mut self, stmts: &[Stmt]) -> Flow {
@@ -110,7 +110,7 @@ impl Runtime {
                     type_sig_ic: std::cell::Cell::new(None),
                 };
                 let func_val = Value::function(self.heap.alloc(
-                    crate::gc::ManagedObject::Function(Function::User(Rc::new(func))),
+                    crate::core::gc::ManagedObject::Function(Function::User(Rc::new(func))),
                 ));
                 self.env.define(def.name.clone(), func_val);
                 Flow::None
@@ -125,24 +125,24 @@ impl Runtime {
                 }
                 Flow::None
             }
-            Stmt::Use(u) => match super::super::modules::import_path(self, &u.path) {
+            Stmt::Use(u) => match crate::modules::import_path(self, &u.path) {
                 Ok(module_obj) => {
                     let alias = u
                         .alias
                         .clone()
-                        .unwrap_or_else(|| super::super::modules::infer_module_alias(&u.path));
+                        .unwrap_or_else(|| crate::modules::infer_module_alias(&u.path));
                     self.env.define(alias, module_obj);
                     Flow::None
                 }
                 Err(e) => {
-                    let err_val = Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(e.into())));
+                    let err_val = Value::str(self.heap.alloc(crate::core::gc::ManagedObject::Str(e.into())));
                     Flow::Throw(err_val)
                 }
             },
             Stmt::Assign(s) => match self.exec_assign(s) {
                 Ok(()) => Flow::None,
                 Err(e) => {
-                    let err_val = Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(e.into())));
+                    let err_val = Value::str(self.heap.alloc(crate::core::gc::ManagedObject::Str(e.into())));
                     Flow::Throw(err_val)
                 }
             },
@@ -151,12 +151,12 @@ impl Runtime {
                 let v = match self.eval_expr(&s.expr) {
                     Ok(v) => v,
                     Err(e) => {
-                        let err_val = Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(e.into())));
+                        let err_val = Value::str(self.heap.alloc(crate::core::gc::ManagedObject::Str(e.into())));
                         return Flow::Throw(err_val);
                     }
                 };
                 for (pat, body) in s.arms.iter() {
-                    if let Some(bindings) = super::super::pattern::match_pattern(self, pat, &v) {
+                    if let Some(bindings) = crate::util::match_pattern(self, pat, &v) {
                         if self.locals.is_active() {
                             self.push_locals();
                             for (name, val) in bindings {
@@ -187,7 +187,7 @@ impl Runtime {
                 let iter = match self.eval_expr(&s.iter) {
                     Ok(v) => v,
                     Err(e) => {
-                        let err_val = Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(e.into())));
+                        let err_val = Value::str(self.heap.alloc(crate::core::gc::ManagedObject::Str(e.into())));
                         return Flow::Throw(err_val);
                     }
                 };
@@ -230,9 +230,9 @@ impl Runtime {
                 }
 
                 let tag = iter.get_tag();
-                if tag == crate::value::TAG_LIST {
+                if tag == crate::core::value::TAG_LIST {
                     let id = iter.as_obj_id();
-                    let items = if let crate::gc::ManagedObject::List(list) = self.heap.get(id) {
+                    let items = if let crate::core::gc::ManagedObject::List(list) = self.heap.get(id) {
                         list.clone()
                     } else {
                         Vec::new()
@@ -255,7 +255,7 @@ impl Runtime {
                             other => return other,
                         }
                     }
-                } else if tag == crate::value::TAG_DICT {
+                } else if tag == crate::core::value::TAG_DICT {
                     let id = iter.as_obj_id();
 
                     // 检查是否是字典键值对循环: for (key, value) in dict
@@ -275,7 +275,7 @@ impl Runtime {
                             // 预先收集字典的键值对，避免借用冲突
                             let mut key_value_pairs = Vec::new();
                             {
-                                let dict = if let crate::gc::ManagedObject::Dict(dict) = self.heap.get(id) {
+                                let dict = if let crate::core::gc::ManagedObject::Dict(dict) = self.heap.get(id) {
                                     dict
                                 } else {
                                     return Flow::None;
@@ -291,7 +291,7 @@ impl Runtime {
                                 // 处理键
                                 let key_val = match k {
                                     DictKey::Str { data, .. } => Value::str(
-                                        self.heap.alloc(crate::gc::ManagedObject::Str(Text::from_str(&data))),
+                                        self.heap.alloc(crate::core::gc::ManagedObject::Str(Text::from_str(&data))),
                                     ),
                                     DictKey::Int(i) => Value::from_i64(i),
                                 };
@@ -331,7 +331,7 @@ impl Runtime {
                         // 需要返回 (key, value) 元组，以便后续通过 .0 和 .1 访问
                         let mut key_value_pairs = Vec::new();
                         {
-                            let dict = if let crate::gc::ManagedObject::Dict(dict) = self.heap.get(id) {
+                            let dict = if let crate::core::gc::ManagedObject::Dict(dict) = self.heap.get(id) {
                                 dict
                             } else {
                                 return Flow::None;
@@ -342,7 +342,7 @@ impl Runtime {
                             }
                             // 也需要处理 shape 中的属性
                             if let Some(sid) = dict.shape {
-                                if let crate::gc::ManagedObject::Shape(shape) = self.heap.get(sid) {
+                                if let crate::core::gc::ManagedObject::Shape(shape) = self.heap.get(sid) {
                                     for (k, off) in shape.prop_map.iter() {
                                         if let Some(v) = dict.prop_values.get(*off) {
                                             key_value_pairs.push((DictKey::from_str(k.as_str()), *v));
@@ -352,7 +352,7 @@ impl Runtime {
                             }
                             // 处理 elements 数组中的值
                             for (i, v) in dict.elements.iter().enumerate() {
-                                if v.get_tag() != crate::value::TAG_VOID {
+                                if v.get_tag() != crate::core::value::TAG_VOID {
                                     key_value_pairs.push((DictKey::Int(i as i64), *v));
                                 }
                             }
@@ -362,14 +362,14 @@ impl Runtime {
                             // 创建键值
                             let key_val = match k {
                                 DictKey::Str { data, .. } => Value::str(
-                                    self.heap.alloc(crate::gc::ManagedObject::Str(Text::from_str(&data))),
+                                    self.heap.alloc(crate::core::gc::ManagedObject::Str(Text::from_str(&data))),
                                 ),
                                 DictKey::Int(i) => Value::from_i64(i),
                             };
 
                             // 创建 (key, value) 元组
                             let tuple = Value::tuple(
-                                self.heap.alloc(crate::gc::ManagedObject::Tuple(vec![key_val, v])),
+                                self.heap.alloc(crate::core::gc::ManagedObject::Tuple(vec![key_val, v])),
                             );
 
                             // 设置循环变量
@@ -393,7 +393,7 @@ impl Runtime {
                         }
                     } else {
                         // 普通的字典键循环: for key in dict
-                        let raw_keys = if let crate::gc::ManagedObject::Dict(dict) = self.heap.get(id) {
+                        let raw_keys = if let crate::core::gc::ManagedObject::Dict(dict) = self.heap.get(id) {
                             dict.map.keys().cloned().collect::<Vec<_>>()
                         } else {
                             Vec::new()
@@ -403,7 +403,7 @@ impl Runtime {
                         for k in raw_keys {
                             match k {
                                 DictKey::Str { data, .. } => items.push(Value::str(
-                                    self.heap.alloc(crate::gc::ManagedObject::Str(Text::from_str(&data))),
+                                    self.heap.alloc(crate::core::gc::ManagedObject::Str(Text::from_str(&data))),
                                 )),
                                 DictKey::Int(i) => items.push(Value::from_i64(i)),
                             }
@@ -427,10 +427,10 @@ impl Runtime {
                             }
                         }
                     }
-                } else if tag == crate::value::TAG_RANGE {
+                } else if tag == crate::core::value::TAG_RANGE {
                     let id = iter.as_obj_id();
                     let (start, end, inclusive) =
-                        if let crate::gc::ManagedObject::Range(s, e, inc) = self.heap.get(id) {
+                        if let crate::core::gc::ManagedObject::Range(s, e, inc) = self.heap.get(id) {
                             (*s, *e, *inc)
                         } else {
                             (0, 0, false)
@@ -470,7 +470,7 @@ impl Runtime {
                         actual: iter.type_name().to_string(),
                         iter_desc,
                     });
-                    let err_val = Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(err_msg.into())));
+                    let err_val = Value::str(self.heap.alloc(crate::core::gc::ManagedObject::Str(err_msg.into())));
                     return Flow::Throw(err_val);
                 }
                 Flow::None
@@ -480,7 +480,7 @@ impl Runtime {
                 Some(e) => match self.eval_expr(e) {
                     Ok(v) => Flow::Return(v),
                     Err(e) => {
-                        let err_val = Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(e.into())));
+                        let err_val = Value::str(self.heap.alloc(crate::core::gc::ManagedObject::Str(e.into())));
                         Flow::Throw(err_val)
                     }
                 },
@@ -490,7 +490,7 @@ impl Runtime {
             Stmt::Expr(e) => match self.eval_expr(e) {
                 Ok(_) => Flow::None,
                 Err(e) => {
-                    let err_val = Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(e.into())));
+                    let err_val = Value::str(self.heap.alloc(crate::core::gc::ManagedObject::Str(e.into())));
                     Flow::Throw(err_val)
                 }
             },
@@ -612,8 +612,8 @@ impl Runtime {
             AssignOp::Set => Ok(rhs),
             AssignOp::Add => {
                 if let Some(v) = cur {
-                    if v.get_tag() == crate::value::TAG_STR {
-                        let mut s = if let crate::gc::ManagedObject::Str(s) =
+                    if v.get_tag() == crate::core::value::TAG_STR {
+                        let mut s = if let crate::core::gc::ManagedObject::Str(s) =
                             self.heap.get(v.as_obj_id())
                         {
                             s.clone()
@@ -621,7 +621,7 @@ impl Runtime {
                             return Err("Not a string".to_string());
                         };
                         s.append_value(&rhs, &self.heap);
-                        return Ok(Value::str(self.heap.alloc(crate::gc::ManagedObject::Str(s))));
+                        return Ok(Value::str(self.heap.alloc(crate::core::gc::ManagedObject::Str(s))));
                     }
                 }
                 let mut v = cur.unwrap_or(Value::from_i64(0));
@@ -641,11 +641,11 @@ impl Runtime {
         op: AssignOp,
         rhs: Value,
     ) -> Result<(), String> {
-        if obj.get_tag() == crate::value::TAG_STRUCT {
+        if obj.get_tag() == crate::core::value::TAG_STRUCT {
             let id = obj.as_obj_id();
             let mut prev = None;
             let mut pos = 0;
-            if let crate::gc::ManagedObject::Struct(s) = self.heap.get(id) {
+            if let crate::core::gc::ManagedObject::Struct(s) = self.heap.get(id) {
                 let layout = self.struct_layouts.get(&s.ty).ok_or_else(|| {
                     self.error(xu_syntax::DiagnosticKind::UnknownStruct(s.ty.clone()))
                 })?;
@@ -655,7 +655,7 @@ impl Runtime {
                 prev = Some(s.fields[pos]);
             }
             let v = self.apply_assign_op(prev, op, rhs)?;
-            if let crate::gc::ManagedObject::Struct(s) = self.heap.get_mut(id) {
+            if let crate::core::gc::ManagedObject::Struct(s) = self.heap.get_mut(id) {
                 s.fields[pos] = v;
             }
             Ok(())
@@ -675,7 +675,7 @@ impl Runtime {
         rhs: Value,
     ) -> Result<(), String> {
         let tag = obj.get_tag();
-        if tag == crate::value::TAG_LIST {
+        if tag == crate::core::value::TAG_LIST {
             let id = obj.as_obj_id();
             let i = if idx.is_int() {
                 idx.as_i64()
@@ -688,7 +688,7 @@ impl Runtime {
 
             // Fast path for simple assignment (no need to read old value)
             if op == AssignOp::Set {
-                if let crate::gc::ManagedObject::List(list) = self.heap.get_mut(id) {
+                if let crate::core::gc::ManagedObject::List(list) = self.heap.get_mut(id) {
                     if ui >= list.len() {
                         return Err(self.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
                     }
@@ -699,7 +699,7 @@ impl Runtime {
 
             // Compound assignment needs old value
             let mut prev = None;
-            if let crate::gc::ManagedObject::List(list) = self.heap.get(id) {
+            if let crate::core::gc::ManagedObject::List(list) = self.heap.get(id) {
                 if ui >= list.len() {
                     return Err(self.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
                 }
@@ -707,14 +707,14 @@ impl Runtime {
             }
 
             let v = self.apply_assign_op(prev, op, rhs)?;
-            if let crate::gc::ManagedObject::List(list) = self.heap.get_mut(id) {
+            if let crate::core::gc::ManagedObject::List(list) = self.heap.get_mut(id) {
                 list[ui] = v;
             }
             Ok(())
-        } else if tag == crate::value::TAG_DICT {
+        } else if tag == crate::core::value::TAG_DICT {
             let id = obj.as_obj_id();
-            let key = if idx.get_tag() == crate::value::TAG_STR {
-                let s = if let crate::gc::ManagedObject::Str(s) = self.heap.get(idx.as_obj_id()) {
+            let key = if idx.get_tag() == crate::core::value::TAG_STR {
+                let s = if let crate::core::gc::ManagedObject::Str(s) = self.heap.get(idx.as_obj_id()) {
                     s.clone()
                 } else {
                     return Err("Not a string".to_string());
@@ -728,7 +728,7 @@ impl Runtime {
 
             // Fast path for simple assignment
             if op == AssignOp::Set {
-                if let crate::gc::ManagedObject::Dict(me) = self.heap.get_mut(id) {
+                if let crate::core::gc::ManagedObject::Dict(me) = self.heap.get_mut(id) {
                     me.map.insert(key, rhs);
                     me.ver += 1;
                     self.dict_version_last = Some((id.0, me.ver));
@@ -738,13 +738,13 @@ impl Runtime {
 
             // Compound assignment needs old value
             let mut prev = None;
-            if let crate::gc::ManagedObject::Dict(me) = self.heap.get(id) {
+            if let crate::core::gc::ManagedObject::Dict(me) = self.heap.get(id) {
                 prev = me.map.get(&key).cloned();
             }
 
             let v = self.apply_assign_op(prev, op, rhs)?;
 
-            if let crate::gc::ManagedObject::Dict(me) = self.heap.get_mut(id) {
+            if let crate::core::gc::ManagedObject::Dict(me) = self.heap.get_mut(id) {
                 let prev = me.map.insert(key, v);
                 if prev.as_ref() != Some(&v) {
                     me.ver += 1;

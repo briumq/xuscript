@@ -1,27 +1,25 @@
-use crate::value::TAG_BUILDER;
+use crate::core::value::TAG_BUILDER;
 
 use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
 
-use super::appendable::Appendable;
-use crate::Text;
-use crate::Value;
-use crate::gc::ManagedObject;
-use crate::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_STR, TAG_TUPLE};
+use crate::util::Appendable;
+use crate::core::text::Text;
+use crate::core::Value;
+use crate::core::gc::ManagedObject;
+use crate::core::value::{DictKey, Function, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_STR, TAG_TUPLE};
 
-use super::util::{to_i64, type_matches, value_to_string};
-use super::{Flow, Runtime};
-use super::runtime::{DictCacheIntLast, DictCacheLast};
+use crate::util::{to_i64, type_matches, value_to_string};
+use crate::{Flow, Runtime};
+use crate::runtime::{DictCacheIntLast, DictCacheLast};
 use crate::ir_throw::throw_value;
 
-mod dict_ops;
-mod fast;
+use super::fast::run_bytecode_fast_params_only;
+use super::ops::dict as dict_ops;
 
-pub(super) use fast::{run_bytecode_fast, run_bytecode_fast_params_only};
-
-pub(super) enum IterState {
+pub(crate) enum IterState {
     List {
-        id: crate::gc::ObjectId,
+        id: crate::core::gc::ObjectId,
         idx: usize,
         len: usize,
     },
@@ -42,21 +40,21 @@ pub(super) enum IterState {
     },
 }
 
-pub(super) struct Handler {
-    pub(super) catch_ip: Option<usize>,
-    pub(super) finally_ip: Option<usize>,
-    pub(super) stack_len: usize,
-    pub(super) iter_len: usize,
-    pub(super) env_depth: usize,
+pub(crate) struct Handler {
+    pub(crate) catch_ip: Option<usize>,
+    pub(crate) finally_ip: Option<usize>,
+    pub(crate) stack_len: usize,
+    pub(crate) iter_len: usize,
+    pub(crate) env_depth: usize,
 }
 
 #[allow(dead_code)]
-pub(super) enum Pending {
+pub(crate) enum Pending {
     Throw(Value),
 }
 
 #[inline(always)]
-fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Value, String> {
+pub(crate) fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Value, String> {
     let at = a.get_tag();
     let bt = b.get_tag();
     if at == TAG_STR || bt == TAG_STR {
@@ -111,7 +109,7 @@ fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Value, String> 
 fn stack_underflow(ip: usize, op: &Op) -> String {
     format!("Stack underflow at ip={ip} op={op:?}")
 }
-pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, String> {
+pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, String> {
     let mut stack = rt
         .vm_stack_pool
         .pop()
@@ -215,7 +213,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             Op::Use(path_idx, alias_idx) => {
                 let path = rt.get_const_str(*path_idx, &bc.constants);
                 let alias = rt.get_const_str(*alias_idx, &bc.constants);
-                match super::modules::import_path(rt, path) {
+                match crate::modules::import_path(rt, path) {
                     Ok(module_obj) => {
                         rt.env.define(alias.to_string(), module_obj);
                     }
@@ -1238,7 +1236,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
 
                 let id = rt
                     .heap
-                    .alloc(ManagedObject::Struct(Box::new(crate::value::StructInstance {
+                    .alloc(ManagedObject::Struct(Box::new(crate::core::value::StructInstance {
                         ty: ty.clone(),
                         ty_hash: xu_ir::stable_hash64(&ty),
                         fields: values.into_boxed_slice(),
@@ -1304,7 +1302,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         .ops
                         .iter()
                         .any(|op| matches!(op, Op::MakeFunction(_)));
-                    let fun = crate::value::BytecodeFunction {
+                    let fun = crate::core::value::BytecodeFunction {
                         def: def.clone(),
                         bytecode: std::rc::Rc::new((**bytecode).clone()),
                         env: rt.env.freeze(),
@@ -1328,9 +1326,9 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
 
                 // Fast path for bytecode functions
                 let mut fast_res = None;
-                if callee.get_tag() == crate::value::TAG_FUNC {
+                if callee.get_tag() == crate::core::value::TAG_FUNC {
                     let func_id = callee.as_obj_id();
-                    if let ManagedObject::Function(crate::value::Function::Bytecode(f)) = rt.heap.get(func_id) {
+                    if let ManagedObject::Function(crate::core::value::Function::Bytecode(f)) = rt.heap.get(func_id) {
                         let f = f.clone();
                         if !f.needs_env_frame && f.def.params.len() == n && f.def.params.iter().all(|p| p.default.is_none()) {
                             let args = &stack[args_start..];
@@ -1449,12 +1447,12 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                     let opt = rt.option_some(v);
                                     if let Some(idx) = slot_idx {
                                         while rt.ic_slots.len() <= *idx {
-                                            rt.ic_slots.push(super::ICSlot::default());
+                                            rt.ic_slots.push(crate::ICSlot::default());
                                         }
                                         let mut key_short = [0u8; 16];
                                         let klen = key_bytes.len().min(16);
                                         key_short[..klen].copy_from_slice(&key_bytes[..klen]);
-                                        rt.ic_slots[*idx] = super::ICSlot {
+                                        rt.ic_slots[*idx] = crate::ICSlot {
                                             id: dict_id.0,
                                             key_hash,
                                             key_id: key_id.0,
@@ -1525,9 +1523,9 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                     // Update IC cache
                                     if let Some(idx) = slot_idx {
                                         while rt.ic_slots.len() <= *idx {
-                                            rt.ic_slots.push(super::ICSlot::default());
+                                            rt.ic_slots.push(crate::ICSlot::default());
                                         }
-                                        rt.ic_slots[*idx] = super::ICSlot {
+                                        rt.ic_slots[*idx] = crate::ICSlot {
                                             id: dict_id.0,
                                             key_hash: h,
                                             key_id: key_id.0,
@@ -1573,7 +1571,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     if *idx < rt.ic_method_slots.len() {
                         let slot = &rt.ic_method_slots[*idx];
                         if slot.tag == tag && slot.method_hash == *method_hash {
-                            if tag == crate::value::TAG_STRUCT {
+                            if tag == crate::core::value::TAG_STRUCT {
                                 let id = recv.as_obj_id();
                                 if let ManagedObject::Struct(s) = rt.heap.get(id) {
                                     if slot.struct_ty_hash == s.ty_hash {
@@ -1677,7 +1675,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                 let tag = obj.get_tag();
                 let field = rt.get_const_str(*idx, &bc.constants);
-                if tag == crate::value::TAG_STRUCT {
+                if tag == crate::core::value::TAG_STRUCT {
                     let id = obj.as_obj_id();
                     if let ManagedObject::Struct(s) = rt.heap.get(id) {
                         let field_hash = xu_ir::stable_hash64(field);
@@ -1763,7 +1761,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                 let ui = key as usize;
                                 if ui < me.elements.len() {
                                     let v = me.elements[ui];
-                                    if v.get_tag() != crate::value::TAG_VOID {
+                                    if v.get_tag() != crate::core::value::TAG_VOID {
                                         val = Some(v);
                                     }
                                 }
@@ -1777,7 +1775,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                 }
                             }
                             if val.is_none() {
-                                if let Some(v) = me.map.get(&crate::value::DictKey::Int(key)) {
+                                if let Some(v) = me.map.get(&crate::core::value::DictKey::Int(key)) {
                                     val = Some(*v);
                                     rt.dict_cache_int_last = Some(DictCacheIntLast {
                                         id: id.0,
@@ -2011,7 +2009,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         };
                         if let Some(idx_slot) = slot {
                             while rt.ic_slots.len() <= *idx_slot {
-                                rt.ic_slots.push(super::ICSlot::default());
+                                rt.ic_slots.push(crate::ICSlot::default());
                             }
                             let mut shape_info = (id.0, None);
                             if let Some(sid) = me.shape {
@@ -2022,7 +2020,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                 }
                             }
 
-                            rt.ic_slots[*idx_slot] = super::ICSlot {
+                            rt.ic_slots[*idx_slot] = crate::ICSlot {
                                 id: shape_info.0,
                                 key_hash: *k_hash,
                                 ver: cur_ver,
@@ -2065,7 +2063,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         let ui = *i as usize;
                         if ui < me.elements.len() {
                             let v = me.elements[ui];
-                            if v.get_tag() != crate::value::TAG_VOID {
+                            if v.get_tag() != crate::core::value::TAG_VOID {
                                 val = Some(v);
                             }
                         }
@@ -2088,7 +2086,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         stack.push(v);
                     } else {
                         let key_hash = Runtime::hash_dict_key_int(me.map.hasher(), *i);
-                        let out = me.map.get(&crate::value::DictKey::Int(*i)).cloned();
+                        let out = me.map.get(&crate::core::value::DictKey::Int(*i)).cloned();
                         let Some(out) = out else {
                             let err_val = Value::str(
                                 rt.heap.alloc(ManagedObject::Str(
@@ -2112,9 +2110,9 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         };
                         if let Some(idx) = slot {
                             while rt.ic_slots.len() <= *idx {
-                                rt.ic_slots.push(super::ICSlot::default());
+                                rt.ic_slots.push(crate::ICSlot::default());
                             }
-                            rt.ic_slots[*idx] = super::ICSlot {
+                            rt.ic_slots[*idx] = crate::ICSlot {
                                 id: id.0,
                                 key_hash,
                                 ver: cur_ver,
@@ -2247,7 +2245,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                 }
                                 // 处理 elements 数组
                                 for (i, v) in d.elements.iter().enumerate() {
-                                    if v.get_tag() != crate::value::TAG_VOID {
+                                    if v.get_tag() != crate::core::value::TAG_VOID {
                                         result.push((DictKey::Int(i as i64), *v));
                                     }
                                 }
@@ -2453,7 +2451,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 stack.push(Value::tuple(id));
             }
             Op::DictNew(n) => {
-                let mut map = crate::value::dict_with_capacity(*n);
+                let mut map = crate::core::value::dict_with_capacity(*n);
                 for _ in 0..*n {
                     let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                     let k = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
@@ -2539,7 +2537,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         s.push_str("()");
                     }
                 } else {
-                    let piece = super::util::value_to_string(&v, &rt.heap);
+                    let piece = crate::util::value_to_string(&v, &rt.heap);
                     if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
                         s.push_str(&piece);
                     }
@@ -2557,7 +2555,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let id = b.as_obj_id();
                 // Take ownership of the builder string and return it to pool
                 let (out, builder_str) = if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
-                    let text = crate::Text::from_str(s.as_str());
+                    let text = Text::from_str(s.as_str());
                     let taken = std::mem::take(s);
                     (text, Some(taken))
                 } else {
@@ -2648,13 +2646,13 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         // Update IC cache with key info for fast comparison
                         if let Some(idx_slot) = slot {
                             while rt.ic_slots.len() <= *idx_slot {
-                                rt.ic_slots.push(super::ICSlot::default());
+                                rt.ic_slots.push(crate::ICSlot::default());
                             }
                             let mut key_short = [0u8; 16];
                             let key_bytes = k.as_bytes();
                             let copy_len = key_bytes.len().min(16);
                             key_short[..copy_len].copy_from_slice(&key_bytes[..copy_len]);
-                            rt.ic_slots[*idx_slot] = super::ICSlot {
+                            rt.ic_slots[*idx_slot] = crate::ICSlot {
                                 id: id.0,
                                 key_hash: internal_hash,
                                 key_short,
@@ -2713,7 +2711,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let v = stack.last().cloned().ok_or_else(|| "Stack underflow".to_string())?;
                 let c = rt.get_constant(*pat_idx, &bc.constants);
                 if let xu_ir::Constant::Pattern(pat) = c {
-                    let matched = super::pattern::match_pattern(rt, pat, &v).is_some();
+                    let matched = crate::util::match_pattern(rt, pat, &v).is_some();
                     stack.push(Value::from_bool(matched));
                 } else {
                     return Err("Expected pattern constant".into());
@@ -2724,7 +2722,7 @@ pub(super) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
                 let c = rt.get_constant(*pat_idx, &bc.constants);
                 if let xu_ir::Constant::Pattern(pat) = c {
-                    if let Some(bindings) = super::pattern::match_pattern(rt, pat, &v) {
+                    if let Some(bindings) = crate::util::match_pattern(rt, pat, &v) {
                         // Push bindings onto stack in order
                         for (_, val) in bindings {
                             stack.push(val);

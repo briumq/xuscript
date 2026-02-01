@@ -60,8 +60,8 @@ pub(super) fn dispatch(
                 
                 for (k, v) in dict.map.iter() {
                     let key = match k {
-                        crate::value::DictKey::Str { data, .. } => crate::Text::from_str(&data),
-                        crate::value::DictKey::Int(i) => crate::value::i64_to_text_fast(*i),
+                        crate::core::value::DictKey::Str { data, .. } => crate::Text::from_str(&data),
+                        crate::core::value::DictKey::Int(i) => crate::core::value::i64_to_text_fast(*i),
                     };
                     let needle = format!("{{{}}}", key);
                     let repl = value_to_string(v, &rt.heap);

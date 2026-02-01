@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::Value;
-use crate::gc::{Heap, ObjectId};
-use crate::value::{FastHashMap, fast_map_new};
+use super::Value;
+use super::gc::{Heap, ObjectId};
+use super::value::{FastHashMap, fast_map_new};
 
 #[derive(Clone, Debug)]
 pub struct Scope {

@@ -12,7 +12,7 @@ pub(super) fn dispatch(
     let id = recv.as_obj_id();
     match kind {
         MethodKind::FileRead => {
-            let (open, path) = if let crate::gc::ManagedObject::File(h) = rt.heap.get(id) {
+            let (open, path) = if let crate::core::gc::ManagedObject::File(h) = rt.heap.get(id) {
                 (h.open, h.path.clone())
             } else {
                 return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a file".into())));
@@ -21,12 +21,12 @@ pub(super) fn dispatch(
                 return Err(rt.error(xu_syntax::DiagnosticKind::FileClosed));
             }
             let content = rt.fs_read_to_string(&path)?;
-            Ok(Value::str(rt.heap.alloc(crate::gc::ManagedObject::Str(
+            Ok(Value::str(rt.heap.alloc(crate::core::gc::ManagedObject::Str(
                 content.trim_end_matches(['\n', '\r']).to_string().into(),
             ))))
         }
         MethodKind::FileClose => {
-            if let crate::gc::ManagedObject::File(h) = rt.heap.get_mut(id) {
+            if let crate::core::gc::ManagedObject::File(h) = rt.heap.get_mut(id) {
                 h.open = false;
             }
             Ok(Value::VOID)

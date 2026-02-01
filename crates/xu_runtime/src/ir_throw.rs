@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 use crate::Value;
-use super::{Flow, Runtime};
-use super::ir::{Handler, IterState, Pending};
+use crate::{Flow, Runtime};
+use crate::vm::{Handler, IterState, Pending};
 
-pub(super) fn unwind_to_finally(
+pub(crate) fn unwind_to_finally(
     rt: &mut Runtime,
     handlers: &mut Vec<Handler>,
     stack: &mut Vec<Value>,
@@ -24,7 +24,7 @@ fn restore_to_handler(rt: &mut Runtime, h: &Handler, stack: &mut Vec<Value>) {
     rt.env.pop_to(h.env_depth);
 }
 
-pub(super) fn dispatch_throw(
+pub(crate) fn dispatch_throw(
     rt: &mut Runtime,
     handlers: &mut Vec<Handler>,
     stack: &mut Vec<Value>,
@@ -50,7 +50,7 @@ pub(super) fn dispatch_throw(
     None
 }
 
-pub(super) fn throw_value(
+pub(crate) fn throw_value(
     rt: &mut Runtime,
     ip: &mut usize,
     handlers: &mut Vec<Handler>,

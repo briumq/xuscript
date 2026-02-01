@@ -2,10 +2,10 @@ use smallvec::SmallVec;
 use xu_ir::Expr;
 use crate::Value;
 
-use super::Runtime;
+use crate::Runtime;
 
 impl Runtime {
-    pub(super) fn eval_args(&mut self, args: &[Expr]) -> Result<SmallVec<[Value; 4]>, String> {
+    pub(crate) fn eval_args(&mut self, args: &[Expr]) -> Result<SmallVec<[Value; 4]>, String> {
         let mut out: SmallVec<[Value; 4]> = SmallVec::with_capacity(args.len());
         let roots_base = self.gc_temp_roots.len();
         for a in args {
