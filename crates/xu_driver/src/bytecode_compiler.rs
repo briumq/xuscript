@@ -908,18 +908,6 @@ impl Compiler {
                 Some(())
             }
             Expr::Call(c) => {
-                // Special case: builder_push(b, x) -> BuilderAppend
-                if let Expr::Ident(name, _) = c.callee.as_ref() {
-                    if name == "builder_push" && c.args.len() == 2 {
-                        self.compile_expr(&c.args[0])?;
-                        self.compile_expr(&c.args[1])?;
-                        self.bc.ops.push(Op::BuilderAppend);
-                        // BuilderAppend pops both args and pushes nothing
-                        // builder_push returns void, so push null
-                        self.bc.ops.push(Op::ConstNull);
-                        return Some(());
-                    }
-                }
                 self.compile_expr(&c.callee)?;
                 for a in c.args.iter() {
                     self.compile_expr(a)?;
