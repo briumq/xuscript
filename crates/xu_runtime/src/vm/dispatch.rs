@@ -871,10 +871,42 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                         }
                     }
 
+                    // Fast path for dict.insert_int with integer key
+                    static INSERT_INT_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+                    let insert_int_hash = *INSERT_INT_HASH.get_or_init(|| xu_ir::stable_hash64("insert_int"));
+                    if n == 2 && *method_hash == insert_int_hash {
+                        let key_val = stack[args_start];
+                        let value = stack[args_start + 1];
+                        if key_val.is_int() {
+                            let dict_id = recv.as_obj_id();
+                            let key_int = key_val.as_i64();
+
+                            if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
+                                let key_hash = Runtime::hash_dict_key_int(me.map.hasher(), key_int);
+                                let key = DictKey::Int(key_int);
+
+                                use hashbrown::hash_map::RawEntryMut;
+                                match me.map.raw_entry_mut().from_hash(key_hash, |kk| kk == &key) {
+                                    RawEntryMut::Occupied(mut o) => {
+                                        *o.get_mut() = value;
+                                    }
+                                    RawEntryMut::Vacant(vac) => {
+                                        vac.insert(key, value);
+                                        me.ver += 1;
+                                    }
+                                }
+                            }
+                            stack.truncate(args_start - 1);
+                            stack.push(Value::VOID);
+                            ip += 1;
+                            continue;
+                        }
+                    }
+
                     // Fast path for dict.insert with string key
                     static INSERT_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
                     let insert_hash = *INSERT_HASH.get_or_init(|| xu_ir::stable_hash64("insert"));
-                    if *method_hash == insert_hash && n == 2 {
+                    if n == 2 && *method_hash == insert_hash {
                         let key_val = stack[args_start];
                         let value = stack[args_start + 1];
                         if key_val.get_tag() == TAG_STR {
