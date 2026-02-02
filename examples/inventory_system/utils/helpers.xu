@@ -1,0 +1,34 @@
+// Utility Functions
+
+func assert(condition: bool, msg: string) {
+    __builtin_assert(condition, msg)
+}
+
+func print_separator(title: string) {
+    println("")
+    println("==================================================")
+    println("  {title}")
+    println("==================================================")
+    println("")
+}
+
+func print_subseparator(title: string) {
+    println("")
+    println("--- {title} ---")
+}
+
+func print_success(msg: string) {
+    println("[OK] {msg}")
+}
+
+func print_fail(msg: string) {
+    println("[FAIL] {msg}")
+}
+
+func print_info(msg: string) {
+    println("[INFO] {msg}")
+}
+
+func print_warn(msg: string) {
+    println("[WARN] {msg}")
+}

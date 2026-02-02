@@ -1,0 +1,224 @@
+// Order Model
+
+use "examples/inventory_system/models/product.xu" as product_mod;
+
+OrderStatus with [ pending | confirmed | shipped | delivered | cancelled ]
+
+OrderItem has {
+    product_id: string
+    product_name: string
+    quantity: int
+    unit_price: float
+    discount: float = 0.0
+
+    static func create(prod: Product, qty: int) -> OrderItem {
+        let bulk_price = product_mod.Product.calculate_bulk_price(prod.price, qty)
+        let disc = prod.price - bulk_price
+        return OrderItem{
+            product_id: prod.id,
+            product_name: prod.name,
+            quantity: qty,
+            unit_price: prod.price,
+            discount: disc
+        }
+    }
+
+    static func create_with_price(prod_id: string, prod_name: string, qty: int, price: float) -> OrderItem {
+        return OrderItem{
+            product_id: prod_id,
+            product_name: prod_name,
+            quantity: qty,
+            unit_price: price
+        }
+    }
+
+    func subtotal() -> float {
+        return (self.unit_price - self.discount) * self.quantity
+    }
+
+    func savings() -> float {
+        return self.discount * self.quantity
+    }
+
+    func format() -> string {
+        let sub = self.subtotal()
+        if self.discount > 0.0 {
+            let save = self.savings()
+            return "{self.product_name} x{self.quantity} @ ${self.unit_price} (-${self.discount}) = ${sub} (saved ${save})"
+        }
+        return "{self.product_name} x{self.quantity} @ ${self.unit_price} = ${sub}"
+    }
+}
+
+Order has {
+    id: string
+    customer_name: string
+    items: [OrderItem] = []
+    status: OrderStatus = OrderStatus#pending
+    shipping_fee: float = 0.0
+    notes: string = ""
+
+    static func create(order_id: string, customer: string) -> Order {
+        return Order{ id: order_id, customer_name: customer }
+    }
+
+    static func create_with_shipping(order_id: string, customer: string, shipping: float) -> Order {
+        return Order{ id: order_id, customer_name: customer, shipping_fee: shipping }
+    }
+
+    static func calculate_shipping(total: float, item_count: int) -> float {
+        if total >= 200.0 {
+            return 0.0
+        } else if item_count >= 5 {
+            return 5.0
+        }
+        return 10.0
+    }
+
+    static func generate_id(prefix: string, seq: int) -> string {
+        return "{prefix}-{seq}"
+    }
+
+    func add_item(oi: OrderItem) {
+        self.items.push(oi)
+    }
+
+    func add_product(prod: Product, qty: int) {
+        let oi = OrderItem.create(prod, qty)
+        self.items.push(oi)
+    }
+
+    func total_items() -> int {
+        var count = 0
+        for oi in self.items {
+            count = count + oi.quantity
+        }
+        return count
+    }
+
+    func subtotal() -> float {
+        var total = 0.0
+        for oi in self.items {
+            total = total + oi.subtotal()
+        }
+        return total
+    }
+
+    func total_savings() -> float {
+        var s = 0.0
+        for oi in self.items {
+            s = s + oi.savings()
+        }
+        return s
+    }
+
+    func total() -> float {
+        return self.subtotal() + self.shipping_fee
+    }
+
+    func update_shipping() {
+        self.shipping_fee = Order.calculate_shipping(self.subtotal(), self.total_items())
+    }
+
+    func is_pending() -> bool {
+        return match self.status {
+            OrderStatus#pending { true }
+            _ { false }
+        }
+    }
+
+    func is_confirmed() -> bool {
+        return match self.status {
+            OrderStatus#confirmed { true }
+            _ { false }
+        }
+    }
+
+    func is_shipped() -> bool {
+        return match self.status {
+            OrderStatus#shipped { true }
+            _ { false }
+        }
+    }
+
+    func is_delivered() -> bool {
+        return match self.status {
+            OrderStatus#delivered { true }
+            _ { false }
+        }
+    }
+
+    func confirm() -> bool {
+        if self.is_pending() {
+            self.status = OrderStatus#confirmed
+            return true
+        }
+        return false
+    }
+
+    func ship() -> bool {
+        if self.is_confirmed() {
+            self.status = OrderStatus#shipped
+            return true
+        }
+        return false
+    }
+
+    func deliver() -> bool {
+        if self.is_shipped() {
+            self.status = OrderStatus#delivered
+            return true
+        }
+        return false
+    }
+
+    func cancel() -> bool {
+        if self.is_pending() || self.is_confirmed() {
+            self.status = OrderStatus#cancelled
+            return true
+        }
+        return false
+    }
+
+    func status_name() -> string {
+        return match self.status {
+            OrderStatus#pending { "Pending" }
+            OrderStatus#confirmed { "Confirmed" }
+            OrderStatus#shipped { "Shipped" }
+            OrderStatus#delivered { "Delivered" }
+            OrderStatus#cancelled { "Cancelled" }
+            _ { "Unknown" }
+        }
+    }
+
+    func format() -> string {
+        let t = self.total()
+        return "[{self.id}] {self.customer_name} - ${t} [{self.status_name()}]"
+    }
+
+    func format_detail() -> string {
+        var result = "========== Order Details ==========\n"
+        result = result + "Order ID: {self.id}\n"
+        result = result + "Customer: {self.customer_name}\n"
+        result = result + "Status: {self.status_name()}\n"
+        result = result + "-----------------------------------\n"
+        for oi in self.items {
+            result = result + "  " + oi.format() + "\n"
+        }
+        result = result + "-----------------------------------\n"
+        let sub = self.subtotal()
+        result = result + "Subtotal: ${sub}\n"
+        result = result + "Shipping: ${self.shipping_fee}\n"
+        let t = self.total()
+        result = result + "Total: ${t}\n"
+        let s = self.total_savings()
+        if s > 0.0 {
+            result = result + "You saved: ${s}\n"
+        }
+        if self.notes != "" {
+            result = result + "Notes: {self.notes}\n"
+        }
+        result = result + "===================================\n"
+        return result
+    }
+}

@@ -1,0 +1,108 @@
+// Product Model
+
+ProductCategory with [ electronics | clothing | food | books | other ]
+
+ProductStatus with [ active | discontinued | out_of_stock ]
+
+Product has {
+    id: string
+    name: string
+    category: ProductCategory
+    price: float
+    cost: float
+    status: ProductStatus = ProductStatus#active
+    min_stock: int = 10
+
+    static func create_electronics(prod_id: string, prod_name: string, prod_price: float, prod_cost: float) -> Product {
+        return Product{
+            id: prod_id,
+            name: prod_name,
+            category: ProductCategory#electronics,
+            price: prod_price,
+            cost: prod_cost
+        }
+    }
+
+    static func create_clothing(prod_id: string, prod_name: string, prod_price: float, prod_cost: float) -> Product {
+        return Product{
+            id: prod_id,
+            name: prod_name,
+            category: ProductCategory#clothing,
+            price: prod_price,
+            cost: prod_cost
+        }
+    }
+
+    static func create_food(prod_id: string, prod_name: string, prod_price: float, prod_cost: float, min: int) -> Product {
+        return Product{
+            id: prod_id,
+            name: prod_name,
+            category: ProductCategory#food,
+            price: prod_price,
+            cost: prod_cost,
+            min_stock: min
+        }
+    }
+
+    static func create_book(prod_id: string, prod_name: string, prod_price: float, prod_cost: float) -> Product {
+        return Product{
+            id: prod_id,
+            name: prod_name,
+            category: ProductCategory#books,
+            price: prod_price,
+            cost: prod_cost,
+            min_stock: 5
+        }
+    }
+
+    static func calculate_bulk_price(unit_price: float, quantity: int) -> float {
+        if quantity >= 100 {
+            return unit_price * 0.8
+        } else if quantity >= 50 {
+            return unit_price * 0.9
+        } else if quantity >= 20 {
+            return unit_price * 0.95
+        }
+        return unit_price
+    }
+
+    func profit_margin() -> float {
+        if self.cost == 0.0 {
+            return 0.0
+        }
+        return (self.price - self.cost) / self.cost * 100.0
+    }
+
+    func is_high_margin() -> bool {
+        return self.profit_margin() > 30.0
+    }
+
+    func category_name() -> string {
+        return match self.category {
+            ProductCategory#electronics { "Electronics" }
+            ProductCategory#clothing { "Clothing" }
+            ProductCategory#food { "Food" }
+            ProductCategory#books { "Books" }
+            ProductCategory#other { "Other" }
+            _ { "Unknown" }
+        }
+    }
+
+    func status_name() -> string {
+        return match self.status {
+            ProductStatus#active { "Active" }
+            ProductStatus#discontinued { "Discontinued" }
+            ProductStatus#out_of_stock { "Out of Stock" }
+            _ { "Unknown" }
+        }
+    }
+
+    func format() -> string {
+        return "[{self.id}] {self.name} ({self.category_name()}) - ${self.price} [{self.status_name()}]"
+    }
+
+    func format_detail() -> string {
+        let margin = self.profit_margin()
+        return "[{self.id}] {self.name} | Category: {self.category_name()} | Price: ${self.price} | Cost: ${self.cost} | Margin: {margin}% | Status: {self.status_name()} | Min Stock: {self.min_stock}"
+    }
+}

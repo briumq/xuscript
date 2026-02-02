@@ -223,6 +223,33 @@ impl<'a, 'b> Parser<'a, 'b> {
                                     ic_slot: std::cell::Cell::new(None),
                                 }));
                             }
+                        } else if let Expr::Member(inner_m) = m.object.as_ref() {
+                            // Handle module.TypeName.method() form
+                            // Transform to module.__static__TypeName__method()
+                            if inner_m
+                                .field
+                                .chars()
+                                .next()
+                                .is_some_and(|c| c.is_ascii_uppercase())
+                            {
+                                let static_name =
+                                    format!("__static__{}__{}", inner_m.field, m.field);
+                                expr = Expr::Call(Box::new(CallExpr {
+                                    callee: Box::new(Expr::Member(Box::new(MemberExpr {
+                                        object: inner_m.object.clone(),
+                                        field: static_name,
+                                        ic_slot: std::cell::Cell::new(None),
+                                    }))),
+                                    args: args.into_boxed_slice(),
+                                }));
+                            } else {
+                                expr = Expr::MethodCall(Box::new(MethodCallExpr {
+                                    receiver: m.object,
+                                    method: m.field,
+                                    args: args.into_boxed_slice(),
+                                    ic_slot: std::cell::Cell::new(None),
+                                }));
+                            }
                         } else {
                             expr = Expr::MethodCall(Box::new(MethodCallExpr {
                                 receiver: m.object,

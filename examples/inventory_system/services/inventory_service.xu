@@ -1,0 +1,166 @@
+// Inventory Service
+
+use "examples/inventory_system/models/product.xu" as product_mod;
+use "examples/inventory_system/models/warehouse.xu" as warehouse_mod;
+
+InventoryService has {
+    products: {string: Product} = {}
+    warehouses: {string: Warehouse} = {}
+    next_product_id: int = 1
+    next_warehouse_id: int = 1
+
+    static func create() -> InventoryService {
+        return InventoryService{}
+    }
+
+    func add_electronics(name: string, price: float, cost: float) -> Product {
+        let id = "ELEC-{self.next_product_id}"
+        self.next_product_id = self.next_product_id + 1
+        let prod = product_mod.Product.create_electronics(id, name, price, cost)
+        self.products[id] = prod
+        return prod
+    }
+
+    func add_clothing(name: string, price: float, cost: float) -> Product {
+        let id = "CLTH-{self.next_product_id}"
+        self.next_product_id = self.next_product_id + 1
+        let prod = product_mod.Product.create_clothing(id, name, price, cost)
+        self.products[id] = prod
+        return prod
+    }
+
+    func add_food(name: string, price: float, cost: float, min_stock: int) -> Product {
+        let id = "FOOD-{self.next_product_id}"
+        self.next_product_id = self.next_product_id + 1
+        let prod = product_mod.Product.create_food(id, name, price, cost, min_stock)
+        self.products[id] = prod
+        return prod
+    }
+
+    func add_book(name: string, price: float, cost: float) -> Product {
+        let id = "BOOK-{self.next_product_id}"
+        self.next_product_id = self.next_product_id + 1
+        let prod = product_mod.Product.create_book(id, name, price, cost)
+        self.products[id] = prod
+        return prod
+    }
+
+    func get_product(prod_id: string) -> Product {
+        return self.products[prod_id]
+    }
+
+    func get_high_margin_products() -> [Product] {
+        let result: [Product] = []
+        for (pid, prod) in self.products {
+            if prod.is_high_margin() {
+                result.push(prod)
+            }
+        }
+        return result
+    }
+
+    func get_products_by_category(cat: ProductCategory) -> [Product] {
+        let result: [Product] = []
+        for (pid, prod) in self.products {
+            if prod.category == cat {
+                result.push(prod)
+            }
+        }
+        return result
+    }
+
+    func add_small_warehouse(name: string, location: string) -> Warehouse {
+        let id = "WH-{self.next_warehouse_id}"
+        self.next_warehouse_id = self.next_warehouse_id + 1
+        let wh = warehouse_mod.Warehouse.create_small(id, name, location)
+        self.warehouses[id] = wh
+        return wh
+    }
+
+    func add_large_warehouse(name: string, location: string) -> Warehouse {
+        let id = "WH-{self.next_warehouse_id}"
+        self.next_warehouse_id = self.next_warehouse_id + 1
+        let wh = warehouse_mod.Warehouse.create_large(id, name, location)
+        self.warehouses[id] = wh
+        return wh
+    }
+
+    func add_warehouse(name: string, location: string, capacity: int) -> Warehouse {
+        let id = "WH-{self.next_warehouse_id}"
+        self.next_warehouse_id = self.next_warehouse_id + 1
+        let wh = warehouse_mod.Warehouse.create(id, name, location, capacity)
+        self.warehouses[id] = wh
+        return wh
+    }
+
+    func get_warehouse(wh_id: string) -> Warehouse {
+        return self.warehouses[wh_id]
+    }
+
+    func stock_in(wh_id: string, prod_id: string, qty: int, location: string) -> bool {
+        if !self.warehouses.has(wh_id) || !self.products.has(prod_id) {
+            return false
+        }
+        var wh = self.warehouses[wh_id]
+        let result = wh.add_stock(prod_id, qty, location)
+        self.warehouses[wh_id] = wh
+        return result
+    }
+
+    func stock_out(wh_id: string, prod_id: string, qty: int) -> bool {
+        if !self.warehouses.has(wh_id) {
+            return false
+        }
+        var wh = self.warehouses[wh_id]
+        let result = wh.remove_stock(prod_id, qty)
+        self.warehouses[wh_id] = wh
+        return result
+    }
+
+    func get_total_stock(prod_id: string) -> int {
+        var total = 0
+        for (wid, wh) in self.warehouses {
+            total = total + wh.get_stock(prod_id)
+        }
+        return total
+    }
+
+    func get_low_stock_alerts() -> [string] {
+        let alerts: [string] = []
+        for (pid, prod) in self.products {
+            let total = self.get_total_stock(pid)
+            if total < prod.min_stock {
+                let shortage = prod.min_stock - total
+                let alert = "LOW STOCK: {prod.name} (ID: {pid}) - Current: {total}, Min: {prod.min_stock}, Shortage: {shortage}"
+                alerts.push(alert)
+            }
+        }
+        return alerts
+    }
+
+    func print_products() {
+        println("========== Product List ==========")
+        for (pid, prod) in self.products {
+            println(prod.format())
+        }
+        println("==================================")
+    }
+
+    func print_warehouses() {
+        println("========== Warehouse List ==========")
+        for (wid, wh) in self.warehouses {
+            println(wh.format())
+        }
+        println("====================================")
+    }
+
+    func print_inventory_summary() {
+        println("========== Inventory Summary ==========")
+        for (pid, prod) in self.products {
+            let total = self.get_total_stock(pid)
+            let status = if total < prod.min_stock { "[LOW STOCK!]" } else { "" }
+            println("{prod.name}: {total} units {status}")
+        }
+        println("=======================================")
+    }
+}

@@ -1,0 +1,20 @@
+// User module - defines User struct with static method
+
+User has {
+    name: string
+    age: int = 0
+
+    static func create(n: string) -> User {
+        return User{ name: n }
+    }
+
+    static func create_with_age(n: string, a: int) -> User {
+        return User{ name: n, age: a }
+    }
+}
+
+User does {
+    func greet() -> string {
+        return "Hello, I am {self.name}"
+    }
+}

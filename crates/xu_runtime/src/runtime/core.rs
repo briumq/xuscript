@@ -880,7 +880,26 @@ impl Runtime {
                             vac.insert((s.ty.clone(), method.to_string()), v.clone());
                             Ok(v)
                         } else {
-                            Err(xu_syntax::DiagnosticKind::UnknownMember(method.to_string()))
+                            // Search in loaded modules for cross-module method calls
+                            let mut found = None;
+                            for (_, module_val) in self.loaded_modules.iter() {
+                                if module_val.get_tag() == crate::core::value::TAG_MODULE {
+                                    if let crate::core::heap::ManagedObject::Module(m) =
+                                        self.heap.get(module_val.as_obj_id())
+                                    {
+                                        if let Some(v) = m.exports.map.get(&name) {
+                                            found = Some(v.clone());
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            if let Some(v) = found {
+                                vac.insert((s.ty.clone(), method.to_string()), v.clone());
+                                Ok(v)
+                            } else {
+                                Err(xu_syntax::DiagnosticKind::UnknownMember(method.to_string()))
+                            }
                         }
                     }
                 }
@@ -955,7 +974,26 @@ impl Runtime {
                                 vac.insert((ty.to_string(), method.to_string()), v.clone());
                                 Ok((v, xu_ir::stable_hash64(ty_str)))
                             } else {
-                                Err(())
+                                // Search in loaded modules for cross-module method calls
+                                let mut found = None;
+                                for (_, module_val) in self.loaded_modules.iter() {
+                                    if module_val.get_tag() == crate::core::value::TAG_MODULE {
+                                        if let crate::core::heap::ManagedObject::Module(m) =
+                                            self.heap.get(module_val.as_obj_id())
+                                        {
+                                            if let Some(v) = m.exports.map.get(&name) {
+                                                found = Some(v.clone());
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                if let Some(v) = found {
+                                    vac.insert((ty.to_string(), method.to_string()), v.clone());
+                                    Ok((v, xu_ir::stable_hash64(ty_str)))
+                                } else {
+                                    Err(())
+                                }
                             }
                         }
                     }

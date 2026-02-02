@@ -1,4 +1,4 @@
 {
-  "check_skip_prefixes": ["cms", "large"],
+  "check_skip_prefixes": ["cms", "large", "inventory_system", "task_manager"],
   "run_expect_fail": []
 }

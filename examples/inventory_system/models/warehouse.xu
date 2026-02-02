@@ -1,0 +1,138 @@
+// Warehouse Model
+
+use "examples/inventory_system/models/product.xu" as product_mod;
+
+StockItem has {
+    product_id: string
+    quantity: int
+    location: string = "A-01"
+
+    static func create(prod_id: string, qty: int, loc: string) -> StockItem {
+        return StockItem{ product_id: prod_id, quantity: qty, location: loc }
+    }
+
+    static func create_default(prod_id: string, qty: int) -> StockItem {
+        return StockItem{ product_id: prod_id, quantity: qty }
+    }
+
+    func format() -> string {
+        return "Product:{self.product_id} Qty:{self.quantity} Location:{self.location}"
+    }
+}
+
+WarehouseStatus with [ open | closed | maintenance ]
+
+Warehouse has {
+    id: string
+    name: string
+    location: string
+    capacity: int
+    status: WarehouseStatus = WarehouseStatus#open
+    stock: {string: StockItem} = {}
+
+    static func create(wh_id: string, wh_name: string, wh_loc: string, cap: int) -> Warehouse {
+        return Warehouse{
+            id: wh_id,
+            name: wh_name,
+            location: wh_loc,
+            capacity: cap
+        }
+    }
+
+    static func create_small(wh_id: string, wh_name: string, wh_loc: string) -> Warehouse {
+        return Warehouse{
+            id: wh_id,
+            name: wh_name,
+            location: wh_loc,
+            capacity: 1000
+        }
+    }
+
+    static func create_large(wh_id: string, wh_name: string, wh_loc: string) -> Warehouse {
+        return Warehouse{
+            id: wh_id,
+            name: wh_name,
+            location: wh_loc,
+            capacity: 10000
+        }
+    }
+
+    func add_stock(prod_id: string, qty: int, loc: string) -> bool {
+        if self.get_total_stock() + qty > self.capacity {
+            return false
+        }
+        if self.stock.has(prod_id) {
+            let existing = self.stock[prod_id]
+            self.stock[prod_id] = StockItem.create(prod_id, existing.quantity + qty, loc)
+        } else {
+            self.stock[prod_id] = StockItem.create(prod_id, qty, loc)
+        }
+        return true
+    }
+
+    func remove_stock(prod_id: string, qty: int) -> bool {
+        if !self.stock.has(prod_id) {
+            return false
+        }
+        let existing = self.stock[prod_id]
+        if existing.quantity < qty {
+            return false
+        }
+        if existing.quantity == qty {
+            self.stock.remove(prod_id)
+        } else {
+            self.stock[prod_id] = StockItem.create(prod_id, existing.quantity - qty, existing.location)
+        }
+        return true
+    }
+
+    func get_stock(prod_id: string) -> int {
+        if self.stock.has(prod_id) {
+            return self.stock[prod_id].quantity
+        }
+        return 0
+    }
+
+    func get_total_stock() -> int {
+        var total = 0
+        for (pid, si) in self.stock {
+            total = total + si.quantity
+        }
+        return total
+    }
+
+    func utilization() -> float {
+        let total = self.get_total_stock()
+        let cap = self.capacity
+        return (total * 100) / cap
+    }
+
+    func is_available() -> bool {
+        return match self.status {
+            WarehouseStatus#open { true }
+            _ { false }
+        }
+    }
+
+    func status_name() -> string {
+        return match self.status {
+            WarehouseStatus#open { "Open" }
+            WarehouseStatus#closed { "Closed" }
+            WarehouseStatus#maintenance { "Maintenance" }
+            _ { "Unknown" }
+        }
+    }
+
+    func format() -> string {
+        let util = self.utilization()
+        return "[{self.id}] {self.name} @ {self.location} - Capacity:{self.capacity} Usage:{util}% [{self.status_name()}]"
+    }
+
+    func format_inventory() -> string {
+        var result = "=== {self.name} Inventory ===\n"
+        for (pid, si) in self.stock {
+            result = result + "  " + si.format() + "\n"
+        }
+        return result
+    }
+}

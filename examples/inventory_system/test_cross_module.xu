@@ -1,0 +1,181 @@
+// Cross-Module Instance Method Test
+
+use "examples/inventory_system/models/product.xu" as product_mod;
+use "examples/inventory_system/models/warehouse.xu" as warehouse_mod;
+use "examples/inventory_system/models/order.xu" as order_mod;
+use "examples/inventory_system/utils/helpers.xu" as helpers;
+
+func main() {
+    helpers.print_separator("Cross-Module Instance Method Test")
+
+    // ========================================
+    // 1. Test Product instance methods
+    // ========================================
+    helpers.print_subseparator("1. Product Instance Methods")
+
+    let laptop = product_mod.Product.create_electronics("ELEC-001", "MacBook Pro", 14999.0, 10000.0)
+
+    // Test instance methods
+    let formatted = laptop.format()
+    println("Format: {formatted}")
+    helpers.assert(formatted.length > 0, "format() should return non-empty string")
+    helpers.print_success("Product.format() works")
+
+    let margin = laptop.profit_margin()
+    println("Profit margin: {margin}%")
+    helpers.assert(margin > 0.0, "profit_margin() should be positive")
+    helpers.print_success("Product.profit_margin() works")
+
+    let is_high = laptop.is_high_margin()
+    println("Is high margin: {is_high}")
+    helpers.assert(is_high, "MacBook should be high margin")
+    helpers.print_success("Product.is_high_margin() works")
+
+    let cat_name = laptop.category_name()
+    println("Category: {cat_name}")
+    helpers.assert(cat_name == "Electronics", "Category should be Electronics")
+    helpers.print_success("Product.category_name() works")
+
+    let status = laptop.status_name()
+    println("Status: {status}")
+    helpers.assert(status == "Active", "Status should be Active")
+    helpers.print_success("Product.status_name() works")
+
+    // ========================================
+    // 2. Test Warehouse instance methods
+    // ========================================
+    helpers.print_subseparator("2. Warehouse Instance Methods")
+
+    var wh = warehouse_mod.Warehouse.create("WH-001", "Main Warehouse", "Beijing", 1000)
+
+    let wh_format = wh.format()
+    println("Format: {wh_format}")
+    helpers.assert(wh_format.length > 0, "format() should return non-empty string")
+    helpers.print_success("Warehouse.format() works")
+
+    let added = wh.add_stock("ELEC-001", 50, "A-01")
+    helpers.assert(added, "add_stock() should succeed")
+    helpers.print_success("Warehouse.add_stock() works")
+
+    let stock_qty = wh.get_stock("ELEC-001")
+    helpers.assert(stock_qty == 50, "get_stock() should return 50")
+    helpers.print_success("Warehouse.get_stock() works")
+
+    let total = wh.get_total_stock()
+    helpers.assert(total == 50, "get_total_stock() should return 50")
+    helpers.print_success("Warehouse.get_total_stock() works")
+
+    let util = wh.utilization()
+    println("Utilization: {util}%")
+    helpers.assert(util == 5, "utilization() should be 5%")
+    helpers.print_success("Warehouse.utilization() works")
+
+    let is_avail = wh.is_available()
+    helpers.assert(is_avail, "is_available() should be true")
+    helpers.print_success("Warehouse.is_available() works")
+
+    let removed = wh.remove_stock("ELEC-001", 20)
+    helpers.assert(removed, "remove_stock() should succeed")
+    let remaining = wh.get_stock("ELEC-001")
+    helpers.assert(remaining == 30, "remaining stock should be 30")
+    helpers.print_success("Warehouse.remove_stock() works")
+
+    // ========================================
+    // 3. Test Order instance methods
+    // ========================================
+    helpers.print_subseparator("3. Order Instance Methods")
+
+    var order = order_mod.Order.create("ORD-001", "Alice")
+
+    let ord_format = order.format()
+    println("Format: {ord_format}")
+    helpers.assert(ord_format.length > 0, "format() should return non-empty string")
+    helpers.print_success("Order.format() works")
+
+    helpers.assert(order.is_pending(), "Order should be pending")
+    helpers.print_success("Order.is_pending() works")
+
+    order.add_product(laptop, 2)
+    helpers.print_success("Order.add_product() works")
+
+    let item_count = order.total_items()
+    helpers.assert(item_count == 2, "total_items() should be 2")
+    helpers.print_success("Order.total_items() works")
+
+    let subtotal = order.subtotal()
+    println("Subtotal: ${subtotal}")
+    helpers.assert(subtotal > 0.0, "subtotal() should be positive")
+    helpers.print_success("Order.subtotal() works")
+
+    order.update_shipping()
+    helpers.print_success("Order.update_shipping() works")
+
+    let order_total = order.total()
+    println("Total: ${order_total}")
+    helpers.assert(order_total >= subtotal, "total() should be >= subtotal")
+    helpers.print_success("Order.total() works")
+
+    let confirmed = order.confirm()
+    helpers.assert(confirmed, "confirm() should succeed")
+    helpers.assert(order.is_confirmed(), "Order should be confirmed")
+    helpers.print_success("Order.confirm() works")
+
+    let shipped = order.ship()
+    helpers.assert(shipped, "ship() should succeed")
+    helpers.assert(order.is_shipped(), "Order should be shipped")
+    helpers.print_success("Order.ship() works")
+
+    let delivered = order.deliver()
+    helpers.assert(delivered, "deliver() should succeed")
+    helpers.assert(order.is_delivered(), "Order should be delivered")
+    helpers.print_success("Order.deliver() works")
+
+    // Test cancel on new order
+    var order2 = order_mod.Order.create("ORD-002", "Bob")
+    let cancelled = order2.cancel()
+    helpers.assert(cancelled, "cancel() should succeed on pending order")
+    helpers.print_success("Order.cancel() works")
+
+    // Test OrderItem instance methods
+    let item = order_mod.OrderItem.create(laptop, 5)
+    let item_subtotal = item.subtotal()
+    println("Item subtotal: ${item_subtotal}")
+    helpers.assert(item_subtotal > 0.0, "OrderItem.subtotal() should be positive")
+    helpers.print_success("OrderItem.subtotal() works")
+
+    let item_savings = item.savings()
+    println("Item savings: ${item_savings}")
+    helpers.print_success("OrderItem.savings() works")
+
+    let item_format = item.format()
+    println("Item format: {item_format}")
+    helpers.assert(item_format.length > 0, "OrderItem.format() should return non-empty string")
+    helpers.print_success("OrderItem.format() works")
+
+    // ========================================
+    // 4. Test StockItem instance methods
+    // ========================================
+    helpers.print_subseparator("4. StockItem Instance Methods")
+
+    let si = warehouse_mod.StockItem.create("P-001", 100, "B-02")
+    let si_format = si.format()
+    println("StockItem format: {si_format}")
+    helpers.assert(si_format.length > 0, "StockItem.format() should return non-empty string")
+    helpers.print_success("StockItem.format() works")
+
+    // ========================================
+    // Complete
+    // ========================================
+    helpers.print_separator("All Instance Method Tests Passed!")
+
+    println("Cross-module instance method calls verified successfully.")
+    println("")
+    println("Tested instance methods:")
+    println("  - Product: format, profit_margin, is_high_margin, category_name, status_name")
+    println("  - Warehouse: format, add_stock, get_stock, get_total_stock, utilization, is_available, remove_stock, status_name")
+    println("  - Order: format, is_pending, add_product, total_items, subtotal, update_shipping, total, confirm, ship, deliver, cancel, is_confirmed, is_shipped, is_delivered")
+    println("  - OrderItem: subtotal, savings, format")
+    println("  - StockItem: format")
+}
+
+main()

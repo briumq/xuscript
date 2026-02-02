@@ -1,0 +1,163 @@
+// Order Service
+
+use "examples/inventory_system/models/product.xu" as product_mod;
+use "examples/inventory_system/models/order.xu" as order_mod;
+use "examples/inventory_system/services/inventory_service.xu" as inv_svc_mod;
+
+OrderService has {
+    orders: {string: Order} = {}
+    next_order_seq: int = 1000
+    inventory: InventoryService
+
+    static func create(inv_svc: InventoryService) -> OrderService {
+        return OrderService{ inventory: inv_svc }
+    }
+
+    func create_order(customer: string) -> Order {
+        let order_id = order_mod.Order.generate_id("ORD", self.next_order_seq)
+        self.next_order_seq = self.next_order_seq + 1
+        let new_order = order_mod.Order.create(order_id, customer)
+        self.orders[order_id] = new_order
+        return new_order
+    }
+
+    func create_order_with_shipping(customer: string, shipping: float) -> Order {
+        let order_id = order_mod.Order.generate_id("ORD", self.next_order_seq)
+        self.next_order_seq = self.next_order_seq + 1
+        let new_order = order_mod.Order.create_with_shipping(order_id, customer, shipping)
+        self.orders[order_id] = new_order
+        return new_order
+    }
+
+    func add_to_order(order_id: string, prod_id: string, qty: int) -> bool {
+        if !self.orders.has(order_id) {
+            return false
+        }
+        let prod = self.inventory.get_product(prod_id)
+        var current_order = self.orders[order_id]
+        current_order.add_product(prod, qty)
+        current_order.update_shipping()
+        self.orders[order_id] = current_order
+        return true
+    }
+
+    func add_item_to_order(order_id: string, prod: Product, qty: int) -> bool {
+        if !self.orders.has(order_id) {
+            return false
+        }
+        let new_item = order_mod.OrderItem.create(prod, qty)
+        var current_order = self.orders[order_id]
+        current_order.add_item(new_item)
+        current_order.update_shipping()
+        self.orders[order_id] = current_order
+        return true
+    }
+
+    func confirm_order(order_id: string, wh_id: string) -> bool {
+        if !self.orders.has(order_id) {
+            return false
+        }
+        var current_order = self.orders[order_id]
+
+        for oi in current_order.items {
+            let stock = self.inventory.get_total_stock(oi.product_id)
+            if stock < oi.quantity {
+                println("Insufficient stock: {oi.product_name} needs {oi.quantity}, only {stock} available")
+                return false
+            }
+        }
+
+        for oi in current_order.items {
+            let success = self.inventory.stock_out(wh_id, oi.product_id, oi.quantity)
+            if !success {
+                println("Stock out failed: {oi.product_name}")
+                return false
+            }
+        }
+
+        let confirmed = current_order.confirm()
+        self.orders[order_id] = current_order
+        return confirmed
+    }
+
+    func ship_order(order_id: string) -> bool {
+        if !self.orders.has(order_id) {
+            return false
+        }
+        var current_order = self.orders[order_id]
+        let shipped = current_order.ship()
+        self.orders[order_id] = current_order
+        return shipped
+    }
+
+    func deliver_order(order_id: string) -> bool {
+        if !self.orders.has(order_id) {
+            return false
+        }
+        var current_order = self.orders[order_id]
+        let delivered = current_order.deliver()
+        self.orders[order_id] = current_order
+        return delivered
+    }
+
+    func cancel_order(order_id: string) -> bool {
+        if !self.orders.has(order_id) {
+            return false
+        }
+        var current_order = self.orders[order_id]
+        let cancelled = current_order.cancel()
+        self.orders[order_id] = current_order
+        return cancelled
+    }
+
+    func get_order(order_id: string) -> Order {
+        return self.orders[order_id]
+    }
+
+    func get_customer_orders(customer: string) -> [Order] {
+        let result: [Order] = []
+        for (oid, o) in self.orders {
+            if o.customer_name == customer {
+                result.push(o)
+            }
+        }
+        return result
+    }
+
+    func get_pending_orders() -> [Order] {
+        let result: [Order] = []
+        for (oid, o) in self.orders {
+            if o.is_pending() {
+                result.push(o)
+            }
+        }
+        return result
+    }
+
+    func total_sales() -> float {
+        var total = 0.0
+        for (oid, o) in self.orders {
+            if o.is_delivered() {
+                total = total + o.total()
+            }
+        }
+        return total
+    }
+
+    func print_orders() {
+        println("========== Order List ==========")
+        for (oid, o) in self.orders {
+            println(o.format())
+        }
+        println("================================")
+    }
+
+    func print_order_detail(order_id: string) {
+        if self.orders.has(order_id) {
+            let o = self.orders[order_id]
+            println(o.format_detail())
+        } else {
+            println("Order not found: {order_id}")
+        }
+    }
+}
