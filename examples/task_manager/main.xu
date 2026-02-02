@@ -1,0 +1,272 @@
+// Task Manager - Complete Application (Single File Version)
+// Demonstrates structs, enums, methods, pattern matching, and collections
+//
+// This is the runnable version. See the models/ and services/ directories
+// for the multi-file structure reference.
+
+// ============================================
+// Task Model
+// ============================================
+
+Task has {
+  id: int
+  title: string
+  description: string
+  status: string = "pending"
+  priority: string = "medium"
+  assignee: string = ""
+
+  static func create(task_id: int, task_title: string, desc: string, prio: string, assign: string) -> Task {
+    return Task{ id: task_id, title: task_title, description: desc, priority: prio, assignee: assign }
+  }
+}
+
+Task does {
+  func format() -> string {
+    return "[#{self.id}] {self.title} ({self.status}, {self.priority}) - {self.assignee}"
+  }
+}
+
+// ============================================
+// User Model
+// ============================================
+
+User has {
+  id: int
+  username: string
+  email: string
+  role: string = "viewer"
+  active: bool = true
+
+  static func create(user_id: int, uname: string, mail: string, user_role: string) -> User {
+    return User{ id: user_id, username: uname, email: mail, role: user_role }
+  }
+}
+
+User does {
+  func can_manage_tasks() -> bool {
+    return self.role == "admin" || self.role == "manager"
+  }
+
+  func can_edit_task(task_assignee: string) -> bool {
+    if self.role == "admin" || self.role == "manager" {
+      return true
+    }
+    return self.username == task_assignee
+  }
+
+  func format() -> string {
+    let status = if self.active { "active" } else { "inactive" }
+    return "{self.username} <{self.email}> [{self.role}] ({status})"
+  }
+}
+
+// ============================================
+// Task Service
+// ============================================
+
+TaskService has {
+  tasks: {int: Task} = {}
+  next_id: int = 1
+
+  static func create() -> TaskService {
+    return TaskService{}
+  }
+}
+
+TaskService does {
+  func add_task(title: string, desc: string, prio: string, assign: string) -> Task {
+    let task = Task.create(self.next_id, title, desc, prio, assign)
+    self.tasks[task.id] = task
+    self.next_id = self.next_id + 1
+    return task
+  }
+
+  func filter_by_assignee(target: string) -> [Task] {
+    let result: [Task] = []
+    for (tid, task) in self.tasks {
+      if task.assignee == target {
+        result.push(task)
+      }
+    }
+    return result
+  }
+
+  func filter_by_priority(target: string) -> [Task] {
+    let result: [Task] = []
+    for (tid, task) in self.tasks {
+      if task.priority == target {
+        result.push(task)
+      }
+    }
+    return result
+  }
+
+  func count_tasks() -> int {
+    var total = 0
+    for (tid, task) in self.tasks {
+      total = total + 1
+    }
+    return total
+  }
+
+  func list_all() {
+    println("=== All Tasks ===")
+    for (tid, task) in self.tasks {
+      println(task.format())
+    }
+  }
+}
+
+// ============================================
+// User Service
+// ============================================
+
+UserService has {
+  users: {int: User} = {}
+  next_id: int = 1
+
+  static func create() -> UserService {
+    return UserService{}
+  }
+}
+
+UserService does {
+  func add_user(uname: string, mail: string, user_role: string) -> User {
+    let user = User.create(self.next_id, uname, mail, user_role)
+    self.users[user.id] = user
+    self.next_id = self.next_id + 1
+    return user
+  }
+
+  func list_all() {
+    println("=== All Users ===")
+    for (uid, user) in self.users {
+      println(user.format())
+    }
+  }
+
+  func get_active() -> [User] {
+    let result: [User] = []
+    for (uid, user) in self.users {
+      if user.active {
+        result.push(user)
+      }
+    }
+    return result
+  }
+}
+
+// ============================================
+// Main Application
+// ============================================
+
+func main() {
+  var task_svc = TaskService.create()
+  var user_svc = UserService.create()
+
+  println("========================================")
+  println("       Task Manager Application")
+  println("========================================")
+  println("")
+
+  // Create users
+  println("--- Creating Users ---")
+  let alice = user_svc.add_user("alice", "alice@example.com", "admin")
+  println("Created: {alice.format()}")
+
+  let bob = user_svc.add_user("bob", "bob@example.com", "developer")
+  println("Created: {bob.format()}")
+
+  let charlie = user_svc.add_user("charlie", "charlie@example.com", "manager")
+  println("Created: {charlie.format()}")
+
+  let diana = user_svc.add_user("diana", "diana@example.com", "viewer")
+  println("Created: {diana.format()}")
+
+  println("")
+
+  // Create tasks
+  println("--- Creating Tasks ---")
+  let t1 = task_svc.add_task("Implement login", "Add JWT auth", "high", "bob")
+  println("Created: {t1.format()}")
+
+  let t2 = task_svc.add_task("Fix nav bug", "Mobile menu issue", "medium", "bob")
+  println("Created: {t2.format()}")
+
+  let t3 = task_svc.add_task("Write docs", "API documentation", "low", "charlie")
+  println("Created: {t3.format()}")
+
+  let t4 = task_svc.add_task("DB migration", "PostgreSQL 15", "critical", "alice")
+  println("Created: {t4.format()}")
+
+  let t5 = task_svc.add_task("Optimize perf", "Reduce load time", "high", "bob")
+  println("Created: {t5.format()}")
+
+  println("")
+
+  // List all
+  task_svc.list_all()
+  println("")
+  user_svc.list_all()
+
+  println("")
+
+  // Filter by assignee
+  println("--- Bob's Tasks ---")
+  let bob_tasks = task_svc.filter_by_assignee("bob")
+  for item in bob_tasks {
+    println("  {item.format()}")
+  }
+
+  println("")
+
+  // Filter by priority
+  println("--- Critical Tasks ---")
+  let critical = task_svc.filter_by_priority("critical")
+  for item2 in critical {
+    println("  [CRITICAL] {item2.format()}")
+  }
+
+  println("")
+
+  println("--- High Priority Tasks ---")
+  let high = task_svc.filter_by_priority("high")
+  for item3 in high {
+    println("  [HIGH] {item3.format()}")
+  }
+
+  println("")
+
+  // Statistics
+  println("--- Statistics ---")
+  let total = task_svc.count_tasks()
+  println("Total tasks: {total}")
+
+  println("")
+
+  // Permission checks
+  println("--- Permission Checks ---")
+  println("Alice can manage: {alice.can_manage_tasks()}")
+  println("Bob can manage: {bob.can_manage_tasks()}")
+  println("Bob can edit own: {bob.can_edit_task(\"bob\")}")
+  println("Bob can edit alice: {bob.can_edit_task(\"alice\")}")
+  println("Charlie can edit alice: {charlie.can_edit_task(\"alice\")}")
+
+  println("")
+
+  // Active users
+  println("--- Active Users ---")
+  let active = user_svc.get_active()
+  for item4 in active {
+    println("  {item4.format()}")
+  }
+
+  println("")
+  println("========================================")
+  println("       Application Complete")
+  println("========================================")
+}
+
+// Run
+main()

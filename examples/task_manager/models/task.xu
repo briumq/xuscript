@@ -1,0 +1,20 @@
+// Task model - defines task structure
+
+Task has {
+  id: int
+  title: string
+  description: string
+  status: string = "pending"
+  priority: string = "medium"
+  assignee: string = ""
+
+  static func create(task_id: int, task_title: string, desc: string, prio: string, assign: string) -> Task {
+    return Task{ id: task_id, title: task_title, description: desc, priority: prio, assignee: assign }
+  }
+}
+
+Task does {
+  func format() -> string {
+    return "[#{self.id}] {self.title} ({self.status}, {self.priority}) - {self.assignee}"
+  }
+}

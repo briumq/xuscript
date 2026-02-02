@@ -1,0 +1,56 @@
+// Task Service - manages task operations
+
+use "examples/task_manager/models/task.xu" as task_mod
+
+TaskService has {
+  tasks: {int: Task} = {}
+  next_id: int = 1
+
+  static func create() -> TaskService {
+    return TaskService{}
+  }
+}
+
+TaskService does {
+  func add_task(title: string, desc: string, prio: string, assign: string) -> Task {
+    let task = Task.create(self.next_id, title, desc, prio, assign)
+    self.tasks[task.id] = task
+    self.next_id = self.next_id + 1
+    return task
+  }
+
+  func filter_by_assignee(target: string) -> [Task] {
+    let result: [Task] = []
+    for (tid, task) in self.tasks {
+      if task.assignee == target {
+        result.push(task)
+      }
+    }
+    return result
+  }
+
+  func filter_by_priority(target: string) -> [Task] {
+    let result: [Task] = []
+    for (tid, task) in self.tasks {
+      if task.priority == target {
+        result.push(task)
+      }
+    }
+    return result
+  }
+
+  func count_tasks() -> int {
+    var total = 0
+    for (tid, task) in self.tasks {
+      total = total + 1
+    }
+    return total
+  }
+
+  func list_all() {
+    println("=== All Tasks ===")
+    for (tid, task) in self.tasks {
+      println(task.format())
+    }
+  }
+}

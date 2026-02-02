@@ -1,0 +1,31 @@
+// User model - defines user structure
+
+User has {
+  id: int
+  username: string
+  email: string
+  role: string = "viewer"
+  active: bool = true
+
+  static func create(user_id: int, uname: string, mail: string, user_role: string) -> User {
+    return User{ id: user_id, username: uname, email: mail, role: user_role }
+  }
+}
+
+User does {
+  func can_manage_tasks() -> bool {
+    return self.role == "admin" || self.role == "manager"
+  }
+
+  func can_edit_task(task_assignee: string) -> bool {
+    if self.role == "admin" || self.role == "manager" {
+      return true
+    }
+    return self.username == task_assignee
+  }
+
+  func format() -> string {
+    let status = if self.active { "active" } else { "inactive" }
+    return "{self.username} <{self.email}> [{self.role}] ({status})"
+  }
+}

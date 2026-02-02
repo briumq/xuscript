@@ -12,7 +12,7 @@ import time
 
 # 防护配置
 MAX_MEMORY_MB = int(os.environ.get("BENCH_MAX_MEMORY_MB", "2048"))  # 默认 2GB 内存上限
-SINGLE_RUN_TIMEOUT = int(os.environ.get("BENCH_SINGLE_TIMEOUT", "120"))  # 单次运行超时 120 秒
+SINGLE_RUN_TIMEOUT = int(os.environ.get("BENCH_SINGLE_TIMEOUT", "600"))  # 单次运行超时 600 秒
 TOTAL_TIMEOUT = int(os.environ.get("BENCH_TOTAL_TIMEOUT", "1800"))  # 总超时 30 分钟
 
 

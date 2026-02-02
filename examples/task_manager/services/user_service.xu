@@ -1,0 +1,38 @@
+// User Service - manages user operations
+
+use "examples/task_manager/models/user.xu" as user_mod
+
+UserService has {
+  users: {int: User} = {}
+  next_id: int = 1
+
+  static func create() -> UserService {
+    return UserService{}
+  }
+}
+
+UserService does {
+  func add_user(uname: string, mail: string, user_role: string) -> User {
+    let user = User.create(self.next_id, uname, mail, user_role)
+    self.users[user.id] = user
+    self.next_id = self.next_id + 1
+    return user
+  }
+
+  func list_all() {
+    println("=== All Users ===")
+    for (uid, user) in self.users {
+      println(user.format())
+    }
+  }
+
+  func get_active() -> [User] {
+    let result: [User] = []
+    for (uid, user) in self.users {
+      if user.active {
+        result.push(user)
+      }
+    }
+    return result
+  }
+}
