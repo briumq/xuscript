@@ -519,19 +519,23 @@ impl<'a, 'b> Parser<'a, 'b> {
     fn parse_if_expr(&mut self) -> Option<Expr> {
         self.expect(TokenKind::KwIf)?;
         let cond = self.parse_expr_no_struct_init(0)?;
-        if self.at(TokenKind::Colon) {
+        let then_expr = if self.at(TokenKind::Colon) {
             self.bump();
-        }
-        let then_expr = self.parse_expr_block()?;
+            self.skip_trivia();
+            self.parse_expr(0)?
+        } else {
+            self.parse_expr_block()?
+        };
         self.skip_trivia();
         self.expect(TokenKind::KwElse)?;
         self.skip_trivia();
         let else_expr = if self.at(TokenKind::KwIf) {
             self.parse_if_expr()?
+        } else if self.at(TokenKind::Colon) {
+            self.bump();
+            self.skip_trivia();
+            self.parse_expr(0)?
         } else {
-            if self.at(TokenKind::Colon) {
-                self.bump();
-            }
             self.parse_expr_block()?
         };
         Some(Expr::IfExpr(Box::new(xu_ir::IfExpr {

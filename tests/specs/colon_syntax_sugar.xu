@@ -1,0 +1,170 @@
+// Test colon syntax sugar for single-statement blocks
+// Syntax: `condition: statement` is equivalent to `condition { statement }`
+
+func assert(x) { __builtin_assert(x) }
+
+// ============================================
+// 1. if statement with colon syntax
+// ============================================
+
+var x = 0
+if true: x = 1
+assert(x == 1)
+
+var y = 0
+if false: y = 1
+assert(y == 0)
+
+// if-else with colon
+var z = 0
+if false: z = 1
+else: z = 2
+assert(z == 2)
+
+// if-else if-else with colon
+var w = 0
+let cond = 2
+if cond == 1: w = 1
+else if cond == 2: w = 2
+else: w = 3
+assert(w == 2)
+
+// ============================================
+// 2. while statement with colon syntax
+// ============================================
+
+var counter = 0
+while counter < 5: counter = counter + 1
+assert(counter == 5)
+
+// ============================================
+// 3. for statement with colon syntax
+// ============================================
+
+var sum = 0
+for i in 0..5: sum = sum + i
+assert(sum == 10)  // 0+1+2+3+4 = 10
+
+var list_sum = 0
+for n in [1, 2, 3]: list_sum = list_sum + n
+assert(list_sum == 6)
+
+// ============================================
+// 4. match statement with colon syntax
+// ============================================
+
+var result = ""
+match 2 {
+    1: result = "one"
+    2: result = "two"
+    3: result = "three"
+    _: result = "other"
+}
+assert(result == "two")
+
+// match with enum
+Status with [ pending | approved | rejected ]
+
+var status = Status#approved
+var status_text = ""
+match status {
+    Status#pending: status_text = "pending"
+    Status#approved: status_text = "approved"
+    Status#rejected: status_text = "rejected"
+    _: status_text = "unknown"
+}
+assert(status_text == "approved")
+
+// ============================================
+// 5. match expression with colon syntax
+// ============================================
+
+let value = 3
+let expr_result = match value {
+    1: "one"
+    2: "two"
+    3: "three"
+    _: "other"
+}
+assert(expr_result == "three")
+
+// match expression with enum
+let priority_level = match Status#rejected {
+    Status#pending: 1
+    Status#approved: 2
+    Status#rejected: 3
+    _: 0
+}
+assert(priority_level == 3)
+
+// ============================================
+// 6. when statement with colon syntax
+// ============================================
+
+func get_some() -> Option[int] {
+    return Option#some(42)
+}
+
+func get_none() -> Option[int] {
+    return Option#none
+}
+
+var when_result = 0
+when val = get_some(): when_result = val
+else: when_result = -1
+assert(when_result == 42)
+
+var when_none_result = 0
+when val = get_none(): when_none_result = val
+else: when_none_result = -1
+assert(when_none_result == -1)
+
+// when with multiple bindings
+func get_a() -> Option[int] { return Option#some(10) }
+func get_b() -> Option[int] { return Option#some(20) }
+
+var multi_result = 0
+when a = get_a(), b = get_b(): multi_result = a + b
+else: multi_result = -1
+assert(multi_result == 30)
+
+// ============================================
+// 7. if expression with colon syntax
+// ============================================
+
+let if_expr_result = if true: 100 else: 200
+assert(if_expr_result == 100)
+
+let if_expr_result2 = if false: 100 else: 200
+assert(if_expr_result2 == 200)
+
+// nested if expression with colon
+let nested = if true: if false: 1 else: 2 else: 3
+assert(nested == 2)
+
+// ============================================
+// 8. Mixed: colon and block syntax together
+// ============================================
+
+var mixed = 0
+if true: mixed = 1
+if mixed == 1 {
+    mixed = mixed + 1
+}
+assert(mixed == 2)
+
+// match with mixed syntax
+var mixed_match = ""
+match 1 {
+    0: mixed_match = "zero"
+    1 { mixed_match = "one" }
+    _: mixed_match = "other"
+}
+assert(mixed_match == "one")
+
+// ============================================
+// All tests passed!
+// ============================================
+
+println("All colon syntax sugar tests passed!")
+
