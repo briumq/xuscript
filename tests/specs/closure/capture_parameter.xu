@@ -1,0 +1,18 @@
+// Test: Closure captures function parameter
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+func make_adder(a: int) {
+    return func(b: int) -> a + b
+}
+
+let add5 = make_adder(5)
+let add10 = make_adder(10)
+
+assert(add5(3) == 8, "add5(3) should be 8")
+assert(add5(0) == 5, "add5(0) should be 5")
+assert(add10(3) == 13, "add10(3) should be 13")
+assert(add10(-5) == 5, "add10(-5) should be 5")
+
+// Each closure should have its own captured value
+assert(add5(1) == 6, "add5 should still use 5")
+assert(add10(1) == 11, "add10 should still use 10")

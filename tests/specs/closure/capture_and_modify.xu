@@ -1,0 +1,18 @@
+// Test: Closure can capture and modify external variables
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+var counter = 0
+
+let increment = func() -> {
+    counter = counter + 1
+    return counter
+}
+
+assert(counter == 0, "initial value")
+let result1 = increment()
+assert(result1 == 1, "first increment return")
+assert(counter == 1, "counter after first increment")
+
+let result2 = increment()
+assert(result2 == 2, "second increment return")
+assert(counter == 2, "counter after second increment")

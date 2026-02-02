@@ -545,6 +545,17 @@ impl Runtime {
                                 self.locals.set_by_index(idx, val);
                                 return Ok(());
                             }
+                            // Check env for captured variables
+                            if let Some(mut val) = self.env.take(name) {
+                                val.bin_op_assign(BinaryOp::Add, rhs, &mut self.heap)?;
+                                if self.env.is_immutable(name) {
+                                    return Err(self.error(xu_syntax::DiagnosticKind::Raw(
+                                        "Cannot reassign immutable variable".into(),
+                                    )));
+                                }
+                                self.env.define(name.clone(), val);
+                                return Ok(());
+                            }
                         } else if let Some(mut val) = self.env.take(name) {
                             val.bin_op_assign(BinaryOp::Add, rhs, &mut self.heap)?;
                             if self.env.is_immutable(name) {
@@ -566,8 +577,24 @@ impl Runtime {
                         let v = self.apply_assign_op(Some(cur), stmt.op, rhs)?;
                         let _ = self.set_local(name, v);
                     } else if self.locals.is_active() {
-                        let v = self.apply_assign_op(None, stmt.op, rhs)?;
-                        self.define_local(name.clone(), v);
+                        // Check if the variable exists in env (captured from outer scope)
+                        if let Some(cur) = self.env.get(name) {
+                            // Variable exists in env, assign to it
+                            if self.env.is_immutable(name) {
+                                return Err(self.error(xu_syntax::DiagnosticKind::Raw(
+                                    "Cannot reassign immutable variable".into(),
+                                )));
+                            }
+                            let v = self.apply_assign_op(Some(cur), stmt.op, rhs)?;
+                            let assigned = self.env.assign(name, v);
+                            if !assigned {
+                                self.env.define(name.clone(), v);
+                            }
+                        } else {
+                            // Variable doesn't exist anywhere, create new local
+                            let v = self.apply_assign_op(None, stmt.op, rhs)?;
+                            self.define_local(name.clone(), v);
+                        }
                     } else {
                         let cur = self.env.get(name);
                         if self.config.strict_vars && cur.is_none() {

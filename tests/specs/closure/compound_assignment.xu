@@ -1,0 +1,18 @@
+// Test: Closure with compound assignment operators
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+var counter = 0
+
+let add = func(n) -> { counter += n }
+let sub = func(n) -> { counter -= n }
+
+assert(counter == 0, "initial")
+
+add(5)
+assert(counter == 5, "after add(5)")
+
+add(3)
+assert(counter == 8, "after add(3)")
+
+sub(2)
+assert(counter == 6, "after sub(2)")

@@ -1,0 +1,18 @@
+// Test: Multiple closures sharing the same captured variable
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+var shared = 0
+
+let get_value = func() -> shared
+let set_value = func(v) -> { shared = v }
+let increment = func() -> { shared = shared + 1 }
+
+assert(get_value() == 0, "initial value")
+
+set_value(10)
+assert(get_value() == 10, "after set_value(10)")
+assert(shared == 10, "shared after set_value(10)")
+
+increment()
+assert(get_value() == 11, "after increment")
+assert(shared == 11, "shared after increment")

@@ -1,0 +1,14 @@
+// Test: Option.each can modify external variables through closure
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+var side_effect = 0
+let some_val = Option#some(42)
+
+some_val.each(func(x) -> { side_effect = x })
+assert(side_effect == 42, "each should modify external variable")
+
+// Test with none - should not call the function
+var called = false
+let none_val: Option[int] = Option#none
+none_val.each(func(x) -> { called = true })
+assert(called == false, "each on none should not call function")

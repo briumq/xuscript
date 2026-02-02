@@ -75,7 +75,11 @@ pub(crate) fn run_bytecode_fast(
             }
             if !stored {
                 if !rt.set_local(name, v) {
-                    rt.define_local(name.to_string(), v);
+                    // Variable not in locals, check env (for captured variables)
+                    if !rt.env.assign(name, v) {
+                        // Variable doesn't exist anywhere, create new local
+                        rt.define_local(name.to_string(), v);
+                    }
                 }
             }
         } else {

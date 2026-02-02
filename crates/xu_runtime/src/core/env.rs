@@ -67,19 +67,14 @@ impl Env {
 
     pub(crate) fn freeze(&mut self) -> Self {
         // "Promote" all attached frames to heap (Upvalue mechanism)
+        // Key insight: We need to share the scope between the original env and the closure
+        // so that modifications in the closure are visible in the original env and vice versa.
         for frame in &mut self.frames {
             if frame.attached {
                 let mut scope = frame.scope.borrow_mut();
-                // Move values from stack to scope
-                // Note: We copy because the stack might be used by other frames or will be popped.
-                // In a true move, we would clear the stack slots, but here we just copy.
-                // Since this is "freeze", we are creating a closure that might outlive the stack.
-                let _end = frame.base + scope.names.len();
-                // Safety check: ensure stack has enough elements.
-                // The stack might have grown since frame creation due to temporaries,
-                // but local variables are contiguous starting at frame.base.
-                // Actually, scope.names maps name -> relative_index.
-                // We need to find the max index to know how many values to copy.
+                // Move values from stack to scope.values
+                // After this, both the original env and the closure will use scope.values
+                // through the shared Rc<RefCell<Scope>>.
                 let max_idx = scope.names.values().max().map(|&i| i).unwrap_or(0);
                 let count = if scope.names.is_empty() {
                     0
@@ -87,22 +82,28 @@ impl Env {
                     max_idx + 1
                 };
 
+                scope.values.clear();
                 scope.values.reserve(count);
                 for i in 0..count {
                     if let Some(val) = self.stack.get(frame.base + i) {
-                        scope.values.push(val.clone());
+                        scope.values.push(*val);
                     } else {
                         scope.values.push(Value::VOID);
                     }
                 }
+                // Mark as detached - now both original and closure use scope.values
                 frame.attached = false;
             }
         }
 
-        // Return a new Env with all frames (now detached)
+        // Clear name_cache since we changed attached status
+        self.name_cache.clear();
+
+        // Return a new Env with shared frames (same Rc<RefCell<Scope>>)
+        // Both envs now point to the same scopes, so modifications are shared.
         Self {
             stack: Vec::new(), // New env has its own execution stack
-            frames: self.frames.clone(),
+            frames: self.frames.clone(), // Clone increments Rc refcount, shares the scope
             name_cache: fast_map_new(),
         }
     }
@@ -134,6 +135,13 @@ impl Env {
     pub fn push(&mut self) {
         let base = self.stack.len();
         self.frames.push(Frame::new_attached(base));
+        self.name_cache.clear();
+    }
+
+    /// Push a new detached frame. Values will be stored in scope.values instead of stack.
+    /// This is useful for closures where the captured values need to persist.
+    pub fn push_detached(&mut self) {
+        self.frames.push(Frame::new_detached());
         self.name_cache.clear();
     }
 

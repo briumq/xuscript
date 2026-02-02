@@ -384,10 +384,13 @@ impl Compiler {
                     }
                     if let Some(idx) = self.resolve_local(name) {
                         self.bc.ops.push(Op::StoreLocal(idx));
-                    } else if self.scopes.len() > 1 {
+                    } else if self.scopes.len() > 1 && stmt.decl.is_some() {
+                        // Only create new local for declarations (let/var)
                         let idx = self.define_local(name);
                         self.bc.ops.push(Op::StoreLocal(idx));
                     } else {
+                        // For assignments without decl, or top-level, use StoreName
+                        // This allows closures to modify captured variables
                         let n_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
                         self.bc.ops.push(Op::StoreName(n_idx));
                     }
