@@ -114,7 +114,7 @@ NormalizeTransform has {
     func _normalize_item(item: any) -> any {
         if typeof(item) == "object" {
             let normalized = {}
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 let normalized_key = self._normalize_key(key)
                 let value = item[key]
                 if typeof(value) == "string" {
@@ -206,7 +206,7 @@ RenameTransform has {
     func _rename_item(item: any) -> any {
         if typeof(item) == "object" {
             let renamed = {}
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 let new_key = self.mappings[key] || key
                 renamed[new_key] = item[key]
             }
@@ -303,7 +303,7 @@ DistinctTransform has {
         let seen = new Set()
         let result = []
         for item in data {
-            let stringified = JSON.stringify(item)
+            let stringified = JSON::stringify(item)
             if !seen.has(stringified) {
                 seen.add(stringified)
                 result.add(item)
@@ -366,10 +366,10 @@ JoinTransform has {
                 if typeof(join_item) == "object" && join_item.hasOwnProperty(self.right_key) {
                     if join_item[self.right_key] == left_value {
                         let joined = {}
-                        for key in Object.keys(item) {
+                        for key in Object::keys(item) {
                             joined[key] = item[key]
                         }
-                        for key in Object.keys(join_item) {
+                        for key in Object::keys(join_item) {
                             if key != self.right_key {
                                 joined[key] = join_item[key]
                             }
@@ -476,7 +476,7 @@ TypeTransform has {
     func _transform_types(item: any) -> any {
         if typeof(item) == "object" {
             let transformed = {}
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 if self.type_mappings[key] {
                     let type = self.type_mappings[key]
                     let value = item[key]
@@ -537,7 +537,7 @@ DateParseTransform has {
     func _parse_dates(item: any) -> any {
         if typeof(item) == "object" {
             let parsed = {}
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 if self.date_fields.includes(key) {
                     parsed[key] = self._parse_date(item[key])
                 } else {
@@ -553,7 +553,7 @@ DateParseTransform has {
         // Simulate date parsing
         return {
             original: date_string,
-            timestamp: System.currentTimeMillis(),
+            timestamp: System::currentTimeMillis(),
             year: 2024,
             month: 1,
             day: 1
@@ -589,7 +589,7 @@ JsonTransform has {
         if self.direction == "parse" {
             if typeof(item) == "string" {
                 try {
-                    return JSON.parse(item)
+                    return JSON::parse(item)
                 } catch (e) {
                     return item
                 }
@@ -597,7 +597,7 @@ JsonTransform has {
         } else if self.direction == "stringify" {
             if typeof(item) == "object" {
                 try {
-                    return JSON.stringify(item)
+                    return JSON::stringify(item)
                 } catch (e) {
                     return item
                 }

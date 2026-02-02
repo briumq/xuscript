@@ -234,15 +234,23 @@ impl<'a> Lexer<'a> {
                         self.push(TokenKind::Dot, start, self.i);
                     }
                 }
-                Some(',' | ':' | ';') => {
+                Some(',' | ';') => {
                     let ch = c.unwrap();
                     self.i += ch.len_utf8();
                     match ch {
                         ';' => self.push(TokenKind::StmtEnd, start, self.i),
                         ',' => self.push(TokenKind::Comma, start, self.i),
-                        ':' => self.push(TokenKind::Colon, start, self.i),
                         _ => {}
                     };
+                }
+                Some(':') => {
+                    self.i += 1;
+                    if self.peek_char() == Some(':') {
+                        self.i += 1;
+                        self.push(TokenKind::ColonColon, start, self.i);
+                    } else {
+                        self.push(TokenKind::Colon, start, self.i);
+                    }
                 }
                 Some('+') => {
                     self.i += 1;

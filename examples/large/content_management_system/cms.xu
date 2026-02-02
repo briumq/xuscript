@@ -14,9 +14,9 @@ CMSApp has {
     // 初始化方法
     func init() {
         // 初始化服务
-        self.user_service = user.UserService.create()
-        self.content_service = content.ContentService.create(self.user_service)
-        self.comment_service = comment.CommentService.create(self.content_service, self.user_service)
+        self.user_service = user.UserService::create()
+        self.content_service = content.ContentService::create(self.user_service)
+        self.comment_service = comment.CommentService::create(self.content_service, self.user_service)
         
         // 初始化示例数据
         self.initialize_sample_data()

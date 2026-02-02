@@ -71,7 +71,7 @@ DataPipeline has {
     }
 
     func run_batch() -> bool {
-        let start_time = System.currentTimeMillis()
+        let start_time = System::currentTimeMillis()
         var success = true
 
         for source in self.sources {
@@ -104,7 +104,7 @@ DataPipeline has {
             self.metrics.processed_count = self.metrics.processed_count + processed_data.length
         }
 
-        let end_time = System.currentTimeMillis()
+        let end_time = System::currentTimeMillis()
         self.metrics.latency_ms = end_time - start_time
         self.metrics.throughput = float(self.metrics.processed_count) / float(self.metrics.latency_ms) * 1000.0
 
@@ -112,7 +112,7 @@ DataPipeline has {
     }
 
     func run_stream() -> bool {
-        let start_time = System.currentTimeMillis()
+        let start_time = System::currentTimeMillis()
         var success = true
 
         for source in self.sources {
@@ -147,7 +147,7 @@ DataPipeline has {
             }
         }
 
-        let end_time = System.currentTimeMillis()
+        let end_time = System::currentTimeMillis()
         self.metrics.latency_ms = end_time - start_time
         self.metrics.throughput = float(self.metrics.processed_count) / float(self.metrics.latency_ms) * 1000.0
 
@@ -173,37 +173,37 @@ func main() {
     let pipeline = DataPipeline{ config: config }
 
     // Add sources
-    let file_source = FileDataSource.create("data/input.csv")
-    let api_source = ApiDataSource.create("https://api.example.com/data")
+    let file_source = FileDataSource::create("data/input.csv")
+    let api_source = ApiDataSource::create("https://api.example.com/data")
     pipeline.add_source(file_source)
     pipeline.add_source(api_source)
 
     // Add transforms
-    let map_transform = MapTransform.create((x) => x * 2)
-    let flatten_transform = FlattenTransform.create()
-    let normalize_transform = NormalizeTransform.create()
+    let map_transform = MapTransform::create((x) => x * 2)
+    let flatten_transform = FlattenTransform::create()
+    let normalize_transform = NormalizeTransform::create()
     pipeline.add_transform(map_transform)
     pipeline.add_transform(flatten_transform)
     pipeline.add_transform(normalize_transform)
 
     // Add filters
-    let threshold_filter = ThresholdFilter.create(10)
-    let pattern_filter = PatternFilter.create("^[A-Za-z0-9]+$")
+    let threshold_filter = ThresholdFilter::create(10)
+    let pattern_filter = PatternFilter::create("^[A-Za-z0-9]+$")
     pipeline.add_filter(threshold_filter)
     pipeline.add_filter(pattern_filter)
 
     // Add aggregators
-    let sum_aggregator = SumAggregator.create()
-    let count_aggregator = CountAggregator.create()
-    let average_aggregator = AverageAggregator.create()
+    let sum_aggregator = SumAggregator::create()
+    let count_aggregator = CountAggregator::create()
+    let average_aggregator = AverageAggregator::create()
     pipeline.add_aggregator(sum_aggregator)
     pipeline.add_aggregator(count_aggregator)
     pipeline.add_aggregator(average_aggregator)
 
     // Add sinks
-    let file_sink = FileDataSink.create("data/output.csv")
-    let database_sink = DatabaseDataSink.create("postgres://localhost:5432/data")
-    let kafka_sink = KafkaDataSink.create("localhost:9092", "processed_data")
+    let file_sink = FileDataSink::create("data/output.csv")
+    let database_sink = DatabaseDataSink::create("postgres://localhost:5432/data")
+    let kafka_sink = KafkaDataSink::create("localhost:9092", "processed_data")
     pipeline.add_sink(file_sink)
     pipeline.add_sink(database_sink)
     pipeline.add_sink(kafka_sink)

@@ -112,7 +112,7 @@ UserService has {
         
         let user_id = "USER-" + self.user_counter.to_string()
         self.user_counter = self.user_counter + 1
-        let user = User.create(user_id, username, email, password, first_name, last_name, role)
+        let user = User::create(user_id, username, email, password, first_name, last_name, role)
         
         if !user.validate() {
             return Result#err("Invalid user")

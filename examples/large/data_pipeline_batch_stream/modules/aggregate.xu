@@ -48,7 +48,7 @@ SumAggregator has {
 
     func _sum_object(obj: any) -> number {
         let sum = 0
-        for key in Object.keys(obj) {
+        for key in Object::keys(obj) {
             if typeof(obj[key]) == "number" {
                 sum += obj[key]
             } else if typeof(obj[key]) == "array" {
@@ -130,7 +130,7 @@ AverageAggregator has {
             } else if typeof(item) == "object" {
                 let obj_sum = 0
                 let obj_count = 0
-                for key in Object.keys(item) {
+                for key in Object::keys(item) {
                     if typeof(item[key]) == "number" {
                         obj_sum += item[key]
                         obj_count += 1
@@ -216,7 +216,7 @@ MinAggregator has {
 
     func _min_object(obj: any) -> number {
         let min = Infinity
-        for key in Object.keys(obj) {
+        for key in Object::keys(obj) {
             if typeof(obj[key]) == "number" {
                 if obj[key] < min {
                     min = obj[key]
@@ -295,7 +295,7 @@ MaxAggregator has {
 
     func _max_object(obj: any) -> number {
         let max = -Infinity
-        for key in Object.keys(obj) {
+        for key in Object::keys(obj) {
             if typeof(obj[key]) == "number" {
                 if obj[key] > max {
                     max = obj[key]
@@ -367,7 +367,7 @@ MedianAggregator has {
 
     func _extract_numbers(obj: any) -> [number] {
         let numbers = []
-        for key in Object.keys(obj) {
+        for key in Object::keys(obj) {
             if typeof(obj[key]) == "number" {
                 numbers.add(obj[key])
             } else if typeof(obj[key]) == "array" {
@@ -388,7 +388,7 @@ MedianAggregator has {
             return 0
         }
         numbers.sort((a, b) => a - b)
-        let mid = Math.floor(numbers.length / 2)
+        let mid = Math::floor(numbers.length / 2)
         if numbers.length % 2 == 0 {
             return (numbers[mid - 1] + numbers[mid]) / 2
         } else {
@@ -448,7 +448,7 @@ ModeAggregator has {
 
     func _extract_numbers(obj: any) -> [number] {
         let numbers = []
-        for key in Object.keys(obj) {
+        for key in Object::keys(obj) {
             if typeof(obj[key]) == "number" {
                 numbers.add(obj[key])
             } else if typeof(obj[key]) == "array" {
@@ -478,7 +478,7 @@ ModeAggregator has {
         }
         let max_count = 0
         let mode = numbers[0]
-        for num in Object.keys(counts) {
+        for num in Object::keys(counts) {
             if counts[num] > max_count {
                 max_count = counts[num]
                 mode = Number(num)
@@ -522,9 +522,9 @@ GroupByAggregator has {
         }
         // Apply aggregations to each group
         let result = {}
-        for group_key in Object.keys(groups) {
+        for group_key in Object::keys(groups) {
             result[group_key] = {}
-            for agg_key in Object.keys(self.aggregations) {
+            for agg_key in Object::keys(self.aggregations) {
                 let aggregator = self.aggregations[agg_key]
                 result[group_key][agg_key] = aggregator.apply(groups[group_key])
             }
@@ -547,7 +547,7 @@ CompositeAggregator has {
 
     func apply(data: any) -> any {
         let result = {}
-        for key in Object.keys(self.aggregations) {
+        for key in Object::keys(self.aggregations) {
             let aggregator = self.aggregations[key]
             result[key] = aggregator.apply(data)
         }
@@ -582,7 +582,7 @@ UniqueAggregator has {
         let seen = new Set()
         let result = []
         for item in data {
-            let stringified = JSON.stringify(item)
+            let stringified = JSON::stringify(item)
             if !seen.has(stringified) {
                 seen.add(stringified)
                 result.add(item)
@@ -691,13 +691,13 @@ StatisticsAggregator has {
 
     func apply(data: any) -> any {
         if typeof(data) == "array" {
-            let sum_agg = SumAggregator.create(self.field)
-            let count_agg = CountAggregator.create(self.field)
-            let min_agg = MinAggregator.create(self.field)
-            let max_agg = MaxAggregator.create(self.field)
-            let avg_agg = AverageAggregator.create(self.field)
-            let median_agg = MedianAggregator.create(self.field)
-            let mode_agg = ModeAggregator.create(self.field)
+            let sum_agg = SumAggregator::create(self.field)
+            let count_agg = CountAggregator::create(self.field)
+            let min_agg = MinAggregator::create(self.field)
+            let max_agg = MaxAggregator::create(self.field)
+            let avg_agg = AverageAggregator::create(self.field)
+            let median_agg = MedianAggregator::create(self.field)
+            let mode_agg = ModeAggregator::create(self.field)
 
             return {
                 sum: sum_agg.apply(data),

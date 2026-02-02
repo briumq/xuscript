@@ -46,7 +46,7 @@ class FileDataSink implements DataSink {
                     values.push(item[header] || "")
                 }
             } else {
-                for key in Object.keys(item) {
+                for key in Object::keys(item) {
                     values.push(item[key])
                 }
             }
@@ -276,7 +276,7 @@ class ConsoleDataSink implements DataSink {
 
     _print_item(item: any) {
         if self.format == "json" {
-            println(JSON.stringify(item))
+            println(JSON::stringify(item))
         } else if self.format == "pretty" {
             println("=== Item {self.written_count + 1} ===")
             self._print_pretty(item)
@@ -289,7 +289,7 @@ class ConsoleDataSink implements DataSink {
 
     _print_pretty(item: any, indent: int = 0) {
         if typeof(item) == "object" {
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 let value = item[key]
                 let padding = "  ".repeat(indent)
                 if typeof(value) == "object" {

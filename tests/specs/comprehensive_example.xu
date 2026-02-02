@@ -39,9 +39,9 @@ func approve_user(user: User) -> User {
 
 // 主测试
 let users = [
-    User.create(1, "Alice", "alice@example.com"),
-    User.create(2, "Bob", "bob@example.com"),
-    User.create(3, "Charlie", "charlie@example.com")
+    User::create(1, "Alice", "alice@example.com"),
+    User::create(2, "Bob", "bob@example.com"),
+    User::create(3, "Charlie", "charlie@example.com")
 ]
 
 // 查找并处理

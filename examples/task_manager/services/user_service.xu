@@ -13,7 +13,7 @@ UserService has {
 
 UserService does {
   func add_user(uname: string, mail: string, user_role: string) -> User {
-    let user = User.create(self.next_id, uname, mail, user_role)
+    let user = User::create(self.next_id, uname, mail, user_role)
     self.users[user.id] = user
     self.next_id = self.next_id + 1
     return user

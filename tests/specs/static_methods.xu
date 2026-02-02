@@ -14,7 +14,7 @@ User does {
     }
 }
 
-let u = User.create("Tom")
+let u = User::create("Tom")
 assert(u.name == "Tom", "name")
 assert(u.greet() == "Hi, Tom", "greet")
 

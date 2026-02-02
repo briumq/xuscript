@@ -50,7 +50,7 @@ inner func _log_debug(msg: string) {
 // Public utility function - returns two counters
 func create_counters(name1: string, name2: string) -> [Counter] {
     let result: [Counter] = []
-    result.push(Counter.create(name1))
-    result.push(Counter.create(name2))
+    result.push(Counter::create(name1))
+    result.push(Counter::create(name2))
     return result
 }

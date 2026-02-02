@@ -41,13 +41,13 @@ assert(!c2.is_red())
 assert(c2.name() == "blue")
 
 // 测试静态方法
-let d = Color.default()
+let d = Color::default()
 assert(d == Color#red)
 assert(d.is_red())
 
-let from_blue = Color.from_name("blue")
+let from_blue = Color::from_name("blue")
 assert(from_blue == Color#blue)
 assert(from_blue.name() == "blue")
 
-let from_unknown = Color.from_name("unknown")
+let from_unknown = Color::from_name("unknown")
 assert(from_unknown == Color#red)

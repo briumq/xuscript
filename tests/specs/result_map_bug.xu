@@ -29,7 +29,7 @@ func test_result_map_bug() {
     println("\n测试1: Result.map返回结构体")
     println("期望: Token{ role: admin, exp: 3600 }")
     let result = parse_role("admin").map(func(role: string) -> Token {
-        return Token.create(role, 3600)
+        return Token::create(role, 3600)
     })
     match result {
         Result#ok(token) {
@@ -51,7 +51,7 @@ func test_result_map_bug() {
     let result2 = parse_role("admin")
     let token_result = match result2 {
         Result#ok(role) {
-            Result#ok(Token.create(role, 3600))
+            Result#ok(Token::create(role, 3600))
         }
         Result#err(error) {
             Result#err(error)

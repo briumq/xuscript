@@ -43,7 +43,7 @@ Customer has {
     }
     
     static func create(id: string, name: string, email: string, phone: string, created_by: string) -> Customer {
-        let now = DateTimeUtil.now()
+        let now = DateTimeUtil::now()
         
         return Customer{
             id: id,
@@ -104,7 +104,7 @@ Supplier has {
     }
     
     static func create(id: string, name: string, email: string, phone: string, created_by: string) -> Supplier {
-        let now = DateTimeUtil.now()
+        let now = DateTimeUtil::now()
         
         return Supplier{
             id: id,
@@ -130,8 +130,8 @@ CustomerService has {
     core_service: CoreService
     
     func create_customer(name: string, email: string, phone: string, created_by: string) -> Result[Customer, string] {
-        let customer_id = "CUST-" + Math.random().to_string()
-        let customer = Customer.create(customer_id, name, email, phone, created_by)
+        let customer_id = "CUST-" + Math::random().to_string()
+        let customer = Customer::create(customer_id, name, email, phone, created_by)
         
         if !customer.validate() {
             return Result#err("Invalid customer")
@@ -181,7 +181,7 @@ CustomerService has {
                 customer.currency = updates["currency"] as Currency
             }
             
-            customer.updated_at = DateTimeUtil.now()
+            customer.updated_at = DateTimeUtil::now()
             
             if !customer.validate() {
                 return Result#err("Invalid customer")
@@ -240,8 +240,8 @@ SupplierService has {
     core_service: CoreService
     
     func create_supplier(name: string, email: string, phone: string, created_by: string) -> Result[Supplier, string] {
-        let supplier_id = "SUPP-" + Math.random().to_string()
-        let supplier = Supplier.create(supplier_id, name, email, phone, created_by)
+        let supplier_id = "SUPP-" + Math::random().to_string()
+        let supplier = Supplier::create(supplier_id, name, email, phone, created_by)
         
         if !supplier.validate() {
             return Result#err("Invalid supplier")
@@ -285,7 +285,7 @@ SupplierService has {
                 supplier.currency = updates["currency"] as Currency
             }
             
-            supplier.updated_at = DateTimeUtil.now()
+            supplier.updated_at = DateTimeUtil::now()
             
             if !supplier.validate() {
                 return Result#err("Invalid supplier")

@@ -185,7 +185,7 @@ FinancialStatement has {
         self.start_date = start_date
         self.end_date = end_date
         self.data = {}
-        self.generated_at = System.current_datetime()
+        self.generated_at = System::current_datetime()
     }
 
     func generate() {
@@ -318,8 +318,8 @@ FinancialReportService has {
     }
 
     func generate_balance_sheet(start_date: string, end_date: string) -> FinancialStatement {
-        let statement = FinancialStatement.create(
-            "bs_" + System.current_datetime(),
+        let statement = FinancialStatement::create(
+            "bs_" + System::current_datetime(),
             "Balance Sheet",
             "balance_sheet",
             FinancialPeriod#monthly,
@@ -354,8 +354,8 @@ FinancialReportService has {
     }
 
     func generate_income_statement(start_date: string, end_date: string) -> FinancialStatement {
-        let statement = FinancialStatement.create(
-            "is_" + System.current_datetime(),
+        let statement = FinancialStatement::create(
+            "is_" + System::current_datetime(),
             "Income Statement",
             "income_statement",
             FinancialPeriod#monthly,

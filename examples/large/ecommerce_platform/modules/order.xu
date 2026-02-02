@@ -152,7 +152,7 @@ OrderService has {
         when user = self.user_service.get_user(user_id) {
             // 创建订单项
             let order_items: [OrderItem] = []
-            let order_id = "ORD-" + Math.random().to_string()
+            let order_id = "ORD-" + Math::random().to_string()
             
             for (i, item_data) in items.enumerate() {
                 when product_id = item_data.get("product_id") {
@@ -177,7 +177,7 @@ OrderService has {
                         }
                         
                         let item_id = "ITEM-" + order_id + "-" + i.to_string()
-                        let order_item = OrderItem.create(item_id, order_id, product_id, product.name, quantity, product.price)
+                        let order_item = OrderItem::create(item_id, order_id, product_id, product.name, quantity, product.price)
                         order_items.push(order_item)
                     } else {
                         return Result#err("Product not found: {product_id}")
@@ -191,7 +191,7 @@ OrderService has {
                 return Result#err("No items in order")
             }
             
-            let order = Order.create(order_id, user_id, order_items, payment_method, shipping_address, billing_address)
+            let order = Order::create(order_id, user_id, order_items, payment_method, shipping_address, billing_address)
             if !order.validate() {
                 return Result#err("Invalid order")
             }

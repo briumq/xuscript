@@ -87,7 +87,7 @@ CommentService has {
             when author = self.user_service.get_user(author_id) {
                 let comment_id = "COMM-" + self.comment_counter.to_string()
                 self.comment_counter = self.comment_counter + 1
-                let comment = Comment.create(comment_id, content_id, author_id, body, status)
+                let comment = Comment::create(comment_id, content_id, author_id, body, status)
                 
                 if !comment.validate() {
                     return Result#err("Invalid comment")

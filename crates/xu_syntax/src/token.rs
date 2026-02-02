@@ -56,6 +56,8 @@ pub enum TokenKind {
     /// `%`
     Percent,
     Hash,
+    /// `::`
+    ColonColon,
     Pipe,
     /// `&&`
     AmpAmp,

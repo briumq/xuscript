@@ -84,7 +84,7 @@ ApiDataSource has {
                 id: self.items_fetched + i,
                 name: "API Item {self.items_fetched + i}",
                 value: (self.items_fetched + i) * 2.5,
-                timestamp: System.currentTimeMillis()
+                timestamp: System::currentTimeMillis()
             })
         }
         
@@ -99,7 +99,7 @@ ApiDataSource has {
                 id: self.items_fetched,
                 name: "API Item {self.items_fetched}",
                 value: self.items_fetched * 2.5,
-                timestamp: System.currentTimeMillis()
+                timestamp: System::currentTimeMillis()
             }
             self.items_fetched = self.items_fetched + 1
             return item
@@ -209,7 +209,7 @@ KafkaDataSource has {
                 offset: i,
                 key: "key_{i % 100}",
                 value: "message_{i}",
-                timestamp: System.currentTimeMillis() - (self.total_messages - i) * 100
+                timestamp: System::currentTimeMillis() - (self.total_messages - i) * 100
             })
         }
         
@@ -223,7 +223,7 @@ KafkaDataSource has {
                 offset: self.current_offset,
                 key: "key_{self.current_offset % 100}",
                 value: "message_{self.current_offset}",
-                timestamp: System.currentTimeMillis() - (self.total_messages - self.current_offset) * 100
+                timestamp: System::currentTimeMillis() - (self.total_messages - self.current_offset) * 100
             }
             self.current_offset = self.current_offset + 1
             return message

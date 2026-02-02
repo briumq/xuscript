@@ -112,6 +112,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             }
             match self.peek_kind() {
                 TokenKind::Hash => {
+                    // Handle Type#variant - enum variant
                     if let Expr::Ident(ty, _) = expr {
                         self.bump();
                         let variant = self.expect_ident()?;
@@ -122,6 +123,54 @@ impl<'a, 'b> Parser<'a, 'b> {
                         };
                     } else {
                         break;
+                    }
+                }
+                TokenKind::ColonColon => {
+                    // Handle Type::method() - static method call
+                    match expr {
+                        Expr::Ident(ty, _) => {
+                            self.bump();
+                            let method = self.expect_ident()?;
+                            if self.at(TokenKind::LParen) {
+                                let args = self.parse_args()?;
+                                expr = Expr::Call(Box::new(CallExpr {
+                                    callee: Box::new(Expr::Ident(
+                                        format!("__static__{}__{}", ty, method),
+                                        std::cell::Cell::new(None),
+                                    )),
+                                    args: args.into_boxed_slice(),
+                                }));
+                            } else {
+                                // Type::name without () is invalid for static methods
+                                expr = Expr::Ident(ty, std::cell::Cell::new(None));
+                                break;
+                            }
+                        }
+                        Expr::Member(m) => {
+                            // Handle module.Type::method() form
+                            self.bump();
+                            let method = self.expect_ident()?;
+                            if self.at(TokenKind::LParen) {
+                                let args = self.parse_args()?;
+                                let static_name = format!("__static__{}__{}", m.field, method);
+                                expr = Expr::Call(Box::new(CallExpr {
+                                    callee: Box::new(Expr::Member(Box::new(MemberExpr {
+                                        object: m.object,
+                                        field: static_name,
+                                        ic_slot: std::cell::Cell::new(None),
+                                    }))),
+                                    args: args.into_boxed_slice(),
+                                }));
+                            } else {
+                                // module.Type::name without () is invalid
+                                expr = Expr::Member(m);
+                                break;
+                            }
+                        }
+                        other => {
+                            expr = other;
+                            break;
+                        }
                     }
                 }
                 TokenKind::Dot => {

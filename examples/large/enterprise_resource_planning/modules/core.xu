@@ -127,7 +127,7 @@ Document has {
     }
     
     static func create(id: string, type: DocumentType, number: string, date: string, due_date: string, created_by: string) -> Document {
-        let now = DateTimeUtil.now()
+        let now = DateTimeUtil::now()
         return Document{
             id: id,
             type: type,
@@ -212,8 +212,8 @@ CoreService has {
     addresses: {string: Address}
     
     func create_address(street: string, city: string, state: string, zip_code: string, country: string, phone: string) -> Result[Address, string] {
-        let address_id = "ADDR-" + Math.random().to_string()
-        let address = Address.create(address_id, street, city, state, zip_code, country, phone)
+        let address_id = "ADDR-" + Math::random().to_string()
+        let address = Address::create(address_id, street, city, state, zip_code, country, phone)
         
         if !address.validate() {
             return Result#err("Invalid address")

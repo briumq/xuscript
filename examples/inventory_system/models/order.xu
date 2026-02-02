@@ -12,7 +12,7 @@ OrderItem has {
     discount: float = 0.0
 
     static func create(prod: Product, qty: int) -> OrderItem {
-        let bulk_price = product_mod.Product.calculate_bulk_price(prod.price, qty)
+        let bulk_price = product_mod.Product::calculate_bulk_price(prod.price, qty)
         let disc = prod.price - bulk_price
         return OrderItem{
             product_id: prod.id,
@@ -84,7 +84,7 @@ Order has {
     }
 
     func add_product(prod: Product, qty: int) {
-        let oi = OrderItem.create(prod, qty)
+        let oi = OrderItem::create(prod, qty)
         self.items.push(oi)
     }
 
@@ -117,7 +117,7 @@ Order has {
     }
 
     func update_shipping() {
-        self.shipping_fee = Order.calculate_shipping(self.subtotal(), self.total_items())
+        self.shipping_fee = Order::calculate_shipping(self.subtotal(), self.total_items())
     }
 
     func is_pending() -> bool {

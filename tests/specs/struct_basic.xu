@@ -16,7 +16,7 @@ func main() {
     println("=== 测试结构体基本属性访问 ===")
     
     // 创建一个用户
-    let user = User.create("Alice", 20)
+    let user = User::create("Alice", 20)
     println("User name: {user.name}")
     println("User age: {user.age}")
 }

@@ -14,9 +14,9 @@ User has {
 // 定义一个返回Result的函数
 func fetch_user(id: int) -> Result[User, string] {
     if id == 1 {
-        return Result#ok(User.create(1, "Alice", "alice@example.com"))
+        return Result#ok(User::create(1, "Alice", "alice@example.com"))
     } else if id == 2 {
-        return Result#ok(User.create(2, "Bob", "bob@example.com"))
+        return Result#ok(User::create(2, "Bob", "bob@example.com"))
     } else {
         return Result#err("User not found")
     }
@@ -57,7 +57,7 @@ func test_result_map_bug_complex() {
     // 测试2: 嵌套的Result.map返回结构体
     println("\n测试2: 嵌套的Result.map返回结构体")
     let result2 = fetch_user(1).map(func(user: User) -> UserProfile {
-        return UserProfile.create(user, "Software engineer", 30)
+        return UserProfile::create(user, "Software engineer", 30)
     })
     match result2 {
         Result#ok(profile) {
@@ -79,7 +79,7 @@ func test_result_map_bug_complex() {
     let result3 = fetch_user(1)
         .map(func(user: User) -> User {
             // 修改用户信息
-            return User.create(user.id, user.name + " (Verified)", user.email)
+            return User::create(user.id, user.name + " (Verified)", user.email)
         })
         .map(func(user: User) -> string {
             return "Verified user: {user.name}"

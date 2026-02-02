@@ -45,7 +45,7 @@ ThresholdFilter has {
             }
         } else if typeof(item) == "object" {
             // For objects, assume we're filtering based on numeric properties
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 if typeof(item[key]) == "number" {
                     if self._match(item[key]) {
                         return true
@@ -91,7 +91,7 @@ PatternFilter has {
             return regex.test(item)
         } else if typeof(item) == "object" {
             // For objects, check string properties
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 if typeof(item[key]) == "string" {
                     if self._match(item[key]) {
                         return true
@@ -142,7 +142,7 @@ RangeFilter has {
             }
         } else if typeof(item) == "object" {
             // For objects, check numeric properties
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 if typeof(item[key]) == "number" {
                     if self._match(item[key]) {
                         return true
@@ -305,7 +305,7 @@ StringLengthFilter has {
             return length >= self.min_length && length <= self.max_length
         } else if typeof(item) == "object" {
             // For objects, check string properties
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 if typeof(item[key]) == "string" {
                     if self._match(item[key]) {
                         return true
@@ -351,7 +351,7 @@ ArrayLengthFilter has {
             return length >= self.min_length && length <= self.max_length
         } else if typeof(item) == "object" {
             // For objects, check array properties
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 if typeof(item[key]) == "array" {
                     if self._match(item[key]) {
                         return true
@@ -556,7 +556,7 @@ RegexFilter has {
             return regex.test(item)
         } else if typeof(item) == "object" {
             // For objects, check string properties
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 if typeof(item[key]) == "string" {
                     if self._match(item[key]) {
                         return true
@@ -602,7 +602,7 @@ DateFilter has {
             return item >= self.start_date && item <= self.end_date
         } else if typeof(item) == "object" {
             // For objects, check date string properties
-            for key in Object.keys(item) {
+            for key in Object::keys(item) {
                 if typeof(item[key]) == "string" {
                     if self._match(item[key]) {
                         return true
