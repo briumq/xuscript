@@ -118,8 +118,8 @@ pub(crate) fn op_foreach_init(
                 .into_iter()
                 .map(|(k, v)| {
                     let key_val = match k {
-                        DictKey::Str { data, .. } => {
-                            Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(&data))))
+                        DictKey::StrInline { .. } | DictKey::Str { .. } => {
+                            Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(k.as_str()))))
                         }
                         DictKey::Int(i) => Value::from_i64(i),
                     };
@@ -144,8 +144,8 @@ pub(crate) fn op_foreach_init(
             let keys: Vec<Value> = raw_keys
                 .into_iter()
                 .map(|k| match k {
-                    DictKey::Str { data, .. } => {
-                        Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(&data))))
+                    DictKey::StrInline { .. } | DictKey::Str { .. } => {
+                        Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(k.as_str()))))
                     }
                     DictKey::Int(i) => Value::from_i64(i),
                 })

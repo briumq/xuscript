@@ -290,8 +290,8 @@ impl Runtime {
                             for (k, v) in key_value_pairs {
                                 // 处理键
                                 let key_val = match k {
-                                    DictKey::Str { data, .. } => Value::str(
-                                        self.heap.alloc(crate::core::heap::ManagedObject::Str(Text::from_str(&data))),
+                                    DictKey::StrInline { .. } | DictKey::Str { .. } => Value::str(
+                                        self.heap.alloc(crate::core::heap::ManagedObject::Str(Text::from_str(k.as_str()))),
                                     ),
                                     DictKey::Int(i) => Value::from_i64(i),
                                 };
@@ -361,8 +361,8 @@ impl Runtime {
                         for (k, v) in key_value_pairs {
                             // 创建键值
                             let key_val = match k {
-                                DictKey::Str { data, .. } => Value::str(
-                                    self.heap.alloc(crate::core::heap::ManagedObject::Str(Text::from_str(&data))),
+                                DictKey::StrInline { .. } | DictKey::Str { .. } => Value::str(
+                                    self.heap.alloc(crate::core::heap::ManagedObject::Str(Text::from_str(k.as_str()))),
                                 ),
                                 DictKey::Int(i) => Value::from_i64(i),
                             };
@@ -402,8 +402,8 @@ impl Runtime {
                         let mut items = Vec::with_capacity(raw_keys.len());
                         for k in raw_keys {
                             match k {
-                                DictKey::Str { data, .. } => items.push(Value::str(
-                                    self.heap.alloc(crate::core::heap::ManagedObject::Str(Text::from_str(&data))),
+                                DictKey::StrInline { .. } | DictKey::Str { .. } => items.push(Value::str(
+                                    self.heap.alloc(crate::core::heap::ManagedObject::Str(Text::from_str(k.as_str()))),
                                 )),
                                 DictKey::Int(i) => items.push(Value::from_i64(i)),
                             }

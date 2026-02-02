@@ -67,6 +67,11 @@ impl Runtime {
             }
         }
 
+        // Add small integer string cache values as roots
+        for val in self.small_int_strings.iter().flatten() {
+            roots.push(*val);
+        }
+
         // Mark all reachable objects
         self.heap.mark_all(&roots, &[&self.env], &[&self.locals]);
 

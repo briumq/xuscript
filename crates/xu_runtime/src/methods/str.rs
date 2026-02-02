@@ -60,7 +60,7 @@ pub(super) fn dispatch(
                 
                 for (k, v) in dict.map.iter() {
                     let key = match k {
-                        crate::core::value::DictKey::Str { data, .. } => crate::Text::from_str(&data),
+                        crate::core::value::DictKey::StrInline { .. } | crate::core::value::DictKey::Str { .. } => crate::Text::from_str(k.as_str()),
                         crate::core::value::DictKey::Int(i) => crate::core::value::i64_to_text_fast(*i),
                     };
                     let needle = format!("{{{}}}", key);

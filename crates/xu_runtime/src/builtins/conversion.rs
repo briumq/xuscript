@@ -58,6 +58,16 @@ pub fn builtin_to_text(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
         return Err("to_text expects 1 argument".into());
     }
     let v = &args[0];
+    // Fast path for small integers - use cached strings
+    if v.is_int() {
+        let i = v.as_i64();
+        if let Some(cached) = rt.get_small_int_string(i) {
+            return Ok(cached);
+        }
+        // Fall through to normal path for large integers
+        let s = i64_to_text_fast(i);
+        return Ok(Value::str(rt.heap.alloc(crate::core::heap::ManagedObject::Str(s))));
+    }
     let s = if v.get_tag() == crate::core::value::TAG_STR {
         if let crate::core::heap::ManagedObject::Str(x) = rt.heap.get(v.as_obj_id()) {
             x.clone()
@@ -72,8 +82,6 @@ pub fn builtin_to_text(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
         } else {
             "false".into()
         }
-    } else if v.is_int() {
-        i64_to_text_fast(v.as_i64())
     } else if v.is_f64() {
         let f = v.as_f64();
         if f.fract() == 0.0 {

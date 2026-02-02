@@ -209,7 +209,7 @@ impl Runtime {
                 let mut out: Vec<crate::Text> = Vec::with_capacity(db.map.len() + db.prop_values.len());
                 for k in db.map.keys() {
                     match k {
-                        DictKey::Str { data, .. } => out.push(crate::Text::from_str(data)),
+                        DictKey::StrInline { .. } | DictKey::Str { .. } => out.push(crate::Text::from_str(k.as_str())),
                         DictKey::Int(i) => out.push(i64_to_text_fast(*i)),
                     }
                 }
@@ -267,7 +267,7 @@ impl Runtime {
                         Vec::with_capacity(db.map.len() + db.prop_values.len());
                     for (k, v) in db.map.iter() {
                         let key = match k {
-                            DictKey::Str { data, .. } => crate::Text::from_str(data),
+                            DictKey::StrInline { .. } | DictKey::Str { .. } => crate::Text::from_str(k.as_str()),
                             DictKey::Int(i) => i64_to_text_fast(*i),
                         };
                         out.push((key, *v));

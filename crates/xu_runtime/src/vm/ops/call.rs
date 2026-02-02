@@ -338,10 +338,7 @@ fn try_dict_contains_fast(
         let found = me
             .map
             .raw_entry()
-            .from_hash(key_hash, |k| match k {
-                DictKey::Str { data, .. } => data.as_str() == key_str,
-                _ => false,
-            })
+            .from_hash(key_hash, |k| k.is_str() && k.as_str() == key_str)
             .is_some();
 
         return Some(Value::from_bool(found));
@@ -424,9 +421,8 @@ fn try_dict_insert_fast(
         };
 
         use hashbrown::hash_map::RawEntryMut;
-        match me.map.raw_entry_mut().from_hash(key_hash, |kk| match kk {
-            DictKey::Str { data, .. } => data.as_str() == key_str,
-            _ => false,
+        match me.map.raw_entry_mut().from_hash(key_hash, |kk| {
+            kk.is_str() && kk.as_str() == key_str
         }) {
             RawEntryMut::Occupied(mut o) => {
                 *o.get_mut() = value;

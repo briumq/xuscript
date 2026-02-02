@@ -15,18 +15,59 @@ use xu_ir::{Bytecode, FuncDef, BinaryOp};
 // Dictionary key types
 // ============================================================================
 
-/// Compact dict key representation.
-/// Str variant uses pre-computed hash + Rc<String> for memory efficiency.
-/// This reduces DictKey from 24 bytes (with Text) to 16 bytes.
-#[derive(Clone, Debug)]
+/// Inline capacity for short string keys (same as Text)
+const DICT_KEY_INLINE_CAP: usize = 22;
+
+/// Compact dict key representation with small string optimization.
+/// Short strings (<=22 bytes) are stored inline to avoid heap allocation.
+#[derive(Clone)]
 pub enum DictKey {
+    /// Inline string storage for short keys (no heap allocation)
+    StrInline { hash: u64, len: u8, buf: [u8; DICT_KEY_INLINE_CAP] },
+    /// Heap-allocated string for longer keys
     Str { hash: u64, data: Rc<String> },
+    /// Integer key
     Int(i64),
+}
+
+impl fmt::Debug for DictKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DictKey::StrInline { hash, len, buf } => {
+                let s = unsafe { std::str::from_utf8_unchecked(&buf[..*len as usize]) };
+                f.debug_struct("StrInline")
+                    .field("hash", hash)
+                    .field("data", &s)
+                    .finish()
+            }
+            DictKey::Str { hash, data } => f.debug_struct("Str")
+                .field("hash", hash)
+                .field("data", data)
+                .finish(),
+            DictKey::Int(i) => f.debug_tuple("Int").field(i).finish(),
+        }
+    }
 }
 
 impl PartialEq for DictKey {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (DictKey::StrInline { hash: h1, len: l1, buf: b1 }, DictKey::StrInline { hash: h2, len: l2, buf: b2 }) => {
+                // Fast path: compare hash first
+                if h1 != h2 {
+                    return false;
+                }
+                // Compare length and content
+                l1 == l2 && b1[..*l1 as usize] == b2[..*l2 as usize]
+            }
+            (DictKey::StrInline { hash: h1, len, buf }, DictKey::Str { hash: h2, data }) |
+            (DictKey::Str { hash: h2, data }, DictKey::StrInline { hash: h1, len, buf }) => {
+                if h1 != h2 {
+                    return false;
+                }
+                let s = unsafe { std::str::from_utf8_unchecked(&buf[..*len as usize]) };
+                s == data.as_str()
+            }
             (DictKey::Str { hash: h1, data: d1 }, DictKey::Str { hash: h2, data: d2 }) => {
                 // Fast path: compare hash first
                 if h1 != h2 {
@@ -49,13 +90,21 @@ impl Eq for DictKey {}
 
 impl DictKey {
     pub fn is_str(&self) -> bool {
-        matches!(self, DictKey::Str { .. })
+        matches!(self, DictKey::Str { .. } | DictKey::StrInline { .. })
     }
 
     /// Create a new string key with pre-computed hash
+    /// Uses inline storage for short strings to avoid heap allocation
+    #[inline]
     pub fn from_str(s: &str) -> Self {
         let hash = Self::hash_str(s);
-        DictKey::Str { hash, data: Rc::new(s.to_string()) }
+        if s.len() <= DICT_KEY_INLINE_CAP {
+            let mut buf = [0u8; DICT_KEY_INLINE_CAP];
+            buf[..s.len()].copy_from_slice(s.as_bytes());
+            DictKey::StrInline { hash, len: s.len() as u8, buf }
+        } else {
+            DictKey::Str { hash, data: Rc::new(s.to_string()) }
+        }
     }
 
     /// Create a new string key from Rc<String> with pre-computed hash
@@ -82,6 +131,9 @@ impl DictKey {
     /// Get the string content (panics if not a string key)
     pub fn as_str(&self) -> &str {
         match self {
+            DictKey::StrInline { len, buf, .. } => {
+                unsafe { std::str::from_utf8_unchecked(&buf[..*len as usize]) }
+            }
             DictKey::Str { data, .. } => data.as_str(),
             DictKey::Int(_) => panic!("DictKey::as_str called on Int"),
         }
@@ -91,6 +143,11 @@ impl DictKey {
 impl Hash for DictKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
+            DictKey::StrInline { len, buf, .. } => {
+                state.write_u8(0);
+                // Hash the actual string content for HashMap compatibility
+                buf[..*len as usize].hash(state);
+            }
             DictKey::Str { data, .. } => {
                 state.write_u8(0);
                 // Hash the actual string content for HashMap compatibility
@@ -107,6 +164,10 @@ impl Hash for DictKey {
 impl fmt::Display for DictKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            DictKey::StrInline { len, buf, .. } => {
+                let s = unsafe { std::str::from_utf8_unchecked(&buf[..*len as usize]) };
+                write!(f, "{}", s)
+            }
             DictKey::Str { data, .. } => write!(f, "{}", data),
             DictKey::Int(i) => write!(f, "{}", i),
         }

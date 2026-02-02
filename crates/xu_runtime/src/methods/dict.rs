@@ -1,4 +1,5 @@
 use std::hash::{BuildHasher, Hash, Hasher};
+use std::rc::Rc;
 
 use hashbrown::hash_map::RawEntryMut;
 
@@ -210,10 +211,7 @@ pub(super) fn dispatch(
                 let found = me
                     .map
                     .raw_entry()
-                    .from_hash(hash, |k| match k {
-                        DictKey::Str { data, .. } => data.as_str() == key_ptr,
-                        _ => false,
-                    })
+                    .from_hash(hash, |k| k.is_str() && k.as_str() == key_ptr)
                     .is_some();
                 Ok(Value::from_bool(found))
             } else if args[0].is_int() {
@@ -255,19 +253,19 @@ pub(super) fn dispatch(
         MethodKind::DictKeys => {
             validate_arity(rt, method, args.len(), 0, 0)?;
             
-            let mut keys = Vec::new();
-            
+            let mut keys: Vec<(bool, Rc<String>)> = Vec::new();
+
             {
                 let me = expect_dict(rt, recv)?;
                 keys.reserve(me.map.len());
-                
+
                 for k in me.map.keys() {
                 match k {
-                    DictKey::Str { data, .. } => {
-                        keys.push((true, data.clone()));
+                    DictKey::StrInline { .. } | DictKey::Str { .. } => {
+                        keys.push((true, Rc::new(k.as_str().to_string())));
                     }
                     DictKey::Int(i) => {
-                        keys.push((false, i.to_string().into()));
+                        keys.push((false, Rc::new(i.to_string())));
                     }
                 }
             }
@@ -303,20 +301,20 @@ pub(super) fn dispatch(
         }
         MethodKind::DictItems => {
             validate_arity(rt, method, args.len(), 0, 0)?;
-            
-            let mut items_data = Vec::new();
-            
+
+            let mut items_data: Vec<(bool, Rc<String>, Value)> = Vec::new();
+
             {
                 let me = expect_dict(rt, recv)?;
                 items_data.reserve(me.map.len());
-                
+
                 for (k, v) in me.map.iter() {
                 match k {
-                    DictKey::Str { data, .. } => {
-                        items_data.push((true, data.clone(), v.clone()));
+                    DictKey::StrInline { .. } | DictKey::Str { .. } => {
+                        items_data.push((true, Rc::new(k.as_str().to_string()), v.clone()));
                     }
                     DictKey::Int(i) => {
-                        items_data.push((false, i.to_string().into(), v.clone()));
+                        items_data.push((false, Rc::new(i.to_string()), v.clone()));
                     }
                 }
             }

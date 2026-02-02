@@ -8,7 +8,7 @@ use xu_ir::{Executable, Expr, Module, Stmt, StructDef};
 
 use crate::core::Value;
 use crate::core::Env;
-use crate::core::value::{Dict, DictKey, FastHashMap, fast_map_new};
+use crate::core::value::{Dict, FastHashMap, fast_map_new};
 use crate::util as capabilities;
 use crate::modules;
 use crate::core::slot_allocator;
@@ -74,6 +74,8 @@ pub struct Runtime {
     builder_pool: Vec<String>,
     /// Cached Option::none value to avoid repeated allocations
     cached_option_none: Option<Value>,
+    /// Cached small integer strings (0-9999) for to_text optimization
+    pub(crate) small_int_strings: Vec<Option<Value>>,
     /// Temporary GC roots for values being evaluated (e.g., function arguments)
     pub(crate) gc_temp_roots: Vec<Value>,
     /// Active VM stacks that need GC protection (raw pointers for performance)
@@ -135,6 +137,7 @@ impl Runtime {
             vm_handlers_pool: Vec::new(),
             builder_pool: Vec::new(),
             cached_option_none: None,
+            small_int_strings: Vec::new(),
             gc_temp_roots: Vec::new(),
             active_vm_stacks: Vec::new(),
         };
@@ -193,6 +196,30 @@ impl Runtime {
         v
     }
 
+    /// Get cached string Value for small integers (0-9999)
+    /// Returns None if the integer is out of range
+    #[inline]
+    pub fn get_small_int_string(&mut self, i: i64) -> Option<Value> {
+        const MAX_CACHED: usize = 10000;
+        if i < 0 || i >= MAX_CACHED as i64 {
+            return None;
+        }
+        let idx = i as usize;
+        // Ensure cache is large enough
+        if self.small_int_strings.len() <= idx {
+            self.small_int_strings.resize(idx + 1, None);
+        }
+        // Return cached value or create new one
+        if let Some(v) = self.small_int_strings[idx] {
+            Some(v)
+        } else {
+            let text = crate::core::value::i64_to_text_fast(i);
+            let v = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(text)));
+            self.small_int_strings[idx] = Some(v);
+            Some(v)
+        }
+    }
+
     pub(crate) fn option_some(&mut self, v: Value) -> Value {
         // Use optimized OptionSome variant to avoid Box allocation
         Value::option_some(self.heap.alloc(crate::core::heap::ManagedObject::OptionSome(v)))
@@ -241,10 +268,7 @@ impl Runtime {
     pub(crate) fn dict_get_by_str_with_hash(me: &Dict, key: &str, hash: u64) -> Option<Value> {
         me.map
             .raw_entry()
-            .from_hash(hash, |k| match k {
-                DictKey::Str { data, .. } => data.as_str() == key,
-                _ => false,
-            })
+            .from_hash(hash, |k| k.is_str() && k.as_str() == key)
             .map(|(_, v)| v.clone())
     }
 

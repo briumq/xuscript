@@ -139,9 +139,8 @@ pub(crate) fn op_dict_insert_str_const(
             if c.id == id.0 && key_match {
                 let cached_hash = c.key_hash;
                 if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
-                    match d.map.raw_entry_mut().from_hash(cached_hash, |key| match key {
-                        DictKey::Str { data, .. } => data.as_str() == k,
-                        _ => false,
+                    match d.map.raw_entry_mut().from_hash(cached_hash, |key| {
+                        key.is_str() && key.as_str() == k
                     }) {
                         hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
                             // 值更新 - 不增加版本号
@@ -161,9 +160,8 @@ pub(crate) fn op_dict_insert_str_const(
             let internal_hash = Runtime::hash_bytes(d.map.hasher(), k.as_bytes());
             // Avoid creating DictKey for comparison - use closure with str comparison
             let mut is_new_key = false;
-            match d.map.raw_entry_mut().from_hash(internal_hash, |key| match key {
-                DictKey::Str { data, .. } => data.as_str() == k,
-                _ => false,
+            match d.map.raw_entry_mut().from_hash(internal_hash, |key| {
+                key.is_str() && key.as_str() == k
             }) {
                 hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
                     // 值更新 - 不增加版本号

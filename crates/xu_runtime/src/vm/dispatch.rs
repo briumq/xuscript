@@ -884,6 +884,26 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                             let dict_id = recv.as_obj_id();
                             let key_int = key_val.as_i64();
 
+                            // Fast path for small integers - use elements array
+                            if key_int >= 0 && key_int < 1024 {
+                                let idx = key_int as usize;
+                                if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
+                                    if me.elements.len() <= idx {
+                                        me.elements.resize(idx + 1, Value::VOID);
+                                    }
+                                    let was_void = me.elements[idx].get_tag() == crate::core::value::TAG_VOID;
+                                    me.elements[idx] = value;
+                                    if was_void {
+                                        me.ver += 1;
+                                    }
+                                }
+                                stack.truncate(args_start - 1);
+                                stack.push(Value::VOID);
+                                ip += 1;
+                                continue;
+                            }
+
+                            // Slow path for large integers
                             if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
                                 let key_hash = Runtime::hash_dict_key_int(me.map.hasher(), key_int);
                                 let key = DictKey::Int(key_int);
@@ -966,10 +986,7 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
 
                                 use hashbrown::hash_map::RawEntryMut;
                                 match me.map.raw_entry_mut().from_hash(key_hash, |kk| {
-                                    match kk {
-                                        DictKey::Str { data, .. } => data.as_str() == key_str,
-                                        _ => false,
-                                    }
+                                    kk.is_str() && kk.as_str() == key_str
                                 }) {
                                     RawEntryMut::Occupied(mut o) => {
                                         // 值更新 - 不增加版本号
@@ -1019,10 +1036,7 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                                 let found = me
                                     .map
                                     .raw_entry()
-                                    .from_hash(key_hash, |k| match k {
-                                        DictKey::Str { data, .. } => data.as_str() == key_str,
-                                        _ => false,
-                                    })
+                                    .from_hash(key_hash, |k| k.is_str() && k.as_str() == key_str)
                                     .is_some();
 
                                 stack.truncate(args_start - 1);
