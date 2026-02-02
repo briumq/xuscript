@@ -480,6 +480,26 @@ when a = get_a(), b = get_b(), c = get_c() {
 |多绑定|✅ 原生支持|❌ 需嵌套|
 |作为表达式|❌|✅|
 
+### 8.4 单语句简写（冒号语法）
+
+Xu 支持使用 `:` 引导单条语句，作为 `{ }` 块的语法糖。以下是所有支持冒号语法的语句和表达式：
+
+|语句/表达式|示例|
+|---|---|
+|if 语句|`if x > 0: println("positive")`|
+|else if 分支|`else if x < 0: println("negative")`|
+|else 分支|`else: println("zero")`|
+|while 语句|`while i < 10: i = i + 1`|
+|for 语句|`for i in 0..5: sum = sum + i`|
+|match 语句 arm|`1: result = "one"`|
+|match 表达式 arm|`1: "one"`|
+|when 成功分支|`when val = get(): use(val)`|
+|when else 分支|`else: handle_error()`|
+|if 表达式 then|`if true: 100 else: 200`|
+|if 表达式 else|`if cond: a else: b`|
+
+> 注意：函数定义、结构体定义、枚举定义等不支持冒号语法，必须使用 `{ }` 块。
+
 ---
 
 ## 9. 错误处理模式
