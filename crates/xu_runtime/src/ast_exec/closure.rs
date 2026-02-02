@@ -102,10 +102,13 @@ pub(super) fn params_all_slotted(stmts: &[Stmt], params: &[xu_ir::Param]) -> boo
                     && check_expr(&e.else_expr, names)
             }
             Expr::Dict(entries) => entries.iter().all(|(_, v)| check_expr(v, names)),
-            Expr::StructInit(s) => s.items.iter().all(|it| match it {
-                xu_ir::StructInitItem::Spread(e) => check_expr(e, names),
-                xu_ir::StructInitItem::Field(_, v) => check_expr(v, names),
-            }),
+            Expr::StructInit(s) => {
+                s.module.as_ref().map_or(true, |m| check_expr(m, names))
+                    && s.items.iter().all(|it| match it {
+                        xu_ir::StructInitItem::Spread(e) => check_expr(e, names),
+                        xu_ir::StructInitItem::Field(_, v) => check_expr(v, names),
+                    })
+            }
             Expr::Member(m) => check_expr(&m.object, names),
             Expr::Index(m) => check_expr(&m.object, names) && check_expr(&m.index, names),
             Expr::Call(c) => check_expr(&c.callee, names) && c.args.iter().all(|a| check_expr(a, names)),

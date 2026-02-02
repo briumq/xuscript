@@ -1220,6 +1220,9 @@ impl Runtime {
                 Ok(())
             }
             Expr::StructInit(s) => {
+                if let Some(mod_expr) = &s.module {
+                    Self::precompile_expr(mod_expr)?;
+                }
                 for item in s.items.iter() {
                     match item {
                         xu_ir::StructInitItem::Spread(e) => Self::precompile_expr(e)?,

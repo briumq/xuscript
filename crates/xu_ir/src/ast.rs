@@ -229,6 +229,7 @@ pub enum StructInitItem {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct StructInitExpr {
+    pub module: Option<Box<Expr>>,
     pub ty: String,
     pub items: Box<[StructInitItem]>,
 }

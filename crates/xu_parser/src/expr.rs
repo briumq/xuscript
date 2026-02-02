@@ -358,8 +358,8 @@ impl<'a, 'b> Parser<'a, 'b> {
                 }
                 TokenKind::LBrace => {
                     if allow_struct_init {
+                        // Special handling for set{...} syntax
                         if let Expr::Ident(ty, _) = &expr {
-                            // Special handling for set{...} syntax
                             if ty == "set" {
                                 let items = self.parse_set_items()?;
                                 // Desugar to: __set_from_list([items...])
@@ -373,12 +373,33 @@ impl<'a, 'b> Parser<'a, 'b> {
                                 }));
                                 continue;
                             }
-                            let fields = self.parse_struct_init_fields()?;
-                            expr = Expr::StructInit(Box::new(StructInitExpr {
-                                ty: ty.clone(),
-                                items: fields.into_boxed_slice(),
-                            }));
-                            continue;
+                        }
+                        // Check if { } looks like struct/dict literal (not a block)
+                        // Patterns: { }, { ident: }, { ... }
+                        if self.looks_like_struct_init() {
+                            match &expr {
+                                Expr::Ident(ty, _) => {
+                                    // Local struct init: Type{ ... }
+                                    let fields = self.parse_struct_init_fields()?;
+                                    expr = Expr::StructInit(Box::new(StructInitExpr {
+                                        module: None,
+                                        ty: ty.clone(),
+                                        items: fields.into_boxed_slice(),
+                                    }));
+                                    continue;
+                                }
+                                Expr::Member(m) => {
+                                    // Cross-module struct init: module.Type{ ... }
+                                    let fields = self.parse_struct_init_fields()?;
+                                    expr = Expr::StructInit(Box::new(StructInitExpr {
+                                        module: Some(m.object.clone()),
+                                        ty: m.field.clone(),
+                                        items: fields.into_boxed_slice(),
+                                    }));
+                                    continue;
+                                }
+                                _ => {}
+                            }
                         }
                     }
                     break;
@@ -737,6 +758,25 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.skip_layout();
         self.expect(TokenKind::RBrace)?;
         Some(Expr::Dict(entries.into_boxed_slice()))
+    }
+
+    /// Check if the current `{` looks like struct/dict literal syntax (not a block).
+    /// Returns true for: `{ }`, `{ ident: }`, `{ ... }`
+    /// Returns false for: `{ statement }` where statement doesn't match above patterns
+    fn looks_like_struct_init(&self) -> bool {
+        if !self.at(TokenKind::LBrace) {
+            return false;
+        }
+        let next = self.peek_kind_after_lbrace();
+        match next {
+            Some(TokenKind::RBrace) => true,   // Empty: { }
+            Some(TokenKind::Ellipsis) => true, // Spread: { ...expr }
+            Some(TokenKind::Ident) => {
+                // Field init: { ident: value }
+                self.peek_kind_after_lbrace_ident() == Some(TokenKind::Colon)
+            }
+            _ => false,
+        }
     }
 
     fn parse_struct_init_fields(&mut self) -> Option<Vec<StructInitItem>> {

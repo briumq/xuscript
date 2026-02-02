@@ -904,6 +904,10 @@ impl Compiler {
                 Some(())
             }
             Expr::StructInit(s) => {
+                // Cross-module struct init not supported in bytecode yet
+                if s.module.is_some() {
+                    return None;
+                }
                 let mut names: Vec<String> =
                     Vec::with_capacity(s.items.iter().filter(|x| matches!(x, xu_ir::StructInitItem::Field(_, _))).count());
                 for item in s.items.iter() {

@@ -118,6 +118,9 @@ pub fn analyze_expr(
             }
         }
         Expr::StructInit(s) => {
+            if let Some(mod_expr) = &mut s.module {
+                analyze_expr(mod_expr, funcs, scope, finder, out);
+            }
             for item in s.items.iter_mut() {
                 match item {
                     StructInitItem::Spread(e) => {
