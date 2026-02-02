@@ -5,9 +5,7 @@
 //! - CallMethod: Method calls with IC caching
 //! - MakeFunction: Creating function values
 //! - Return: Returning from functions
-//!
-//! Note: These functions are not yet used by dispatch.rs as the call operations
-//! have complex inline implementations with fast paths that need careful migration.
+
 #![allow(dead_code)]
 
 use smallvec::SmallVec;
@@ -117,27 +115,39 @@ pub(crate) fn op_call_method(
     let recv = stack[args_start - 1];
     let tag = recv.get_tag();
 
-    // Fast path for dict.get with string key - inline the entire operation
-    if tag == TAG_DICT && n == 1 {
-        if let Some(result) = try_dict_get_fast(rt, stack, args_start, recv, method_hash, &slot_idx)
-        {
-            stack.truncate(args_start - 1);
-            stack.push(result);
-            return Ok(None);
+    // Fast paths for dict operations
+    if tag == TAG_DICT {
+        // dict.get (n==1)
+        if n == 1 {
+            if let Some(result) = try_dict_get_fast(rt, stack, args_start, recv, method_hash, &slot_idx) {
+                stack.truncate(args_start - 1);
+                stack.push(result);
+                return Ok(None);
+            }
+
+            // dict.contains (n==1)
+            if let Some(result) = try_dict_contains_fast(rt, stack, args_start, recv, method_hash) {
+                stack.truncate(args_start - 1);
+                stack.push(result);
+                return Ok(None);
+            }
         }
 
-        // Fast path for dict.contains with string key
-        if let Some(result) = try_dict_contains_fast(rt, stack, args_start, recv, method_hash) {
-            stack.truncate(args_start - 1);
-            stack.push(result);
-            return Ok(None);
-        }
+        // dict.insert / dict.insert_int (n==2)
+        if n == 2 {
+            // dict.insert_int with integer key
+            if let Some(result) = try_dict_insert_int_fast(rt, stack, args_start, recv, method_hash) {
+                stack.truncate(args_start - 1);
+                stack.push(result);
+                return Ok(None);
+            }
 
-        // Fast path for dict.insert with string key
-        if try_dict_insert_fast(rt, stack, args_start, recv, method_hash, n, &slot_idx) {
-            stack.truncate(args_start - 1);
-            stack.push(Value::VOID);
-            return Ok(None);
+            // dict.insert with string key
+            if try_dict_insert_fast(rt, stack, args_start, recv, method_hash, &slot_idx) {
+                stack.truncate(args_start - 1);
+                stack.push(Value::VOID);
+                return Ok(None);
+            }
         }
     }
 
@@ -354,12 +364,11 @@ fn try_dict_insert_fast(
     args_start: usize,
     recv: Value,
     method_hash: u64,
-    n: usize,
     slot_idx: &Option<usize>,
 ) -> bool {
     static INSERT_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
     let insert_hash = *INSERT_HASH.get_or_init(|| xu_ir::stable_hash64("insert"));
-    if method_hash != insert_hash || n != 2 {
+    if method_hash != insert_hash {
         return false;
     }
 
@@ -437,6 +446,65 @@ fn try_dict_insert_fast(
         return true;
     }
     false
+}
+
+/// Try fast path for dict.insert_int with integer key
+#[inline(always)]
+fn try_dict_insert_int_fast(
+    rt: &mut Runtime,
+    stack: &[Value],
+    args_start: usize,
+    recv: Value,
+    method_hash: u64,
+) -> Option<Value> {
+    static INSERT_INT_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+    let insert_int_hash = *INSERT_INT_HASH.get_or_init(|| xu_ir::stable_hash64("insert_int"));
+    if method_hash != insert_int_hash {
+        return None;
+    }
+
+    let key_val = stack[args_start];
+    let value = stack[args_start + 1];
+    if !key_val.is_int() {
+        return None;
+    }
+
+    let dict_id = recv.as_obj_id();
+    let key_int = key_val.as_i64();
+
+    // Fast path for small integers - use elements array
+    if key_int >= 0 && key_int < 1024 {
+        let idx = key_int as usize;
+        if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
+            if me.elements.len() <= idx {
+                me.elements.resize(idx + 1, Value::VOID);
+            }
+            let was_void = me.elements[idx].get_tag() == crate::core::value::TAG_VOID;
+            me.elements[idx] = value;
+            if was_void {
+                me.ver += 1;
+            }
+        }
+        return Some(Value::VOID);
+    }
+
+    // Slow path for large integers
+    if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
+        let key_hash = Runtime::hash_dict_key_int(me.map.hasher(), key_int);
+        let key = DictKey::Int(key_int);
+
+        use hashbrown::hash_map::RawEntryMut;
+        match me.map.raw_entry_mut().from_hash(key_hash, |kk| kk == &key) {
+            RawEntryMut::Occupied(mut o) => {
+                *o.get_mut() = value;
+            }
+            RawEntryMut::Vacant(vac) => {
+                vac.insert(key, value);
+                me.ver += 1;
+            }
+        }
+    }
+    Some(Value::VOID)
 }
 
 /// Execute Op::MakeFunction - create a function value

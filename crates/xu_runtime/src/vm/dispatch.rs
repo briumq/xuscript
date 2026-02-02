@@ -1,11 +1,10 @@
-use crate::core::value::ValueExt;
+use crate::core::value::{Function, ValueExt};
 
 use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
 
 use crate::core::Value;
 use crate::core::heap::ManagedObject;
-use crate::core::value::{DictKey, Function, TAG_DICT, TAG_STR};
 
 use crate::util::{to_i64, value_to_string};
 use crate::{Flow, Runtime};
@@ -13,7 +12,7 @@ use super::exception::throw_value;
 
 use super::fast::run_bytecode_fast_params_only;
 use super::ops::dict as dict_ops;
-use super::ops::{access, assign, collection, compare, iter, string, types};
+use super::ops::{access, assign, call, collection, compare, iter, string, types};
 use super::stack::{add_with_heap, stack_underflow, Handler, IterState, Pending};
 
 pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, String> {
@@ -778,355 +777,21 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::CallMethod(m_idx, method_hash, n, slot_idx) => {
-                let n = *n;
-                if stack.len() < n + 1 {
-                    return Err(stack_underflow(ip, op));
-                }
-                let args_start = stack.len() - n;
-                let recv = stack[args_start - 1];
-                let tag = recv.get_tag();
-
-                // Fast path for dict.get with string key - inline the entire operation
-                if tag == TAG_DICT {
-                    static GET_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
-                    let get_hash = *GET_HASH.get_or_init(|| xu_ir::stable_hash64("get"));
-                    if n == 1 && *method_hash == get_hash {
-                        let key_val = stack[args_start];
-                        if key_val.get_tag() == TAG_STR {
-                            let dict_id = recv.as_obj_id();
-                            let key_id = key_val.as_obj_id();
-
-                            // Get key pointer/len without cloning
-                            let (key_ptr, key_len) = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
-                                (s.as_str().as_ptr(), s.as_str().len())
-                            } else {
-                                ("".as_ptr(), 0)
-                            };
-                            // SAFETY: key_ptr is valid during this operation
-                            let key_bytes = unsafe { std::slice::from_raw_parts(key_ptr, key_len) };
-
-                            // Check IC cache first - fast path when same dict, same key, same version
-                            let mut cached_option = None;
-                            if let Some(idx) = slot_idx {
-                                if *idx < rt.ic_slots.len() {
-                                    let c = &rt.ic_slots[*idx];
-                                    if c.id == dict_id.0 && c.key_len as usize == key_bytes.len() && key_bytes.len() <= 16 {
-                                        // Fast compare short keys
-                                        if &c.key_short[..key_bytes.len()] == key_bytes {
-                                            if let ManagedObject::Dict(me) = rt.heap.get(dict_id) {
-                                                if c.ver == me.ver {
-                                                    cached_option = Some(c.option_some_cached);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if let Some(opt) = cached_option {
-                                stack.truncate(args_start - 1);
-                                stack.push(opt);
-                                ip += 1;
-                                continue;
-                            }
-
-                            // SAFETY: key_ptr still valid
-                            let key_str = unsafe { std::str::from_utf8_unchecked(key_bytes) };
-                            let result = if let ManagedObject::Dict(me) = rt.heap.get(dict_id) {
-                                let cur_ver = me.ver;
-                                let key_hash = Runtime::hash_bytes(me.map.hasher(), key_bytes);
-                                if let Some(v) = Runtime::dict_get_by_str_with_hash(me, key_str, key_hash) {
-                                    // Create Option::some and cache it
-                                    let opt = rt.option_some(v);
-                                    if let Some(idx) = slot_idx {
-                                        while rt.ic_slots.len() <= *idx {
-                                            rt.ic_slots.push(crate::ICSlot::default());
-                                        }
-                                        let mut key_short = [0u8; 16];
-                                        let klen = key_bytes.len().min(16);
-                                        key_short[..klen].copy_from_slice(&key_bytes[..klen]);
-                                        rt.ic_slots[*idx] = crate::ICSlot {
-                                            id: dict_id.0,
-                                            key_hash,
-                                            key_id: key_id.0,
-                                            key_short,
-                                            key_len: klen as u8,
-                                            ver: cur_ver,
-                                            value: v,
-                                            option_some_cached: opt,
-                                            ..Default::default()
-                                        };
-                                    }
-                                    Some(opt)
-                                } else {
-                                    Some(rt.option_none())
-                                }
-                            } else {
-                                None
-                            };
-
-                            if let Some(result) = result {
-                                stack.truncate(args_start - 1);
-                                stack.push(result);
-                                ip += 1;
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Fast path for dict.insert_int with integer key
-                    static INSERT_INT_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
-                    let insert_int_hash = *INSERT_INT_HASH.get_or_init(|| xu_ir::stable_hash64("insert_int"));
-                    if n == 2 && *method_hash == insert_int_hash {
-                        let key_val = stack[args_start];
-                        let value = stack[args_start + 1];
-                        if key_val.is_int() {
-                            let dict_id = recv.as_obj_id();
-                            let key_int = key_val.as_i64();
-
-                            // Fast path for small integers - use elements array
-                            if key_int >= 0 && key_int < 1024 {
-                                let idx = key_int as usize;
-                                if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
-                                    if me.elements.len() <= idx {
-                                        me.elements.resize(idx + 1, Value::VOID);
-                                    }
-                                    let was_void = me.elements[idx].get_tag() == crate::core::value::TAG_VOID;
-                                    me.elements[idx] = value;
-                                    if was_void {
-                                        me.ver += 1;
-                                    }
-                                }
-                                stack.truncate(args_start - 1);
-                                stack.push(Value::VOID);
-                                ip += 1;
-                                continue;
-                            }
-
-                            // Slow path for large integers
-                            if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
-                                let key_hash = Runtime::hash_dict_key_int(me.map.hasher(), key_int);
-                                let key = DictKey::Int(key_int);
-
-                                use hashbrown::hash_map::RawEntryMut;
-                                match me.map.raw_entry_mut().from_hash(key_hash, |kk| kk == &key) {
-                                    RawEntryMut::Occupied(mut o) => {
-                                        *o.get_mut() = value;
-                                    }
-                                    RawEntryMut::Vacant(vac) => {
-                                        vac.insert(key, value);
-                                        me.ver += 1;
-                                    }
-                                }
-                            }
-                            stack.truncate(args_start - 1);
-                            stack.push(Value::VOID);
-                            ip += 1;
-                            continue;
-                        }
-                    }
-
-                    // Fast path for dict.insert with string key
-                    static INSERT_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
-                    let insert_hash = *INSERT_HASH.get_or_init(|| xu_ir::stable_hash64("insert"));
-                    if n == 2 && *method_hash == insert_hash {
-                        let key_val = stack[args_start];
-                        let value = stack[args_start + 1];
-                        if key_val.get_tag() == TAG_STR {
-                            let dict_id = recv.as_obj_id();
-                            let key_id = key_val.as_obj_id();
-
-                            // Get key pointer/len without cloning
-                            let (key_ptr, key_len) = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
-                                (s.as_str().as_ptr(), s.as_str().len())
-                            } else {
-                                ("".as_ptr(), 0)
-                            };
-
-                            // IC optimization for insert
-                            let mut cached_hash = None;
-                            if let Some(idx) = slot_idx {
-                                if *idx < rt.ic_slots.len() {
-                                    let c = &rt.ic_slots[*idx];
-                                    if c.id == dict_id.0 && c.key_id == key_id.0 {
-                                        // Cache hit: same dict and same key object (e.g. constant string)
-                                        cached_hash = Some(c.key_hash);
-                                    }
-                                }
-                            }
-
-                            if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
-                                // SAFETY: key_ptr is valid during this operation
-                                let key_str = unsafe {
-                                    std::str::from_utf8_unchecked(std::slice::from_raw_parts(key_ptr, key_len))
-                                };
-
-                                let key_hash = if let Some(h) = cached_hash {
-                                    h
-                                } else {
-                                    let h = Runtime::hash_bytes(me.map.hasher(), key_str.as_bytes());
-                                    // Update IC cache
-                                    if let Some(idx) = slot_idx {
-                                        while rt.ic_slots.len() <= *idx {
-                                            rt.ic_slots.push(crate::ICSlot::default());
-                                        }
-                                        rt.ic_slots[*idx] = crate::ICSlot {
-                                            id: dict_id.0,
-                                            key_hash: h,
-                                            key_id: key_id.0,
-                                            // We don't need short key for insert as we rely on object identity
-                                            key_len: 0,
-                                            ver: 0, // Not used for hash caching
-                                            value: Value::VOID,
-                                            ..Default::default()
-                                        };
-                                    }
-                                    h
-                                };
-
-                                use hashbrown::hash_map::RawEntryMut;
-                                match me.map.raw_entry_mut().from_hash(key_hash, |kk| {
-                                    kk.is_str() && kk.as_str() == key_str
-                                }) {
-                                    RawEntryMut::Occupied(mut o) => {
-                                        // 值更新 - 不增加版本号
-                                        *o.get_mut() = value;
-                                    }
-                                    RawEntryMut::Vacant(vac) => {
-                                        // 新 key - 增加版本号
-                                        let key = DictKey::from_str(key_str);
-                                        vac.insert(key, value);
-                                        me.ver += 1;
-                                    }
-                                }
-                            }
-                            stack.truncate(args_start - 1);
-                            stack.push(Value::VOID);
-                            ip += 1;
-                            continue;
-                        }
-                    }
-
-                    // Fast path for dict.contains with string key
-                    static CONTAINS_HASH: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
-                    let contains_hash = *CONTAINS_HASH.get_or_init(|| xu_ir::stable_hash64("contains"));
-                    if n == 1 && *method_hash == contains_hash {
-                        let key_val = stack[args_start];
-                        if key_val.get_tag() == TAG_STR {
-                            let dict_id = recv.as_obj_id();
-                            let key_id = key_val.as_obj_id();
-
-                            // Get key pointer/len without cloning
-                            let (key_ptr, key_len) = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
-                                (s.as_str().as_ptr(), s.as_str().len())
-                            } else {
-                                ("".as_ptr(), 0)
-                            };
-                            // SAFETY: key_ptr is valid during this operation
-                            let key_bytes = unsafe { std::slice::from_raw_parts(key_ptr, key_len) };
-
-                            if let ManagedObject::Dict(me) = rt.heap.get(dict_id) {
-                                // Compute hash and check if key exists
-                                let key_hash = Runtime::hash_bytes(me.map.hasher(), key_bytes);
-
-                                // SAFETY: key_ptr still valid
-                                let key_str = unsafe { std::str::from_utf8_unchecked(key_bytes) };
-
-                                // Use raw_entry for efficient lookup without allocating DictKey
-                                let found = me
-                                    .map
-                                    .raw_entry()
-                                    .from_hash(key_hash, |k| k.is_str() && k.as_str() == key_str)
-                                    .is_some();
-
-                                stack.truncate(args_start - 1);
-                                stack.push(Value::from_bool(found));
-                                ip += 1;
-                                continue;
-                            }
-                        }
-                    }
-                }
-
-                // IC check (Hot path for bytecode methods)
-                let mut fast_res = None;
-                if let Some(idx) = slot_idx {
-                    if *idx < rt.ic_method_slots.len() {
-                        let slot = &rt.ic_method_slots[*idx];
-                        if slot.tag == tag && slot.method_hash == *method_hash {
-                            if tag == crate::core::value::TAG_STRUCT {
-                                let id = recv.as_obj_id();
-                                if let ManagedObject::Struct(s) = rt.heap.get(id) {
-                                    if slot.struct_ty_hash == s.ty_hash {
-                                        if let Some(f) = slot.cached_bytecode.clone() {
-                                            if !f.needs_env_frame && f.def.params.len() == n + 1 {
-                                                let all_args = &stack[args_start - 1..];
-                                                if let Some(res) = run_bytecode_fast_params_only(
-                                                    rt,
-                                                    &f.bytecode,
-                                                    &f.def.params,
-                                                    all_args,
-                                                ) {
-                                                    fast_res = Some(res);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if let Some(res) = fast_res {
-                    stack.truncate(args_start - 1);
-                    match res {
-                        Ok(v) => stack.push(v),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                        }
-                    }
-                } else {
-                    let method = rt.get_const_str(*m_idx, &bc.constants);
-                    let res = rt.call_method_with_ic_raw(
-                        recv,
-                        method,
-                        *method_hash,
-                        &stack[args_start..],
-                        slot_idx.clone(),
-                    );
-                    stack.truncate(args_start - 1);
-                    match res {
-                        Ok(v) => stack.push(v),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = call::op_call_method(
+                    rt,
+                    bc,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *m_idx,
+                    *method_hash,
+                    *n,
+                    slot_idx.clone(),
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Inc => {
