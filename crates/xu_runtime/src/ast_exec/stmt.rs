@@ -55,20 +55,31 @@ impl Runtime {
                 Flow::None
             }
             Stmt::FuncDef(def) => {
-                let mut captured_env = self.env.clone();
-                if self.locals.is_active() {
-                    captured_env.push();
+                // First, freeze the current environment to promote attached frames to heap.
+                // This ensures that both the original env and the closure share the same scope.
+                let captured_env = self.env.freeze();
+
+                // If locals are active, we need to capture them too
+                let captured_env = if self.locals.is_active() {
+                    let mut env = captured_env;
+                    // Use push_detached so values are stored in scope.values, not stack
+                    // This is important because the closure's stack will be empty when called
+                    env.push_detached();
                     for (name, value) in self.locals.current_bindings() {
-                        captured_env.define(name, value);
+                        env.define(name, value);
                     }
                     if let Some(bindings) = self.current_param_bindings.as_ref() {
                         for (name, idx) in bindings {
                             if let Some(value) = self.get_local_by_index(*idx) {
-                                captured_env.define(name.clone(), value);
+                                env.define(name.clone(), value);
                             }
                         }
                     }
-                }
+                    env
+                } else {
+                    captured_env
+                };
+
                 let needs_env_frame = needs_env_frame(&def.body);
                 let fast_param_indices =
                     if let Some(idxmap) = self.compiled_locals_idx.get(&def.name) {
@@ -102,7 +113,7 @@ impl Runtime {
                     && params_all_slotted(&def.body, &def.params);
                 let func = UserFunction {
                     def: (**def).clone(),
-                    env: captured_env.freeze(),
+                    env: captured_env,
                     needs_env_frame,
                     fast_param_indices,
                     fast_locals_size,

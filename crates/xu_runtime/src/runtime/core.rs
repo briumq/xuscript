@@ -689,8 +689,12 @@ impl Runtime {
             for s in stmts {
                 match s {
                     Stmt::Assign(a) => {
-                        if let Expr::Ident(n, _) = &a.target {
-                            push_unique(ordered, seen, n);
+                        // Only collect variables that are declared with let/var
+                        // (indicated by a.decl being Some)
+                        if a.decl.is_some() {
+                            if let Expr::Ident(n, _) = &a.target {
+                                push_unique(ordered, seen, n);
+                            }
                         }
                     }
                     Stmt::ForEach(fe) => {

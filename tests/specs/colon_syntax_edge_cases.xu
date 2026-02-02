@@ -1,0 +1,368 @@
+// 冒号语法边界测试
+// 测试 : 单语句块在各种极端情况下的行为
+
+func assert(cond: bool, msg: string) {
+    if !cond { println("FAIL: {msg}") }
+}
+
+// 预定义闭包（避免类型检查器的顺序问题）
+let add_one = func(x2: int) -> x2 + 1
+let double = func(x3: int) -> x3 * 2
+
+var result = 0
+var text = ""
+var msg = ""
+
+func set_text(s: string) { text = s }
+func set_msg(s: string) { msg = s }
+
+// ============================================
+// 1. if/else 冒号语法
+// ============================================
+
+// 1.1 基本 if 冒号语法
+result = 0
+if true: result = 1
+assert(result == 1, "basic if colon")
+
+// 1.2 if-else 冒号语法
+result = if true: 10 else: 20
+assert(result == 10, "if-else expr colon true")
+
+result = if false: 10 else: 20
+assert(result == 20, "if-else expr colon false")
+
+// 1.3 if 冒号后换行
+result = 0
+if true:
+    result = 42
+assert(result == 42, "if colon newline")
+
+// 1.4 if-else 冒号后都换行
+result = if false:
+    100
+else:
+    200
+assert(result == 200, "if-else colon both newline")
+
+// 1.5 嵌套 if 表达式使用冒号
+result = if true: if false: 1 else: 2 else: 3
+assert(result == 2, "nested if colon expr")
+
+// 1.6 if 条件中有复杂表达式
+let val = 5
+result = if val > 0 && val < 10: 1 else: 0
+assert(result == 1, "if complex condition colon")
+
+// 1.7 if 冒号语句体是函数调用
+func get_value() -> int { return 42 }
+var call_result = 0
+if true: call_result = get_value()
+assert(call_result == 42, "if colon func call")
+
+// ============================================
+// 2. for 循环冒号语法
+// ============================================
+
+// 2.1 基本 for 冒号语法
+result = 0
+for idx1 in 0..5: result = result + idx1
+assert(result == 10, "basic for colon")
+
+// 2.2 for 冒号后换行
+result = 0
+for idx2 in 0..3:
+    result = result + idx2 * 2
+assert(result == 6, "for colon newline")
+
+// 2.3 for 遍历列表
+let nums = [1, 2, 3]
+result = 0
+for num in nums: result = result + num
+assert(result == 6, "for list colon")
+
+// 2.4 for 解构元组
+let pairs = [(1, 2), (3, 4)]
+result = 0
+for (a1, b1) in pairs: result = result + a1 + b1
+assert(result == 10, "for tuple destructure colon")
+
+// 2.5 for 嵌套（外层用块，内层用冒号）
+result = 0
+for outer in 0..2 {
+    for j in 0..2: result = result + 1
+}
+assert(result == 4, "for nested inner colon")
+
+// ============================================
+// 3. while 循环冒号语法
+// ============================================
+
+// 3.1 基本 while 冒号语法
+result = 0
+var counter = 0
+while counter < 5: counter = counter + 1
+assert(counter == 5, "basic while colon")
+
+// 3.2 while 冒号后换行
+counter = 0
+while counter < 3:
+    counter = counter + 1
+assert(counter == 3, "while colon newline")
+
+// 3.3 while 复杂条件
+counter = 0
+result = 0
+while counter < 5 && result < 10: counter = counter + 1
+assert(counter == 5, "while complex condition colon")
+
+// ============================================
+// 4. match 冒号语法
+// ============================================
+
+Status with [ pending | approved | rejected ]
+
+// 4.1 match 语句所有分支用冒号
+let s = Status#pending
+text = ""
+match s {
+    Status#pending: text = "p"
+    Status#approved: text = "a"
+    Status#rejected: text = "r"
+    _: text = "?"
+}
+assert(text == "p", "match stmt all colon")
+
+// 4.2 match 表达式所有分支用冒号
+result = match s {
+    Status#pending: 1
+    Status#approved: 2
+    Status#rejected: 3
+    _: 0
+}
+assert(result == 1, "match expr all colon")
+
+// 4.3 match 分支冒号后换行
+result = match s {
+    Status#pending:
+        100
+    Status#approved:
+        200
+    _:
+        0
+}
+assert(result == 100, "match colon newline")
+
+// 4.4 match 带数据的枚举
+MyResult with [ ok(v: int) | err(e: string) ]
+
+let r = MyResult#ok(42)
+result = match r {
+    MyResult#ok(v1): v1 * 2
+    MyResult#err(e1): 0
+    _: -1
+}
+assert(result == 84, "match data enum colon")
+
+// 4.5 match 整数模式
+result = match 2 {
+    1: 10
+    2: 20
+    3: 30
+    _: 0
+}
+assert(result == 20, "match int pattern colon")
+
+// 4.6 match 字符串模式
+let cmd = "start"
+text = match cmd {
+    "start": "starting"
+    "stop": "stopping"
+    _: "unknown"
+}
+assert(text == "starting", "match string pattern colon")
+
+// ============================================
+// 5. when 冒号语法
+// ============================================
+
+// 5.1 基本 when 冒号语法
+let opt = Option#some(10)
+result = 0
+when v2 = opt: result = v2
+else: result = -1
+assert(result == 10, "basic when colon")
+
+// 5.2 when none 情况
+let none_opt = Option#none
+result = 0
+when v3 = none_opt: result = v3
+else: result = -1
+assert(result == -1, "when none colon")
+
+// 5.3 when 冒号后换行
+result = 0
+when v4 = opt:
+    result = v4 * 2
+else:
+    result = 0
+assert(result == 20, "when colon newline")
+
+// 5.4 when 多绑定
+let opt1 = Option#some(1)
+let opt2 = Option#some(2)
+result = 0
+when a2 = opt1, b2 = opt2: result = a2 + b2
+else: result = -1
+assert(result == 3, "when multi bind colon")
+
+// 5.5 when 多绑定部分失败
+let opt3 = Option#none
+result = 0
+when a3 = opt1, b3 = opt3: result = a3 + b3
+else: result = -1
+assert(result == -1, "when multi bind partial fail colon")
+
+// ============================================
+// 6. 缩进和空白干扰测试
+// ============================================
+
+// 6.1 冒号后多个空格
+result = 0
+if true:    result = 1
+assert(result == 1, "colon extra spaces")
+
+// 6.2 冒号后换行再缩进
+result = 0
+if true:
+        result = 99
+assert(result == 99, "colon newline extra indent")
+
+// 6.3 for 冒号后多空格
+result = 0
+for idx3 in 0..3:     result = result + 1
+assert(result == 3, "for colon extra spaces")
+
+// 6.4 match 分支不同缩进
+result = match 1 {
+    1:
+            100
+    _:
+        0
+}
+assert(result == 100, "match varying indent")
+
+// ============================================
+// 7. 复杂表达式作为冒号语句体
+// ============================================
+
+// 7.1 冒号后是方法链
+let list = [1, 2, 3, 4, 5]
+result = 0
+for num2 in list.filter(func(x1) -> x1 > 2): result = result + num2
+assert(result == 12, "colon method chain")
+
+// 7.2 冒号后是复杂算术
+result = 0
+if true: result = (1 + 2) * 3 + 4 % 2
+assert(result == 9, "colon complex arithmetic")
+
+// 7.3 冒号后是字符串插值
+text = ""
+let name = "test"
+if true: text = "Hello, {name}!"
+assert(text == "Hello, test!", "colon string interpolation")
+
+// 7.4 冒号后是列表字面量赋值
+var arr: [int] = []
+if true: arr = [1, 2, 3]
+assert(arr.length() == 3, "colon list literal")
+
+// 7.5 冒号后是字典字面量赋值
+var dict: {string: int} = {}
+if true: dict = {"a": 1, "b": 2}
+assert(dict.length() == 2, "colon dict literal")
+
+// ============================================
+// 8. break/continue/return 在冒号语句中
+// ============================================
+
+// 8.1 for 中 break
+result = 0
+for idx4 in 0..10 {
+    if idx4 == 5: break
+    result = idx4
+}
+assert(result == 4, "break in colon")
+
+// 8.2 for 中 continue
+result = 0
+for idx5 in 0..5 {
+    if idx5 == 2: continue
+    result = result + idx5
+}
+assert(result == 8, "continue in colon")
+
+// 8.3 函数中 return
+func early_return(n1: int) -> int {
+    if n1 < 0: return 0
+    return n1 * 2
+}
+assert(early_return(-5) == 0, "return in colon negative")
+assert(early_return(5) == 10, "return in colon positive")
+
+// ============================================
+// 9. 冒号语法与闭包
+// ============================================
+
+// 9.1 冒号语句体调用闭包
+result = 0
+if true: result = add_one(10)
+assert(result == 11, "colon call closure")
+
+// 9.2 for 中使用闭包
+result = 0
+for idx6 in 0..3: result = result + double(idx6)
+assert(result == 6, "for colon closure")
+
+// ============================================
+// 10. 边界：空操作和最小语句
+// ============================================
+
+// 10.1 冒号后是简单赋值
+var flag = false
+if true: flag = true
+assert(flag == true, "colon simple assign")
+
+// 10.2 冒号后是自增
+counter = 0
+for idx7 in 0..5: counter += 1
+assert(counter == 5, "colon increment")
+
+// 10.3 match 返回布尔
+let check = match 1 {
+    1: true
+    _: false
+}
+assert(check == true, "match colon bool")
+
+// ============================================
+// 11. 静态方法调用在冒号语句中
+// ============================================
+
+Counter has {
+    value: int = 0
+    static func create(v1: int) -> Counter: return Counter{ value: v1 }
+    func get() -> int: return self.value
+}
+
+// 11.1 冒号语句中调用静态方法
+var c = Counter{ value: 0 }
+if true: c = Counter::create(100)
+assert(c.get() == 100, "colon static method call")
+
+// ============================================
+// 完成
+// ============================================
+
+println("All colon syntax edge case tests passed!")
