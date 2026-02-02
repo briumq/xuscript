@@ -322,17 +322,11 @@ impl<'a, 'b> Parser<'a, 'b> {
     fn parse_enum_def(&mut self, vis: Visibility) -> Option<EnumDef> {
         let name = self.expect_ident()?;
         self.expect(TokenKind::KwWith)?;
-        let close = if self.at(TokenKind::LBracket) {
-            self.bump();
-            TokenKind::RBracket
-        } else {
-            self.expect(TokenKind::LBrace)?;
-            TokenKind::RBrace
-        };
+        self.expect(TokenKind::LBracket)?;
         let mut variants: Vec<String> = Vec::new();
         loop {
             self.skip_layout();
-            if self.at(close) {
+            if self.at(TokenKind::RBracket) {
                 break;
             }
             variants.push(self.expect_ident()?);
@@ -355,13 +349,13 @@ impl<'a, 'b> Parser<'a, 'b> {
                 }
             }
             self.skip_layout();
-            if self.at(TokenKind::Comma) || self.at(TokenKind::Pipe) {
+            if self.at(TokenKind::Pipe) {
                 self.bump();
                 continue;
             }
             break;
         }
-        self.expect(close)?;
+        self.expect(TokenKind::RBracket)?;
         self.expect_stmt_terminator()?;
         Some(EnumDef {
             vis,
