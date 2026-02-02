@@ -1,6 +1,5 @@
-use crate::core::value::{Function, ValueExt};
+use crate::core::value::ValueExt;
 
-use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
 
 use crate::core::Value;
@@ -10,7 +9,6 @@ use crate::util::{to_i64, value_to_string};
 use crate::{Flow, Runtime};
 use super::exception::throw_value;
 
-use super::fast::run_bytecode_fast_params_only;
 use super::ops::dict as dict_ops;
 use super::ops::{access, assign, call, collection, compare, iter, string, types};
 use super::stack::{add_with_heap, stack_underflow, Handler, IterState, Pending};
@@ -651,129 +649,20 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 types::op_enum_ctor_n(rt, bc, &mut stack, *t_idx, *v_idx, *argc)?;
             }
             Op::MakeFunction(f_idx) => {
-                let c = rt.get_constant(*f_idx, &bc.constants);
-                if let xu_ir::Constant::Func(func_bc) = c {
-                    let def = &func_bc.def;
-                    let bytecode = &func_bc.bytecode;
-                    let locals_count = func_bc.locals_count;
-
-                    // 创建独立的环境帧用于捕获，避免污染外部环境
-                    rt.env.push();
-
-                    if rt.locals.is_active() {
-                        let bindings = rt.locals.current_bindings();
-                        if !bindings.is_empty() {
-                            let env = &mut rt.env;
-                            for (name, value) in bindings {
-                                // 在新帧中定义变量，不会覆盖外部同名变量
-                                env.define(name, value);
-                            }
-                        }
-                    }
-                    if let Some(bindings) = rt.current_param_bindings.as_ref() {
-                        if !bindings.is_empty() {
-                            let mut captured: Vec<(String, Value)> =
-                                Vec::with_capacity(bindings.len());
-                            for (name, idx) in bindings {
-                                if let Some(value) = rt.get_local_by_index(*idx) {
-                                    captured.push((name.clone(), value));
-                                }
-                            }
-                            let env = &mut rt.env;
-                            for (name, value) in captured {
-                                // 在新帧中定义变量，不会覆盖外部同名变量
-                                env.define(name, value);
-                            }
-                        }
-                    }
-                    let needs_env_frame = bytecode
-                        .ops
-                        .iter()
-                        .any(|op| matches!(op, Op::MakeFunction(_)));
-                    let fun = crate::core::value::BytecodeFunction {
-                        def: def.clone(),
-                        bytecode: std::rc::Rc::new((**bytecode).clone()),
-                        env: rt.env.freeze(),
-                        needs_env_frame,
-                        locals_count,
-                        type_sig_ic: std::cell::Cell::new(None),
-                    };
-
-                    // 弹出临时帧，恢复原环境
-                    rt.env.pop();
-
-                    let id = rt.heap.alloc(ManagedObject::Function(Function::Bytecode(
-                        std::rc::Rc::new(fun),
-                    )));
-                    stack.push(Value::function(id));
-                }
+                call::op_make_function(rt, bc, &mut stack, *f_idx)?;
             }
             Op::Call(n) => {
-                let n = *n;
-                if stack.len() < n + 1 {
-                    return Err(stack_underflow(ip, op));
-                }
-                let args_start = stack.len() - n;
-                let callee = stack[args_start - 1];
-
-                // Fast path for bytecode functions
-                let mut fast_res = None;
-                if callee.get_tag() == crate::core::value::TAG_FUNC {
-                    let func_id = callee.as_obj_id();
-                    if let ManagedObject::Function(crate::core::value::Function::Bytecode(f)) = rt.heap.get(func_id) {
-                        let f = f.clone();
-                        if !f.needs_env_frame && f.def.params.len() == n && f.def.params.iter().all(|p| p.default.is_none()) {
-                            let args = &stack[args_start..];
-                            if let Some(res) = run_bytecode_fast_params_only(rt, &f.bytecode, &f.def.params, args) {
-                                fast_res = Some(res);
-                            }
-                        }
-                    }
-                }
-
-                if let Some(res) = fast_res {
-                    stack.truncate(args_start - 1);
-                    match res {
-                        Ok(v) => stack.push(v),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
-                } else {
-                    let args: SmallVec<[Value; 8]> = stack.drain(args_start..).collect();
-                    let callee = stack.pop().expect("Stack underflow in Call (callee)");
-                    match rt.call_function(callee, &args) {
-                        Ok(v) => stack.push(v),
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = call::op_call(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *n,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::CallMethod(m_idx, method_hash, n, slot_idx) => {
@@ -935,8 +824,7 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 continue;
             }
             Op::Return => {
-                let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                return Ok(Flow::Return(v));
+                return call::op_return(&mut stack);
             }
             Op::Throw => {
                return Err("Op::Throw not supported in v1.1".into());

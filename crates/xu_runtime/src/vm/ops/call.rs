@@ -521,15 +521,16 @@ pub(crate) fn op_make_function(
         let bytecode = &func_bc.bytecode;
         let locals_count = func_bc.locals_count;
 
+        // 创建独立的环境帧用于捕获，避免污染外部环境
+        rt.env.push();
+
         if rt.locals.is_active() {
             let bindings = rt.locals.current_bindings();
             if !bindings.is_empty() {
                 let env = &mut rt.env;
                 for (name, value) in bindings {
-                    let assigned = env.assign(&name, value);
-                    if !assigned {
-                        env.define(name, value);
-                    }
+                    // 在新帧中定义变量，不会覆盖外部同名变量
+                    env.define(name, value);
                 }
             }
         }
@@ -543,10 +544,8 @@ pub(crate) fn op_make_function(
                 }
                 let env = &mut rt.env;
                 for (name, value) in captured {
-                    let assigned = env.assign(&name, value);
-                    if !assigned {
-                        env.define(name, value);
-                    }
+                    // 在新帧中定义变量，不会覆盖外部同名变量
+                    env.define(name, value);
                 }
             }
         }
@@ -562,6 +561,10 @@ pub(crate) fn op_make_function(
             locals_count,
             type_sig_ic: std::cell::Cell::new(None),
         };
+
+        // 弹出临时帧，恢复原环境
+        rt.env.pop();
+
         let id = rt
             .heap
             .alloc(ManagedObject::Function(Function::Bytecode(std::rc::Rc::new(
