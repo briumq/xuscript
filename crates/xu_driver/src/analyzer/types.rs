@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use xu_syntax::{Diagnostic, DiagnosticKind, codes, Type, TypeId, TypeInterner, TokenKind};
 use xu_parser::{Stmt, Expr, TypeRef, UnaryOp, BinaryOp};
 use super::utils::Finder;
-use super::StructMap;
+use super::{StructMap, infer_module_alias};
 
 pub fn analyze_types(
     module: &xu_parser::Module,
@@ -24,6 +24,22 @@ pub fn analyze_types(
                 .as_ref()
                 .map(|t| typeref_to_typeid(&mut interner, t));
             func_sigs.insert(def.name.clone(), (params, ret));
+        }
+        // Collect static methods from struct definitions (has blocks)
+        if let Stmt::StructDef(def) = s {
+            for method in def.methods.iter() {
+                let static_name = format!("__static__{}__{}", def.name, method.name);
+                let params = method
+                    .params
+                    .iter()
+                    .map(|p| p.ty.as_ref().map(|t| typeref_to_typeid(&mut interner, t)))
+                    .collect::<Vec<_>>();
+                let ret = method
+                    .return_ty
+                    .as_ref()
+                    .map(|t| typeref_to_typeid(&mut interner, t));
+                func_sigs.insert(static_name, (params, ret));
+            }
         }
     }
 
@@ -60,7 +76,21 @@ fn analyze_type_stmts(
 ) {
     for s in stmts {
         match s {
-            Stmt::StructDef(_) => {}
+            Stmt::StructDef(def) => {
+                // Analyze static methods in has blocks
+                for method in def.methods.iter() {
+                    analyze_type_stmts(
+                        &[Stmt::FuncDef(Box::new(method.clone()))],
+                        func_sigs,
+                        structs,
+                        type_env,
+                        finder,
+                        None, // Static methods have their own return type
+                        interner,
+                        out,
+                    );
+                }
+            }
             Stmt::EnumDef(_) => {}
             Stmt::FuncDef(def) => {
                 type_env.push(HashMap::new());
@@ -119,17 +149,18 @@ fn analyze_type_stmts(
                         structs,
                         type_env,
                         finder,
-                        expected_return,
+                        None, // Instance methods have their own return type
                         interner,
                         out,
                     );
                 }
             }
             Stmt::Use(u) => {
-                if let Some(alias) = &u.alias {
-                    let any = interner.builtin_by_name("any").unwrap();
-                    type_env.last_mut().unwrap().insert(alias.clone(), any);
-                }
+                // Register module alias in type environment
+                // Use explicit alias if provided, otherwise infer from path
+                let alias = u.alias.clone().unwrap_or_else(|| infer_module_alias(&u.path));
+                let any = interner.builtin_by_name("any").unwrap();
+                type_env.last_mut().unwrap().insert(alias, any);
             }
             Stmt::If(s) => {
                 for (cond, body) in &s.branches {
@@ -226,7 +257,10 @@ fn analyze_type_stmts(
             Stmt::Return(e) => {
                 if let (Some(expected), Some(e)) = (expected_return, e) {
                     if let Some(actual) = infer_type(e, func_sigs, structs, type_env, interner) {
-                        if type_mismatch_id(interner, expected, actual)
+                        // Skip type check if actual type is 'any' (unknown type from cross-module calls)
+                        let any_id = interner.intern(Type::Any);
+                        if actual != any_id
+                            && type_mismatch_id(interner, expected, actual)
                             && !empty_container_literal_ok(interner, expected, e)
                         {
                             let en = interner.name(expected);
@@ -519,6 +553,11 @@ pub fn infer_type(
         }
         Expr::Call(c) => {
             if let Expr::Ident(name, _) = c.callee.as_ref() {
+                // Skip type checking for cross-module static method calls
+                // These have the form __static__ModuleName__TypeName__method
+                if name.starts_with("__static__") && name.matches("__").count() >= 3 {
+                    return None;
+                }
                 if let Some((params, ret)) = func_sigs.get(name) {
                     for (idx, a) in c.args.iter().enumerate() {
                         if idx >= params.len() {
@@ -545,6 +584,13 @@ pub fn infer_type(
                     return Some(interner.parse_type_str(ret_name));
                 }
             }
+            // Handle cross-module static method calls: module.__static__TypeName__method(...)
+            if let Expr::Member(m) = c.callee.as_ref() {
+                if m.field.starts_with("__static__") {
+                    // Skip type checking for cross-module static method calls
+                    return None;
+                }
+            }
             infer_type(&c.callee, func_sigs, structs, type_env, interner)
         }
         Expr::MethodCall(m) => {
@@ -553,6 +599,7 @@ pub fn infer_type(
                 (Some(Type::List(_)), "contains") => Some(interner.intern(Type::Bool)),
                 (Some(Type::List(_)), "add") => None, // Unit/Void
                 (Some(Type::Dict(_, _)), "contains") => Some(interner.intern(Type::Bool)),
+                (Some(Type::Dict(_, v)), "get") => Some(*v), // Returns value type (simplified, should be Option[v])
                 (Some(Type::Struct(s)), "read") if s == "file" => Some(interner.intern(Type::Text)),
                 (Some(Type::Struct(s)), "close") if s == "file" => None, // Unit/Void
                 (Some(Type::Text), "split") => {

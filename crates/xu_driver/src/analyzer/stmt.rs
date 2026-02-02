@@ -1,12 +1,17 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use xu_syntax::{Diagnostic, DiagnosticKind, codes, find_best_match, DiagnosticsFormatter};
+use xu_syntax::{Diagnostic, DiagnosticKind, codes, find_best_match, DiagnosticsFormatter, BUILTIN_NAMES};
 use xu_parser::{Stmt, Expr};
 use super::utils::{Finder, report_shadowing, collect_pattern_binds};
 use super::expr::analyze_expr;
 use super::{ImportCache, process_import, infer_module_alias};
+
+/// Returns a set of builtin function names that should not trigger shadowing warnings
+fn builtin_names_set() -> HashSet<&'static str> {
+    BUILTIN_NAMES.iter().copied().collect()
+}
 
 /// Check if an expression is a void literal (empty tuple)
 fn is_void_expr(expr: &Expr) -> bool {
@@ -32,6 +37,7 @@ pub fn analyze_stmts(
     import_stack: &mut Vec<PathBuf>,
 ) -> bool {
     let mut terminated = false;
+    let builtins = builtin_names_set();
     for s in stmts {
         if terminated {
             out.push(
@@ -54,6 +60,7 @@ pub fn analyze_stmts(
                         if scope[..scope.len() - 1]
                             .iter()
                             .any(|s| s.contains_key(p.name.as_str()))
+                            && !builtins.contains(p.name.as_str())
                         {
                             report_shadowing(&p.name, finder, out);
                         }
@@ -93,6 +100,7 @@ pub fn analyze_stmts(
                     if scope[..scope.len() - 1]
                         .iter()
                         .any(|s| s.contains_key(p.name.as_str()))
+                        && !builtins.contains(p.name.as_str())
                     {
                         report_shadowing(&p.name, finder, out);
                     }
@@ -131,6 +139,7 @@ pub fn analyze_stmts(
                         if scope[..scope.len() - 1]
                             .iter()
                             .any(|s| s.contains_key(p.name.as_str()))
+                            && !builtins.contains(p.name.as_str())
                         {
                             report_shadowing(&p.name, finder, out);
                         }
