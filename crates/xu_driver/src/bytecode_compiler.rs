@@ -4,8 +4,8 @@
 //!
 
 use xu_ir::{
-    AssignOp, AssignStmt, BinaryOp, Bytecode, BytecodeFunction, Expr, IfStmt, Module, Op, Pattern, Stmt,
-    UnaryOp,
+    AssignOp, AssignStmt, BinaryOp, Bytecode, BytecodeFunction, Expr, IfStmt, Module, Op, Pattern,
+    ReceiverType, Stmt, UnaryOp,
 };
 
 pub fn compile_module(module: &Module) -> Option<Bytecode> {
@@ -969,51 +969,35 @@ impl Compiler {
             }
             Expr::MethodCall(m) => {
                 let mname = m.method.as_str();
-                if mname == "add" {
+                let recv_ty = m.receiver_ty.get();
+
+                // Only generate ListAppend when receiver is confirmed to be a list
+                if mname == "add" && recv_ty == Some(ReceiverType::List) {
                     self.compile_expr(&m.receiver)?;
                     for a in m.args.iter() {
                         self.compile_expr(a)?;
                     }
                     self.bc.ops.push(Op::ListAppend(m.args.len()));
-                } else if mname == "merge" && m.args.len() == 1 {
+                }
+                // Only generate DictMerge when receiver is confirmed to be a dict
+                else if mname == "merge" && m.args.len() == 1 && recv_ty == Some(ReceiverType::Dict)
+                {
                     self.compile_expr(&m.receiver)?;
                     self.compile_expr(&m.args[0])?;
                     self.bc.ops.push(Op::DictMerge);
-                } else if mname == "insert_int" && m.args.len() == 2 {
+                }
+                // Only generate DictInsert when receiver is confirmed to be a dict
+                else if mname == "insert_int"
+                    && m.args.len() == 2
+                    && recv_ty == Some(ReceiverType::Dict)
+                {
                     self.compile_expr(&m.receiver)?;
                     self.compile_expr(&m.args[0])?;
                     self.compile_expr(&m.args[1])?;
                     self.bc.ops.push(Op::DictInsert);
-                } else if mname == "insert" && m.args.len() == 2 {
-                    // Check if this is a dict insert or list insert
-                    // For now, always use CallMethod for insert to support both dict and list
-                    self.compile_expr(&m.receiver)?;
-                    for a in m.args.iter() {
-                        self.compile_expr(a)?;
-                    }
-                    let slot = self.alloc_ic_slot();
-                    let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
-                    self.bc.ops.push(Op::CallMethod(
-                        m_idx,
-                        xu_ir::stable_hash64(m.method.as_str()),
-                        m.args.len(),
-                        Some(slot),
-                    ));
-                } else if (mname == "get" || mname == "get_int") && m.args.len() == 1 {
-                    // Always use regular method call for get() to support both dict and struct methods
-                    self.compile_expr(&m.receiver)?;
-                    for a in m.args.iter() {
-                        self.compile_expr(a)?;
-                    }
-                    let slot = self.alloc_ic_slot();
-                    let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
-                    self.bc.ops.push(Op::CallMethod(
-                        m_idx,
-                        xu_ir::stable_hash64(m.method.as_str()),
-                        m.args.len(),
-                        Some(slot),
-                    ));
-                } else {
+                }
+                // All other cases: generate generic CallMethod
+                else {
                     self.compile_expr(&m.receiver)?;
                     for a in m.args.iter() {
                         self.compile_expr(a)?;

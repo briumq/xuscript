@@ -82,21 +82,23 @@ pub(crate) fn op_list_append(
         items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
     }
     items.reverse();
-    let list = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    if list.get_tag() != TAG_LIST {
+    let recv = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+
+    if recv.get_tag() != TAG_LIST {
         return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
             method: "add".to_string(),
-            ty: list.type_name().to_string(),
+            ty: recv.type_name().to_string(),
         }));
     }
-    let id = list.as_obj_id();
+
+    let id = recv.as_obj_id();
     if let ManagedObject::List(vs) = rt.heap.get_mut(id) {
         vs.reserve(items.len());
         for v in items {
             vs.push(v);
         }
     }
-    stack.push(list);
+    stack.push(recv);
     Ok(())
 }
 

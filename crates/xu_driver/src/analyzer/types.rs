@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use xu_syntax::{Diagnostic, DiagnosticKind, codes, Type, TypeId, TypeInterner, TokenKind};
-use xu_parser::{Stmt, Expr, TypeRef, UnaryOp, BinaryOp};
+use xu_parser::{Stmt, Expr, TypeRef, UnaryOp, BinaryOp, ReceiverType};
 use super::utils::Finder;
 use super::{StructMap, infer_module_alias};
 
@@ -595,6 +595,18 @@ pub fn infer_type(
         }
         Expr::MethodCall(m) => {
             let ot = infer_type(&m.receiver, func_sigs, structs, type_env, interner);
+
+            // Set receiver type hint for the compiler
+            if let Some(tid) = ot {
+                let recv_ty = match interner.get(tid) {
+                    Type::List(_) => ReceiverType::List,
+                    Type::Dict(_, _) => ReceiverType::Dict,
+                    Type::Struct(_) => ReceiverType::Struct,
+                    _ => ReceiverType::Other,
+                };
+                m.receiver_ty.set(Some(recv_ty));
+            }
+
             match (ot.map(|id| interner.get(id)), m.method.as_str()) {
                 (Some(Type::List(_)), "contains") => Some(interner.intern(Type::Bool)),
                 (Some(Type::List(_)), "add") => None, // Unit/Void

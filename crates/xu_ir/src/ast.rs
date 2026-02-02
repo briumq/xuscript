@@ -252,12 +252,23 @@ pub struct CallExpr {
     pub args: Box<[Expr]>,
 }
 
+/// Receiver type hint for method calls, used by the compiler to generate
+/// specialized opcodes for built-in types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReceiverType {
+    List,
+    Dict,
+    Struct,
+    Other,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MethodCallExpr {
     pub receiver: Box<Expr>,
     pub method: String,
     pub args: Box<[Expr]>,
     pub ic_slot: std::cell::Cell<Option<usize>>,
+    pub receiver_ty: std::cell::Cell<Option<ReceiverType>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

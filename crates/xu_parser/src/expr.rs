@@ -270,6 +270,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                                     method: m.field,
                                     args: args.into_boxed_slice(),
                                     ic_slot: std::cell::Cell::new(None),
+                                    receiver_ty: std::cell::Cell::new(None),
                                 }));
                             }
                         } else if let Expr::Member(inner_m) = m.object.as_ref() {
@@ -297,6 +298,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                                     method: m.field,
                                     args: args.into_boxed_slice(),
                                     ic_slot: std::cell::Cell::new(None),
+                                    receiver_ty: std::cell::Cell::new(None),
                                 }));
                             }
                         } else {
@@ -305,6 +307,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                                 method: m.field,
                                 args: args.into_boxed_slice(),
                                 ic_slot: std::cell::Cell::new(None),
+                                receiver_ty: std::cell::Cell::new(None),
                             }));
                         }
                     } else {
@@ -335,6 +338,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                         method,
                         args: args.into_boxed_slice(),
                         ic_slot: std::cell::Cell::new(None),
+                        receiver_ty: std::cell::Cell::new(None),
                     }));
                 }
                 TokenKind::LBrace => {
