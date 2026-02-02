@@ -1,4 +1,4 @@
-// Xu full benchmark suite with JSON output (safe subset)
+// Xu full benchmark suite with JSON output (matching Python/Node.js style)
 // BENCH_SCALE can be set via environment variable, defaults to "5000"
 func get_bench_scale() -> string {
   let env_val = env_get("BENCH_SCALE")
@@ -13,18 +13,6 @@ Foo has {
 }
 
 func now_us() -> int { return mono_micros() }
-
-func run_avg_ms(repeat: int, logic) -> float {
-  var total = 0.0
-  for _ in [1..repeat] {
-    var s = now_us()
-    logic()
-    var e = now_us()
-    gc()
-    total += (e - s)
-  }
-  return total / repeat / 1000.0
-}
 
 func out_json(name: string, N: int, ms: float) {
   let b = builder_new()
@@ -43,150 +31,167 @@ func out_json(name: string, N: int, ms: float) {
 }
 
 func bench_loop(N: int) -> float {
-  func logic() {
-    var c = 0
-    for _ in [1..N] { c += 1 }
-  }
-  return run_avg_ms(3, logic)
+  let t0 = now_us()
+  var s = 0
+  for _ in [0..N-1] { s += 1 }
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_dict(N: int) -> float {
-  func logic() {
-    let d: {string: int} = {}
-    for i in [0..N-1] { d.insert("k" + to_text(i), i) }
-    var sum = 0
-    for j in [0..N-1] { sum += d["k" + to_text(j)] }
-  }
-  return run_avg_ms(3, logic)
+  let t0 = now_us()
+  let d: {string: int} = {}
+  for i in [0..N-1] { d.insert("k" + to_text(i), i) }
+  var s = 0
+  for i in [0..N-1] { s += d["k" + to_text(i)] }
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_dict_intkey(N: int) -> float {
-  func logic() {
-    let d: {int: int} = {}
-    for i in [0..N-1] { d.insert_int(i, i) }
-    var sum = 0
-    for j in [0..N-1] { sum += d[j] }
-  }
-  return run_avg_ms(3, logic)
+  let t0 = now_us()
+  let d: {int: int} = {}
+  for i in [0..N-1] { d.insert(i, i) }
+  var s = 0
+  for i in [0..N-1] { s += d[i] }
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_dict_hot(N: int) -> float {
   let d: {string: int} = {}
-  for i in [0..N-1] { d.insert(to_text(i), i) }
-  func logic() {
-    for _ in [0..N-1] { let _v = d["0"] }
-  }
-  return run_avg_ms(3, logic)
+  for i in [0..N-1] { d.insert("k" + to_text(i), i) }
+  let hot = "k" + to_text(N / 2)
+  let t0 = now_us()
+  var s = 0
+  for _ in [0..N-1] { s += d[hot] }
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_string(N: int) -> float {
-  func logic() {
-    var str = ""
-    for i in [0..N-1] { str += to_text(i); str += "," }
+  let t0 = now_us()
+  let b = builder_new()
+  for i in [0..N-1] {
+    builder_push(b, to_text(i))
+    builder_push(b, ",")
   }
-  return run_avg_ms(3, logic)
+  let _s = builder_finalize(b)
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_string_builder(N: int) -> float {
-  func logic() {
-    let b = builder_new()
-    for i in [0..N-1] { builder_push(b, i); builder_push(b, ",") }
-    let _result = builder_finalize(b)
-  }
-  return run_avg_ms(3, logic)
+  let t0 = now_us()
+  let b = builder_new()
+  for i in [0..N-1] { builder_push(b, to_text(i)); builder_push(b, ",") }
+  let _s = builder_finalize(b)
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_struct_method(N: int) -> float {
-  func logic() {
-    let f = Foo{ x: 1 }
-    for i in [0..N-1] { let _v = f.method(i) }
-  }
-  return run_avg_ms(3, logic)
+  let o = Foo{ x: 1 }
+  let t0 = now_us()
+  var s = 0
+  for i in [0..N-1] { s += o.method(i) }
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_func_call(N: int) -> float {
-  func add1(x: int) -> int { return x + 1 }
-  func logic() {
-    var sum = 0
-    for i in [0..N-1] { sum += add1(i) }
-  }
-  return run_avg_ms(3, logic)
+  func f(x: int) -> int { return x + 1 }
+  let t0 = now_us()
+  var s = 0
+  for i in [0..N-1] { s += f(i) }
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_branch_heavy(N: int) -> float {
-  func logic() {
-    var sum = 0
-    for i in [0..N-1] { if (i % 2) == 0 { sum += 1 } else { sum -= 1 } }
+  let t0 = now_us()
+  var s = 0
+  for i in [0..N-1] {
+    if (i % 2) == 0 { s += 1 }
+    else { s -= 1 }
   }
-  return run_avg_ms(3, logic)
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_list_push_pop(N: int) -> float {
-  func logic() {
-    let l: [int] = []
-    for i in [0..N-1] { l.push(i) }
-    for _ in [0..N-1] { let _ = l.pop() }
-  }
-  return run_avg_ms(3, logic)
+  let t0 = now_us()
+  let l: [int] = []
+  for i in [0..N-1] { l.push(i) }
+  for _ in [0..N-1] { let _ = l.pop() }
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_dict_miss(N: int) -> float {
   let d: {string: int} = {}
   for i in [0..N-1] { d.insert("k" + to_text(i), i) }
-  func logic() {
-    var miss = 0
-    for j in [0..N-1] { if d.contains("x" + to_text(j)) { miss += 1 } }
-  }
-  return run_avg_ms(3, logic)
+  let t0 = now_us()
+  var s = 0
+  for i in [0..N-1] { s += if d.contains("x" + to_text(i)) { 1 } else { 0 } }
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_dict_update_hot(N: int) -> float {
   let d: {string: int} = {}
   d.insert("hot", 0)
-  func logic() {
-    for i in [0..N-1] { d.insert("hot", i) }
-  }
-  return run_avg_ms(3, logic)
+  let t0 = now_us()
+  for i in [0..N-1] { d.insert("hot", i) }
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_string_unicode(N: int) -> float {
-  func logic() {
-    let parts = ["こんにちは", "世界🌏", "Xu", "脚本"]
-    let b = builder_new()
-    for i in [0..N-1] { builder_push(b, parts[i % 4]); builder_push(b, ",") }
-    let _result = builder_finalize(b)
+  let t0 = now_us()
+  let parts = ["こんにちは", "世界🌏", "Xu", "脚本"]
+  let b = builder_new()
+  for i in [0..N-1] {
+    builder_push(b, parts[i % 4])
+    builder_push(b, ",")
   }
-  return run_avg_ms(3, logic)
+  let _s = builder_finalize(b)
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func bench_string_scan(N: int) -> float {
   // Build string outside of timing (like Python/Node.js)
-  var str = ""
-  for i in [0..N-1] { str += to_text(i); str += "," }
-  func logic() {
-    let _c1 = contains(str, "999")
-    let _c2 = starts_with(str, "0,1")
-    let _c3 = ends_with(str, to_text(N - 1))  // Same as Python/Node: str(n-1) inside timing
+  let b = builder_new()
+  for i in [0..N-1] {
+    builder_push(b, to_text(i))
+    builder_push(b, ",")
   }
-  return run_avg_ms(3, logic)  // Run once like Python/Node
+  let s = builder_finalize(b)
+  let t0 = now_us()
+  let _c1 = contains(s, "999")
+  let _c2 = starts_with(s, "0,1")
+  let _c3 = ends_with(s, to_text(N - 1))
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
 }
 
 func main() {
   var N = parse_int(BENCH_SCALE)
-  out_json("loop", N, bench_loop(N)); gc()
-  out_json("dict", N, bench_dict(N)); gc()
-  out_json("dict-intkey", N, bench_dict_intkey(N)); gc()
-  out_json("dict-hot", N, bench_dict_hot(N)); gc()
-  out_json("string", N, bench_string(N)); gc()
-  out_json("string-builder", N, bench_string_builder(N)); gc()
-  out_json("struct-method", N, bench_struct_method(N)); gc()
-  out_json("func-call", N, bench_func_call(N)); gc()
-  out_json("branch-heavy", N, bench_branch_heavy(N)); gc()
-  out_json("list-push-pop", N, bench_list_push_pop(N)); gc()
-  out_json("dict-miss", N, bench_dict_miss(N)); gc()
-  out_json("dict-update-hot", N, bench_dict_update_hot(N)); gc()
-  out_json("string-unicode", N, bench_string_unicode(N)); gc()
-  out_json("string-scan", N, bench_string_scan(N)); gc()
+  out_json("loop", N, bench_loop(N))
+  out_json("dict", N, bench_dict(N))
+  out_json("dict-intkey", N, bench_dict_intkey(N))
+  out_json("dict-hot", N, bench_dict_hot(N))
+  out_json("string", N, bench_string(N))
+  out_json("string-builder", N, bench_string_builder(N))
+  out_json("struct-method", N, bench_struct_method(N))
+  out_json("func-call", N, bench_func_call(N))
+  out_json("branch-heavy", N, bench_branch_heavy(N))
+  out_json("list-push-pop", N, bench_list_push_pop(N))
+  out_json("dict-miss", N, bench_dict_miss(N))
+  out_json("dict-update-hot", N, bench_dict_update_hot(N))
+  out_json("string-unicode", N, bench_string_unicode(N))
+  out_json("string-scan", N, bench_string_scan(N))
 }
 
 main()
