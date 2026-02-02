@@ -567,6 +567,43 @@ impl Compiler {
                     self.bc.ops.push(folded);
                     return Some(());
                 }
+                // Short-circuit evaluation for && and ||
+                if *op == BinaryOp::And {
+                    // a && b:
+                    // 1. compile a
+                    // 2. Dup (keep a copy for the result if short-circuit)
+                    // 3. JumpIfFalse to end (if a is false, result is false)
+                    // 4. Pop (remove the duplicate)
+                    // 5. compile b (result is b)
+                    // end:
+                    self.compile_expr(left)?;
+                    self.bc.ops.push(Op::Dup);
+                    let jump_idx = self.bc.ops.len();
+                    self.bc.ops.push(Op::JumpIfFalse(0)); // placeholder
+                    self.bc.ops.push(Op::Pop);
+                    self.compile_expr(right)?;
+                    let end_idx = self.bc.ops.len();
+                    self.bc.ops[jump_idx] = Op::JumpIfFalse(end_idx);
+                    return Some(());
+                }
+                if *op == BinaryOp::Or {
+                    // a || b:
+                    // 1. compile a
+                    // 2. Dup (keep a copy for the result if short-circuit)
+                    // 3. JumpIfTrue to end (if a is true, result is true)
+                    // 4. Pop (remove the duplicate)
+                    // 5. compile b (result is b)
+                    // end:
+                    self.compile_expr(left)?;
+                    self.bc.ops.push(Op::Dup);
+                    let jump_idx = self.bc.ops.len();
+                    self.bc.ops.push(Op::JumpIfTrue(0)); // placeholder
+                    self.bc.ops.push(Op::Pop);
+                    self.compile_expr(right)?;
+                    let end_idx = self.bc.ops.len();
+                    self.bc.ops[jump_idx] = Op::JumpIfTrue(end_idx);
+                    return Some(());
+                }
                 self.compile_expr(left)?;
                 self.compile_expr(right)?;
                 self.bc.ops.push(match op {
@@ -577,8 +614,8 @@ impl Compiler {
                     BinaryOp::Mod => Op::Mod,
                     BinaryOp::Eq => Op::Eq,
                     BinaryOp::Ne => Op::Ne,
-                    BinaryOp::And => Op::And,
-                    BinaryOp::Or => Op::Or,
+                    BinaryOp::And => Op::And,  // unreachable due to short-circuit above
+                    BinaryOp::Or => Op::Or,    // unreachable due to short-circuit above
                     BinaryOp::Gt => Op::Gt,
                     BinaryOp::Lt => Op::Lt,
                     BinaryOp::Ge => Op::Ge,

@@ -130,6 +130,49 @@ impl Runtime {
                         }
                     }
                 }
+                // Short-circuit evaluation for && and ||
+                if *op == BinaryOp::And {
+                    let a = self.eval_expr(left)?;
+                    if !a.is_bool() {
+                        return Err(self.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                            expected: "bool".to_string(),
+                            actual: a.type_name().to_string(),
+                        }));
+                    }
+                    if !a.as_bool() {
+                        // Short-circuit: false && _ => false
+                        return Ok(Value::from_bool(false));
+                    }
+                    let b = self.eval_expr(right)?;
+                    if !b.is_bool() {
+                        return Err(self.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                            expected: "bool".to_string(),
+                            actual: b.type_name().to_string(),
+                        }));
+                    }
+                    return Ok(Value::from_bool(b.as_bool()));
+                }
+                if *op == BinaryOp::Or {
+                    let a = self.eval_expr(left)?;
+                    if !a.is_bool() {
+                        return Err(self.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                            expected: "bool".to_string(),
+                            actual: a.type_name().to_string(),
+                        }));
+                    }
+                    if a.as_bool() {
+                        // Short-circuit: true || _ => true
+                        return Ok(Value::from_bool(true));
+                    }
+                    let b = self.eval_expr(right)?;
+                    if !b.is_bool() {
+                        return Err(self.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                            expected: "bool".to_string(),
+                            actual: b.type_name().to_string(),
+                        }));
+                    }
+                    return Ok(Value::from_bool(b.as_bool()));
+                }
                 let a = self.eval_expr(left)?;
                 let b = self.eval_expr(right)?;
                 self.eval_binary(*op, a, b)
