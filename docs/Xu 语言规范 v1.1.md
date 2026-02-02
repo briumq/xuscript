@@ -373,7 +373,7 @@ if x < 0:
 **表达式形式**（必须有 else，类型一致）：
 
 ```xu
-let sign = if x >= 0 { 1 } else { -1 }
+let sign = if x >= 0: 1 else: -1
 ```
 
 ### 7.2 循环
@@ -381,18 +381,12 @@ let sign = if x >= 0 { 1 } else { -1 }
 ```xu
 // while
 var i = 0
-while i < 10 {
-    i += 1
-}
+while i < 10: i += 1
 
 // for-in
-for i in 0..5 {
-    println(i)
-}
+for i in 0..5: println(i)
 
-for (key, value) in map {
-    println("{key}: {value}")
-}
+for (key, value) in map: println("{key}: {value}")
 ```
 
 **单语句简写**：
@@ -410,10 +404,10 @@ for i in 0..5: println(i)
 
 ```xu
 match status {
-    Status#pending  { println("待处理") }
-    Status#approved { println("已通过") }
-    Status#rejected { println("已拒绝") }
-    _ { println("未知状态") }
+    Status#pending:  println("待处理")
+    Status#approved: println("已通过")
+    Status#rejected: println("已拒绝")
+    _: println("未知状态")
 }
 ```
 
@@ -421,10 +415,10 @@ match status {
 
 ```xu
 let text = match status {
-    Status#pending  { "待处理" }
-    Status#approved { "已通过" }
-    Status#rejected { "已拒绝" }
-    _ { "未知" }
+    Status#pending:  "待处理"
+    Status#approved: "已通过"
+    Status#rejected: "已拒绝"
+    _: "未知"
 }
 ```
 
@@ -432,13 +426,9 @@ let text = match status {
 
 ```xu
 match fetch_users("/api/users") {
-    Result#ok(data) {
-        for user in data { println(user.name) }
-    }
-    Result#err(e) {
-        println("错误: {e}")
-    }
-    _ { println("未知结果") }
+    Result#ok(data): for user in data: println(user.name)
+    Result#err(e): println("错误: {e}")
+    _: println("未知结果")
 }
 ```
 
@@ -453,11 +443,8 @@ match fetch_users("/api/users") {
 ### 8.1 基本用法
 
 ```xu
-when user = find_user(id) {
-    println(user.name)
-} else {
-    println("未找到用户")
-}
+when user = find_user(id): println(user.name)
+else: println("未找到用户")
 ```
 
 ### 8.2 多绑定短路
@@ -465,11 +452,8 @@ when user = find_user(id) {
 任一绑定失败则跳转到 else：
 
 ```xu
-when a = get_a(), b = get_b(), c = get_c() {
-    use(a, b, c)
-} else {
-    println("信息不完整")
-}
+when a = get_a(), b = get_b(), c = get_c(): use(a, b, c)
+else: println("信息不完整")
 ```
 
 ### 8.3 when vs match
@@ -513,12 +497,8 @@ Xu 没有异常机制，使用 Result 类型显式处理错误。以下是三种
 
 ```xu
 func load_config() -> Result[Config, string] {
-    when content = file.read("config.json"),
-         config = parse(content) {
-        return Result#ok(config)
-    } else {
-        return Result#err("配置加载失败")
-    }
+    when content = file.read("config.json"), config = parse(content): return Result#ok(config)
+    else: return Result#err("配置加载失败")
 }
 ```
 
@@ -535,13 +515,13 @@ func load_config() -> Result[Config, string] {
     match file.read("config.json") {
         Result#ok(content) {
             match parse(content) {
-                Result#ok(config) { return Result#ok(config) }
-                Result#err(e) { return Result#err("解析失败: {e}") }
-                _ { return Result#err("未知解析结果") }
+                Result#ok(config): return Result#ok(config)
+                Result#err(e): return Result#err("解析失败: {e}")
+                _: return Result#err("未知解析结果")
             }
         }
-        Result#err(e) { return Result#err("读取失败: {e}") }
-        _ { return Result#err("未知读取结果") }
+        Result#err(e): return Result#err("读取失败: {e}")
+        _: return Result#err("未知读取结果")
     }
 }
 ```
@@ -744,24 +724,16 @@ User has {
     age: int = 0
     status: Status = Status#pending
 
-    func greet() {
-        println("Hello, {self.name}!")
-    }
+    func greet(): println("Hello, {self.name}!")
 
-    func is_adult() -> bool {
-        return self.age >= 18
-    }
+    func is_adult() -> bool: return self.age >= 18
 
-    static func create(name: string, age: int) -> User {
-        return User{ name: name, age: age }
-    }
+    static func create(name: string, age: int) -> User: return User{ name: name, age: age }
 }
 
 // 扩展方法
 User does {
-    func to_json() -> string {
-        return """{"name": "{self.name}", "age": {self.age}}"""
-    }
+    func to_json() -> string: return """{"name": "{self.name}", "age": {self.age}}"""
 }
 
 // 组合子链式处理错误
@@ -780,52 +752,36 @@ func main() {
 
     // 链式过滤
     let adults = users.filter(func(u) -> u.is_adult())
-    if adults.any {
-        println("成年人数: {adults.length}")
-    }
+    if adults.any: println("成年人数: {adults.length}")
 
     // when 条件绑定
-    when user = users.find(func(u) -> u.name == "Alice") {
-        user.greet()
-    } else {
-        println("未找到 Alice")
-    }
+    when user = users.find(func(u) -> u.name == "Alice"): user.greet()
+    else: println("未找到 Alice")
 
     // 多绑定短路
-    when first = users.first, second = users.get(1) {
-        println("{first.name} 和 {second.name}")
-    } else {
-        println("用户不足")
-    }
+    when first = users.first, second = users.get(1): println("{first.name} 和 {second.name}")
+    else: println("用户不足")
 
     // 结构体展开
     when first = users.first {
         let older = User{ ...first, age: first.age + 1 }
         println("{older.name} 明年 {older.age} 岁")
-    } else {
-        println("没有用户")
-    }
+    } else: println("没有用户")
 
     // match 表达式
     let status_text = match users.first.or(User{ name: "?" }).status {
-        Status#pending  { "待审核" }
-        Status#approved { "已通过" }
-        Status#rejected { "已拒绝" }
-        _ { "未知" }
+        Status#pending:  "待审核"
+        Status#approved: "已通过"
+        Status#rejected: "已拒绝"
+        _: "未知"
     }
     println("状态: {status_text}")
 
     // match 处理 Result
     match fetch_users("/api/users") {
-        Result#ok(data) {
-            for user in data {
-                println(user.name)
-            }
-        }
-        Result#err(msg) {
-            println("错误: {msg}")
-        }
-        _ { println("未知结果") }
+        Result#ok(data): for user in data: println(user.name)
+        Result#err(msg): println("错误: {msg}")
+        _: println("未知结果")
     }
 }
 ```
