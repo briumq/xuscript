@@ -1,0 +1,56 @@
+// Counter module - demonstrates static methods, inner visibility
+
+// Public counter struct
+Counter has {
+    name: string
+    value: int = 0
+    step: int = 1
+
+    static func create(counter_name: string) -> Counter {
+        return Counter{ name: counter_name }
+    }
+
+    static func create_with_step(counter_name: string, counter_step: int) -> Counter {
+        return Counter{ name: counter_name, step: counter_step }
+    }
+}
+
+Counter does {
+    func increment() {
+        self.value = self.value + self.step
+    }
+
+    func decrement() {
+        self.value = self.value - self.step
+    }
+
+    func reset() {
+        self.value = 0
+    }
+
+    func get_value() -> int {
+        return self.value
+    }
+
+    func format() -> string {
+        return "Counter[{self.name}]: {self.value} (step={self.step})"
+    }
+
+    // Inner helper method (not exported)
+    inner func _validate_step() -> bool {
+        return self.step > 0
+    }
+}
+
+// Inner helper function (not exported)
+inner func _log_debug(msg: string) {
+    println("[DEBUG] {msg}")
+}
+
+// Public utility function - returns two counters
+func create_counters(name1: string, name2: string) -> [Counter] {
+    let result: [Counter] = []
+    result.push(Counter.create(name1))
+    result.push(Counter.create(name2))
+    return result
+}

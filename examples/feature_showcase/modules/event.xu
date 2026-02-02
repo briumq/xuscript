@@ -1,0 +1,97 @@
+// Event module - demonstrates enums with data, Result type, and pattern matching
+
+// Event priority enum
+Priority with [ low | medium | high | critical ]
+
+// Event status enum with data
+EventResult with [
+    success(event_id: int) |
+    failure(code: int, reason: string)
+]
+
+// Event struct
+Event has {
+    id: int
+    name: string
+    priority: Priority = Priority#medium
+    tags: [string] = []
+    metadata: {string: string} = {}
+
+    static func create(event_id: int, event_name: string) -> Event {
+        return Event{ id: event_id, name: event_name }
+    }
+
+    static func create_high(event_id: int, event_name: string) -> Event {
+        return Event{ id: event_id, name: event_name, priority: Priority#high }
+    }
+
+    static func create_critical(event_id: int, event_name: string) -> Event {
+        return Event{ id: event_id, name: event_name, priority: Priority#critical }
+    }
+}
+
+Event does {
+    func add_tag(tag: string) {
+        self.tags.push(tag)
+    }
+
+    func set_meta(key: string, value: string) {
+        self.metadata[key] = value
+    }
+
+    func has_tag(tag: string) -> bool {
+        return self.tags.contains(tag)
+    }
+
+    func is_critical() -> bool {
+        return match self.priority {
+            Priority#critical { true }
+            _ { false }
+        }
+    }
+
+    func priority_text() -> string {
+        return match self.priority {
+            Priority#low { "Low" }
+            Priority#medium { "Medium" }
+            Priority#high { "High" }
+            Priority#critical { "CRITICAL" }
+            _ { "Unknown" }
+        }
+    }
+
+    func priority_level() -> int {
+        return match self.priority {
+            Priority#low { 1 }
+            Priority#medium { 2 }
+            Priority#high { 3 }
+            Priority#critical { 4 }
+            _ { 0 }
+        }
+    }
+
+    func format() -> string {
+        let tag_str = if self.tags.length > 0 {
+            self.tags.join(", ")
+        } else {
+            "none"
+        }
+        return "Event[{self.id}] {self.name} ({self.priority_text()}) tags=[{tag_str}]"
+    }
+}
+
+// Inner validation function
+inner func _validate_event_name(name: string) -> bool {
+    return name.length > 0 && name.length <= 100
+}
+
+// Public function to process event - returns tuple (success: bool, message: string)
+func process_event(event: Event) -> (bool, string) {
+    if !_validate_event_name(event.name) {
+        return (false, "Invalid event name")
+    }
+    if event.is_critical() && event.tags.length == 0 {
+        return (false, "Critical events must have tags")
+    }
+    return (true, "Event {event.id} processed")
+}

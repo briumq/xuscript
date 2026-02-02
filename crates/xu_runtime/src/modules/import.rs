@@ -176,7 +176,10 @@ pub(crate) fn import_path(rt: &mut Runtime, path: &str) -> Result<Value, String>
             if builtins.iter().any(|b| b == k) {
                 continue;
             }
-            if k.starts_with('_') {
+            if k.starts_with('_')
+                && !k.starts_with("__static__")
+                && !k.starts_with("__method__")
+            {
                 continue;
             }
             if inner_names.contains(k) {

@@ -1,0 +1,97 @@
+// Storage module - demonstrates when bindings and collections
+
+// Generic key-value storage
+Storage has {
+    name: string
+    data: {string: string} = {}
+    capacity: int = 100
+
+    static func create(storage_name: string) -> Storage {
+        return Storage{ name: storage_name }
+    }
+
+    static func create_with_capacity(storage_name: string, cap: int) -> Storage {
+        return Storage{ name: storage_name, capacity: cap }
+    }
+}
+
+Storage does {
+    // Returns (success: bool, message: string)
+    func put(key: string, value: string) -> (bool, string) {
+        if self.data.length >= self.capacity {
+            return (false, "Capacity exceeded: {self.capacity}")
+        }
+        self.data[key] = value
+        return (true, value)
+    }
+
+    // Returns (found: bool, value: string)
+    func get_value(key: string) -> (bool, string) {
+        when val = self.data.get(key) {
+            return (true, val)
+        } else {
+            return (false, "")
+        }
+    }
+
+    func do_remove(key: string) -> bool {
+        when _ = self.data.get(key) {
+            self.data.remove(key)
+            return true
+        } else {
+            return false
+        }
+    }
+
+    func contains(key: string) -> bool {
+        let (found, _) = self.get_value(key)
+        return found
+    }
+
+    func size() -> int {
+        return self.data.length
+    }
+
+    func keys() -> [string] {
+        return self.data.keys()
+    }
+
+    func clear() {
+        self.data.clear()
+    }
+
+    func format() -> string {
+        return "Storage[{self.name}]: {self.data.length}/{self.capacity} items"
+    }
+}
+
+// Inner helper for key validation
+inner func _is_valid_key(key: string) -> bool {
+    return key.length > 0 && key.length <= 256
+}
+
+// Public batch operations
+func batch_put(storage: Storage, pairs: [(string, string)]) -> int {
+    var success_count = 0
+    for pair in pairs {
+        let (key, value) = pair
+        if _is_valid_key(key) {
+            let (ok, _) = storage.put(key, value)
+            if ok {
+                success_count = success_count + 1
+            }
+        }
+    }
+    return success_count
+}
+
+func batch_get(storage: Storage, keys: [string]) -> {string: string} {
+    let result: {string: string} = {}
+    for key in keys {
+        let (found, value) = storage.get_value(key)
+        if found {
+            result[key] = value
+        }
+    }
+    return result
+}

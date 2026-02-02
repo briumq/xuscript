@@ -1,0 +1,211 @@
+// Feature Showcase - Comprehensive Example
+// Tests: use, static, inner, enums, Option, when, match, cross-module calls
+
+use "examples/feature_showcase/modules/counter.xu" as counter_mod
+use "examples/feature_showcase/modules/event.xu" as event_mod
+use "examples/feature_showcase/modules/storage.xu" as storage_mod
+
+// Local enum for demo status
+DemoStatus with [ running | passed | failed(reason: string) ]
+
+// Inner helper function
+inner func _print_section(title: string) {
+    println("")
+    println("=== {title} ===")
+}
+
+// Test counter module
+func test_counter_module() {
+    _print_section("Counter Module Tests")
+
+    // Test static factory methods
+    let c1 = counter_mod.Counter.create("clicks")
+    let c2 = counter_mod.Counter.create_with_step("score", 10)
+
+    // Test instance methods
+    c1.increment()
+    c1.increment()
+    c1.increment()
+    println("After 3 increments: {c1.format()}")
+
+    c2.increment()
+    c2.increment()
+    println("Score after 2 increments: {c2.format()}")
+
+    c1.decrement()
+    println("After decrement: {c1.format()}")
+
+    // Test list return from module function
+    let counters = counter_mod.create_counters("left", "right")
+    when a = counters.get(0), b = counters.get(1) {
+        a.increment()
+        b.decrement()
+        println("Counters from list: {a.format()}, {b.format()}")
+    } else {
+        println("Failed to get counters")
+    }
+
+    if c1.get_value() == 2 && c2.get_value() == 20 {
+        println("[PASS] Counter operations work correctly")
+    } else {
+        println("[FAIL] Counter values unexpected")
+    }
+}
+
+// Test event module
+func test_event_module() {
+    _print_section("Event Module Tests")
+
+    // Test static methods
+    let e1 = event_mod.Event.create(1, "user_login")
+    e1.add_tag("auth")
+    println(e1.format())
+
+    // Test priority method
+    let level1 = e1.priority_level()
+    println("Priority level: {level1}")
+
+    // Test tuple return for result handling
+    let (ok1, msg1) = event_mod.process_event(e1)
+    if ok1 {
+        println("Event processed: {msg1}")
+        println("[PASS] process_event works")
+    } else {
+        println("Event failed: {msg1}")
+        println("[FAIL] process_event failed")
+    }
+
+    // Test critical event
+    let e2 = event_mod.Event.create_critical(2, "system_alert")
+    e2.add_tag("monitoring")
+    println(e2.format())
+
+    if e2.is_critical() {
+        println("[PASS] is_critical() works correctly")
+    } else {
+        println("[FAIL] is_critical() returned wrong value")
+    }
+}
+
+// Test storage module
+func test_storage_module() {
+    _print_section("Storage Module Tests")
+
+    // Test static factory
+    let store = storage_mod.Storage.create_with_capacity("cache", 10)
+    println(store.format())
+
+    // Test put with tuple return
+    let (ok, v) = store.put("key1", "value1")
+    if ok {
+        println("Stored: {v}")
+    } else {
+        println("Error storing")
+    }
+
+    store.put("key2", "value2")
+    store.put("key3", "value3")
+
+    // Test get_value with tuple return
+    let (found, val) = store.get_value("key1")
+    if found {
+        println("Retrieved key1: {val}")
+        println("[PASS] get_value works")
+    } else {
+        println("key1 not found")
+        println("[FAIL] get_value failed")
+    }
+
+    // Test contains
+    if store.contains("key1") && !store.contains("missing") {
+        println("[PASS] contains() works correctly")
+    } else {
+        println("[FAIL] contains() returned wrong value")
+    }
+
+    println("Final storage state: {store.format()}")
+}
+
+// Test local features
+func test_local_features() {
+    _print_section("Local Feature Tests")
+
+    // Test local enum with data
+    let status3 = DemoStatus#failed("timeout")
+
+    let status_text = match status3 {
+        DemoStatus#running { "In progress" }
+        DemoStatus#passed { "Success" }
+        DemoStatus#failed(reason) { "Failed: {reason}" }
+        _ { "Unknown" }
+    }
+    println("Status: {status_text}")
+
+    if status_text == "Failed: timeout" {
+        println("[PASS] Local enum with data works")
+    } else {
+        println("[FAIL] Local enum pattern matching failed")
+    }
+
+    // Test list operations with filter/map
+    let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    let evens = numbers.filter(func(n) -> n % 2 == 0)
+    let doubled = evens.map(func(n) -> n * 2)
+    println("Evens doubled: {doubled}")
+
+    if doubled.length == 5 && doubled[0] == 4 {
+        println("[PASS] List filter/map works")
+    } else {
+        println("[FAIL] List operations failed")
+    }
+
+    // Test multi-binding with when
+    let dict = {"name": "test", "value": "42"}
+    when name = dict.get("name"), value = dict.get("value") {
+        println("Multi-binding: name={name}, value={value}")
+        println("[PASS] Multi-binding works")
+    } else {
+        println("[FAIL] Multi-binding failed")
+    }
+
+    // Test Option combinators
+    let maybe_num = dict.get("value")
+        .map(func(s) -> s.length)
+        .or(0)
+    println("Option combinator result: {maybe_num}")
+
+    if maybe_num == 2 {
+        println("[PASS] Option combinators work")
+    } else {
+        println("[FAIL] Option combinator returned wrong value")
+    }
+}
+
+// Main function
+func main() {
+    println("========================================")
+    println("    Xu Language Feature Showcase")
+    println("========================================")
+    println("")
+    println("Testing: use, static, inner, enums,")
+    println("         Option, when, match,")
+    println("         cross-module calls, tuples")
+
+    // Run all test suites
+    test_counter_module()
+    test_event_module()
+    test_storage_module()
+    test_local_features()
+
+    // Final summary
+    _print_section("Test Summary")
+    println("All tests completed!")
+
+    println("")
+    println("========================================")
+    println("         Showcase Complete")
+    println("========================================")
+}
+
+// Run
+main()
