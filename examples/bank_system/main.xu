@@ -1,0 +1,422 @@
+// Bank System - Complete Example
+// Demonstrates: structs, enums with data, match expressions, methods,
+//               collections, Option handling
+
+// ============================================
+// Enums
+// ============================================
+
+// Account type enum
+AccountType with [ checking | savings | credit ]
+
+// Transaction result enum
+TransactionResult with [
+    success(balance: int) |
+    insufficient_funds(available: int) |
+    invalid_amount |
+    account_frozen
+]
+
+// Transfer result enum
+TransferResult with [
+    completed(from_balance: int, to_balance: int) |
+    source_error(msg: string) |
+    dest_error(msg: string)
+]
+
+// Customer tier enum
+CustomerTier with [ standard | silver | gold | platinum ]
+
+// ============================================
+// Account Model
+// ============================================
+
+Account has {
+    id: int
+    owner: string
+    account_type: AccountType
+    balance: int = 0
+    frozen: bool = false
+
+    static func create(acc_id: int, owner_name: string, acc_type: AccountType) -> Account {
+        return Account{ id: acc_id, owner: owner_name, account_type: acc_type }
+    }
+
+    static func create_with_balance(acc_id: int, owner_name: string, acc_type: AccountType, initial: int) -> Account {
+        return Account{ id: acc_id, owner: owner_name, account_type: acc_type, balance: initial }
+    }
+}
+
+Account does {
+    func deposit(amount: int) -> TransactionResult {
+        if self.frozen {
+            return TransactionResult#account_frozen
+        }
+        if amount <= 0 {
+            return TransactionResult#invalid_amount
+        }
+        self.balance = self.balance + amount
+        return TransactionResult#success(self.balance)
+    }
+
+    func withdraw(amount: int) -> TransactionResult {
+        if self.frozen {
+            return TransactionResult#account_frozen
+        }
+        if amount <= 0 {
+            return TransactionResult#invalid_amount
+        }
+        if amount > self.balance {
+            return TransactionResult#insufficient_funds(self.balance)
+        }
+        self.balance = self.balance - amount
+        return TransactionResult#success(self.balance)
+    }
+
+    func freeze() {
+        self.frozen = true
+    }
+
+    func unfreeze() {
+        self.frozen = false
+    }
+
+    func type_name() -> string {
+        return match self.account_type {
+            AccountType#checking: "Checking"
+            AccountType#savings: "Savings"
+            AccountType#credit: "Credit"
+            _: "Unknown"
+        }
+    }
+
+    func format() -> string {
+        let status = if self.frozen { "[FROZEN]" } else { "" }
+        return "Account #{self.id} ({self.type_name()}) - {self.owner}: ${self.balance} {status}"
+    }
+}
+
+// ============================================
+// Customer Model
+// ============================================
+
+Customer has {
+    id: int
+    name: string
+    email: string
+    tier: CustomerTier
+    account_ids: [int] = []
+
+    static func create(cust_id: int, cust_name: string, cust_email: string) -> Customer {
+        return Customer{ id: cust_id, name: cust_name, email: cust_email, tier: CustomerTier#standard }
+    }
+}
+
+Customer does {
+    func add_account(acc_id: int) {
+        self.account_ids.push(acc_id)
+    }
+
+    func upgrade_tier() {
+        self.tier = match self.tier {
+            CustomerTier#standard: CustomerTier#silver
+            CustomerTier#silver: CustomerTier#gold
+            CustomerTier#gold: CustomerTier#platinum
+            CustomerTier#platinum: CustomerTier#platinum
+            _: self.tier
+        }
+    }
+
+    func tier_name() -> string {
+        return match self.tier {
+            CustomerTier#standard: "Standard"
+            CustomerTier#silver: "Silver"
+            CustomerTier#gold: "Gold"
+            CustomerTier#platinum: "Platinum"
+            _: "Unknown"
+        }
+    }
+
+    func discount_rate() -> int {
+        return match self.tier {
+            CustomerTier#standard: 0
+            CustomerTier#silver: 5
+            CustomerTier#gold: 10
+            CustomerTier#platinum: 15
+            _: 0
+        }
+    }
+
+    func format() -> string {
+        return "Customer #{self.id}: {self.name} <{self.email}> [{self.tier_name()}]"
+    }
+}
+
+// ============================================
+// Bank Service
+// ============================================
+
+BankService has {
+    accounts: {int: Account} = {}
+    customers: {int: Customer} = {}
+    next_account_id: int = 1000
+    next_customer_id: int = 1
+
+    static func create() -> BankService {
+        return BankService{}
+    }
+}
+
+BankService does {
+    func register_customer(name: string, email: string) -> Customer {
+        let cust = Customer::create(self.next_customer_id, name, email)
+        self.customers[cust.id] = cust
+        self.next_customer_id = self.next_customer_id + 1
+        return cust
+    }
+
+    func open_account(customer_id: int, acc_type: AccountType, initial_deposit: int) -> Account {
+        let acc = Account::create_with_balance(
+            self.next_account_id,
+            self.customers[customer_id].name,
+            acc_type,
+            initial_deposit
+        )
+        self.accounts[acc.id] = acc
+        self.customers[customer_id].add_account(acc.id)
+        self.next_account_id = self.next_account_id + 1
+        return acc
+    }
+
+    func transfer(from_id: int, to_id: int, amount: int) -> TransferResult {
+        // Withdraw from source
+        let withdraw_result = self.accounts[from_id].withdraw(amount)
+        let from_ok = match withdraw_result {
+            TransactionResult#success(bal): true
+            _: false
+        }
+
+        if !from_ok {
+            let err = match withdraw_result {
+                TransactionResult#insufficient_funds(avail): "Insufficient funds: ${avail} available"
+                TransactionResult#account_frozen: "Account is frozen"
+                TransactionResult#invalid_amount: "Invalid amount"
+                _: "Unknown error"
+            }
+            return TransferResult#source_error(err)
+        }
+
+        // Deposit to destination
+        let deposit_result = self.accounts[to_id].deposit(amount)
+        let to_ok = match deposit_result {
+            TransactionResult#success(bal): true
+            _: false
+        }
+
+        if !to_ok {
+            // Rollback: return money to source
+            self.accounts[from_id].deposit(amount)
+            let err2 = match deposit_result {
+                TransactionResult#account_frozen: "Destination account is frozen"
+                _: "Deposit failed"
+            }
+            return TransferResult#dest_error(err2)
+        }
+
+        return TransferResult#completed(
+            self.accounts[from_id].balance,
+            self.accounts[to_id].balance
+        )
+    }
+
+    func get_customer_total_balance(customer_id: int) -> int {
+        var total = 0
+        let cust = self.customers[customer_id]
+        for acc_id in cust.account_ids {
+            total = total + self.accounts[acc_id].balance
+        }
+        return total
+    }
+
+    func list_accounts() {
+        println("=== All Accounts ===")
+        for (id, acc) in self.accounts {
+            println("  {acc.format()}")
+        }
+    }
+
+    func list_customers() {
+        println("=== All Customers ===")
+        for (id, cust) in self.customers {
+            println("  {cust.format()}")
+        }
+    }
+}
+
+// ============================================
+// Helper Functions
+// ============================================
+
+inner func _section(title: string) {
+    println("")
+    println("--- {title} ---")
+}
+
+func format_transaction(result: TransactionResult) -> string {
+    return match result {
+        TransactionResult#success(bal): "Success! New balance: ${bal}"
+        TransactionResult#insufficient_funds(avail): "Failed: Insufficient funds (${avail} available)"
+        TransactionResult#invalid_amount: "Failed: Invalid amount"
+        TransactionResult#account_frozen: "Failed: Account is frozen"
+        _: "Unknown result"
+    }
+}
+
+func format_transfer(result: TransferResult) -> string {
+    return match result {
+        TransferResult#completed(from_bal, to_bal): "Transfer complete! From: ${from_bal}, To: ${to_bal}"
+        TransferResult#source_error(msg): "Source error: {msg}"
+        TransferResult#dest_error(msg): "Destination error: {msg}"
+        _: "Unknown result"
+    }
+}
+
+// ============================================
+// Test Functions
+// ============================================
+
+func test_account_operations(bank: BankService) {
+    _section("Account Operations Test")
+
+    let acc = bank.accounts[1000]
+    println("Testing account: {acc.format()}")
+
+    let dep_result = acc.deposit(500)
+    println("Deposit $500: {format_transaction(dep_result)}")
+
+    let wd_result = acc.withdraw(200)
+    println("Withdraw $200: {format_transaction(wd_result)}")
+
+    let wd_fail = acc.withdraw(10000)
+    println("Withdraw $10000: {format_transaction(wd_fail)}")
+
+    let inv_result = acc.deposit(-100)
+    println("Deposit -$100: {format_transaction(inv_result)}")
+
+    println("Final state: {acc.format()}")
+}
+
+func test_freeze_operations(bank: BankService) {
+    _section("Freeze Operations Test")
+
+    let acc = bank.accounts[1001]
+    println("Account before freeze: {acc.format()}")
+
+    acc.freeze()
+    println("Account after freeze: {acc.format()}")
+
+    let dep_frozen = acc.deposit(100)
+    println("Deposit while frozen: {format_transaction(dep_frozen)}")
+
+    acc.unfreeze()
+    let dep_ok = acc.deposit(100)
+    println("Deposit after unfreeze: {format_transaction(dep_ok)}")
+}
+
+func test_transfers(bank: BankService) {
+    _section("Transfer Operations Test")
+
+    println("Before transfer:")
+    println("  {bank.accounts[1000].format()}")
+    println("  {bank.accounts[1002].format()}")
+
+    let result1 = bank.transfer(1000, 1002, 300)
+    println("Transfer $300 from 1000 to 1002: {format_transfer(result1)}")
+
+    let result2 = bank.transfer(1000, 1002, 50000)
+    println("Transfer $50000 from 1000 to 1002: {format_transfer(result2)}")
+
+    println("After transfers:")
+    println("  {bank.accounts[1000].format()}")
+    println("  {bank.accounts[1002].format()}")
+}
+
+func test_customer_tiers(bank: BankService) {
+    _section("Customer Tier Test")
+
+    let alice = bank.customers[1]
+    println("Customer: {alice.format()}")
+    println("Discount rate: {alice.discount_rate()}%")
+
+    alice.upgrade_tier()
+    println("After upgrade: {alice.format()}")
+    println("New discount rate: {alice.discount_rate()}%")
+
+    alice.upgrade_tier()
+    alice.upgrade_tier()
+    println("After 2 more upgrades: {alice.format()}")
+    println("Final discount rate: {alice.discount_rate()}%")
+}
+
+func test_total_balance(bank: BankService) {
+    _section("Total Balance Test")
+
+    let alice_total = bank.get_customer_total_balance(1)
+    let bob_total = bank.get_customer_total_balance(2)
+
+    println("Alice's total balance: ${alice_total}")
+    println("Bob's total balance: ${bob_total}")
+}
+
+// ============================================
+// Main Function
+// ============================================
+
+func main() {
+    println("========================================")
+    println("       Bank System Demo")
+    println("========================================")
+    println("")
+    println("Features demonstrated:")
+    println("  - Structs with static and instance methods")
+    println("  - Enums with data (TransactionResult, TransferResult)")
+    println("  - Match expressions for pattern matching")
+    println("  - Collections (dict, list)")
+
+    var bank = BankService::create()
+
+    _section("Setup: Creating Customers and Accounts")
+
+    let alice = bank.register_customer("Alice Smith", "alice@example.com")
+    println("Registered: {alice.format()}")
+
+    let bob = bank.register_customer("Bob Jones", "bob@example.com")
+    println("Registered: {bob.format()}")
+
+    let alice_checking = bank.open_account(alice.id, AccountType#checking, 1000)
+    println("Opened: {alice_checking.format()}")
+
+    let alice_savings = bank.open_account(alice.id, AccountType#savings, 5000)
+    println("Opened: {alice_savings.format()}")
+
+    let bob_checking = bank.open_account(bob.id, AccountType#checking, 2500)
+    println("Opened: {bob_checking.format()}")
+
+    test_account_operations(bank)
+    test_freeze_operations(bank)
+    test_transfers(bank)
+    test_customer_tiers(bank)
+    test_total_balance(bank)
+
+    _section("Final State")
+    bank.list_customers()
+    println("")
+    bank.list_accounts()
+
+    println("")
+    println("========================================")
+    println("       Demo Complete")
+    println("========================================")
+}
+
+main()

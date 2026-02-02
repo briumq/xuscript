@@ -1,0 +1,68 @@
+========================================
+       Bank System Demo
+========================================
+
+Features demonstrated:
+  - Multi-file module structure
+  - Cross-module enum references
+  - Structs with static and instance methods
+  - Enums with data (TransactionResult, TransferResult)
+  - Match expressions for pattern matching
+  - Collections (dict, list)
+
+--- Setup: Creating Customers and Accounts ---
+Registered: Customer #1: Alice Smith <alice@example.com> [Standard]
+Registered: Customer #2: Bob Jones <bob@example.com> [Standard]
+Opened: Account #1000 (Checking) - Alice Smith: $1000 
+Opened: Account #1001 (Savings) - Alice Smith: $5000 
+Opened: Account #1002 (Checking) - Bob Jones: $2500 
+
+--- Account Operations Test ---
+Testing account: Account #1000 (Checking) - Alice Smith: $1000 
+Deposit $500: Success! New balance: $1500
+Withdraw $200: Success! New balance: $1300
+Withdraw $10000: Failed: Insufficient funds ($1300 available)
+Deposit -$100: Failed: Invalid amount
+Final state: Account #1000 (Checking) - Alice Smith: $1300 
+
+--- Freeze Operations Test ---
+Account before freeze: Account #1001 (Savings) - Alice Smith: $5000 
+Account after freeze: Account #1001 (Savings) - Alice Smith: $5000 [FROZEN]
+Deposit while frozen: Failed: Account is frozen
+Deposit after unfreeze: Success! New balance: $5100
+
+--- Transfer Operations Test ---
+Before transfer:
+  Account #1000 (Checking) - Alice Smith: $1300 
+  Account #1002 (Checking) - Bob Jones: $2500 
+Transfer $300 from 1000 to 1002: Transfer complete! From: $1000, To: $2800
+Transfer $50000 from 1000 to 1002: Source error: Insufficient funds: $1000 available
+After transfers:
+  Account #1000 (Checking) - Alice Smith: $1000 
+  Account #1002 (Checking) - Bob Jones: $2800 
+
+--- Customer Tier Test ---
+Customer: Customer #1: Alice Smith <alice@example.com> [Standard]
+Discount rate: 0%
+After upgrade: Customer #1: Alice Smith <alice@example.com> [Silver]
+New discount rate: 5%
+After 2 more upgrades: Customer #1: Alice Smith <alice@example.com> [Platinum]
+Final discount rate: 15%
+
+--- Total Balance Test ---
+Alice's total balance: $6100
+Bob's total balance: $2800
+
+--- Final State ---
+=== All Customers ===
+  Customer #2: Bob Jones <bob@example.com> [Standard]
+  Customer #1: Alice Smith <alice@example.com> [Platinum]
+
+=== All Accounts ===
+  Account #1002 (Checking) - Bob Jones: $2800 
+  Account #1000 (Checking) - Alice Smith: $1000 
+  Account #1001 (Savings) - Alice Smith: $5100 
+
+========================================
+       Demo Complete
+========================================

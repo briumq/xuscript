@@ -1,0 +1,78 @@
+// Account model - defines bank account structure and operations
+
+// Account type enum
+AccountType with [ checking | savings | credit ]
+
+// Transaction result enum
+TransactionResult with [
+    success(balance: int) |
+    insufficient_funds(available: int) |
+    invalid_amount |
+    account_frozen
+]
+
+// Account struct
+Account has {
+    id: int
+    owner: string
+    account_type: AccountType
+    balance: int = 0
+    frozen: bool = false
+
+    static func create(acc_id: int, owner_name: string, acc_type: AccountType) -> Account {
+        return Account{ id: acc_id, owner: owner_name, account_type: acc_type }
+    }
+
+    static func create_with_balance(acc_id: int, owner_name: string, acc_type: AccountType, initial: int) -> Account {
+        return Account{ id: acc_id, owner: owner_name, account_type: acc_type, balance: initial }
+    }
+}
+
+Account does {
+    func deposit(amount: int) -> TransactionResult {
+        if self.frozen {
+            return TransactionResult#account_frozen
+        }
+        if amount <= 0 {
+            return TransactionResult#invalid_amount
+        }
+        self.balance = self.balance + amount
+        return TransactionResult#success(self.balance)
+    }
+
+    func withdraw(amount: int) -> TransactionResult {
+        if self.frozen {
+            return TransactionResult#account_frozen
+        }
+        if amount <= 0 {
+            return TransactionResult#invalid_amount
+        }
+        if amount > self.balance {
+            return TransactionResult#insufficient_funds(self.balance)
+        }
+        self.balance = self.balance - amount
+        return TransactionResult#success(self.balance)
+    }
+
+    func freeze() {
+        self.frozen = true
+    }
+
+    func unfreeze() {
+        self.frozen = false
+    }
+
+    func type_name() -> string {
+        return match self.account_type {
+            AccountType#checking: "Checking"
+            AccountType#savings: "Savings"
+            AccountType#credit: "Credit"
+            _: "Unknown"
+        }
+    }
+
+    func format() -> string {
+        let status = if self.frozen { "[FROZEN]" } else { "" }
+        return "Account #{self.id} ({self.type_name()}) - {self.owner}: ${self.balance} {status}"
+    }
+}

@@ -24,7 +24,8 @@ fn parse_enum_ctor_with_args() {
     assert_eq!(parse.module.stmts.len(), 1);
     match &parse.module.stmts[0] {
         Stmt::Assign(s) => match &s.value {
-            Expr::EnumCtor { ty, variant, args } => {
+            Expr::EnumCtor { module, ty, variant, args } => {
+                assert!(module.is_none());
                 assert_eq!(ty, "Option");
                 assert_eq!(variant, "some");
                 assert!(matches!(args.as_ref(), [Expr::Int(1), Expr::Int(2)]));

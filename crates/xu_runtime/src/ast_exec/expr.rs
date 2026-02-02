@@ -384,8 +384,30 @@ impl Runtime {
                     })),
                 )))
             }
-            Expr::EnumCtor { ty, variant, args } => {
+            Expr::EnumCtor { module, ty, variant, args } => {
                 let payload = self.eval_args(args)?;
+                if let Some(mod_expr) = module {
+                    // Cross-module enum: module.Type#variant
+                    let mod_val = self.eval_expr(mod_expr)?;
+                    if mod_val.get_tag() != crate::core::value::TAG_MODULE {
+                        return Err(self.error(xu_syntax::DiagnosticKind::Raw(
+                            "Expected module".into(),
+                        )));
+                    }
+                    let mod_id = mod_val.as_obj_id();
+                    if let crate::core::heap::ManagedObject::Module(m) = self.heap.get(mod_id) {
+                        // Look up the enum constructor function from module exports
+                        let ctor_name = format!("__enum_ctor__{}__{}", ty, variant);
+                        if let Some(ctor_fn) = m.exports.map.get(&ctor_name) {
+                            return self.call_function(ctor_fn.clone(), &payload);
+                        }
+                        // Fallback: create enum directly if type is exported
+                        return self.enum_new_checked(ty, variant, payload.into_boxed_slice());
+                    }
+                    return Err(self.error(xu_syntax::DiagnosticKind::Raw(
+                        "Invalid module".into(),
+                    )));
+                }
                 self.enum_new_checked(ty, variant, payload.into_boxed_slice())
             }
             Expr::Member(m) => {

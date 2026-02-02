@@ -1,0 +1,57 @@
+// Customer model - defines customer structure
+
+// Customer tier enum
+CustomerTier with [ standard | silver | gold | platinum ]
+
+// Customer struct
+Customer has {
+    id: int
+    name: string
+    email: string
+    tier: CustomerTier
+    account_ids: [int] = []
+
+    static func create(cust_id: int, cust_name: string, cust_email: string) -> Customer {
+        return Customer{ id: cust_id, name: cust_name, email: cust_email, tier: CustomerTier#standard }
+    }
+}
+
+Customer does {
+    func add_account(acc_id: int) {
+        self.account_ids.push(acc_id)
+    }
+
+    func upgrade_tier() {
+        self.tier = match self.tier {
+            CustomerTier#standard: CustomerTier#silver
+            CustomerTier#silver: CustomerTier#gold
+            CustomerTier#gold: CustomerTier#platinum
+            CustomerTier#platinum: CustomerTier#platinum
+            _: self.tier
+        }
+    }
+
+    func tier_name() -> string {
+        return match self.tier {
+            CustomerTier#standard: "Standard"
+            CustomerTier#silver: "Silver"
+            CustomerTier#gold: "Gold"
+            CustomerTier#platinum: "Platinum"
+            _: "Unknown"
+        }
+    }
+
+    func discount_rate() -> int {
+        return match self.tier {
+            CustomerTier#standard: 0
+            CustomerTier#silver: 5
+            CustomerTier#gold: 10
+            CustomerTier#platinum: 15
+            _: 0
+        }
+    }
+
+    func format() -> string {
+        return "Customer #{self.id}: {self.name} <{self.email}> [{self.tier_name()}]"
+    }
+}

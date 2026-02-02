@@ -1,0 +1,109 @@
+// Bank service - manages accounts and transactions
+
+use "examples/bank_system/models/account.xu" as account_mod
+use "examples/bank_system/models/customer.xu" as customer_mod
+
+// Transfer result enum
+TransferResult with [
+    completed(from_balance: int, to_balance: int) |
+    source_error(msg: string) |
+    dest_error(msg: string)
+]
+
+// Bank service struct
+BankService has {
+    accounts: {int: Account} = {}
+    customers: {int: Customer} = {}
+    next_account_id: int = 1000
+    next_customer_id: int = 1
+
+    static func create() -> BankService {
+        return BankService{}
+    }
+}
+
+BankService does {
+    func register_customer(name: string, email: string) -> Customer {
+        let cust = customer_mod.Customer::create(self.next_customer_id, name, email)
+        self.customers[cust.id] = cust
+        self.next_customer_id = self.next_customer_id + 1
+        return cust
+    }
+
+    func open_account(customer_id: int, acc_type: AccountType, initial_deposit: int) -> Account {
+        let acc = account_mod.Account::create_with_balance(
+            self.next_account_id,
+            self.customers[customer_id].name,
+            acc_type,
+            initial_deposit
+        )
+        self.accounts[acc.id] = acc
+        self.customers[customer_id].add_account(acc.id)
+        self.next_account_id = self.next_account_id + 1
+        return acc
+    }
+
+    func transfer(from_id: int, to_id: int, amount: int) -> TransferResult {
+        // Withdraw from source
+        let withdraw_result = self.accounts[from_id].withdraw(amount)
+        let from_ok = match withdraw_result {
+            TransactionResult#success(bal): true
+            _: false
+        }
+
+        if !from_ok {
+            let err = match withdraw_result {
+                TransactionResult#insufficient_funds(avail): "Insufficient funds: ${avail} available"
+                TransactionResult#account_frozen: "Account is frozen"
+                TransactionResult#invalid_amount: "Invalid amount"
+                _: "Unknown error"
+            }
+            return TransferResult#source_error(err)
+        }
+
+        // Deposit to destination
+        let deposit_result = self.accounts[to_id].deposit(amount)
+        let to_ok = match deposit_result {
+            TransactionResult#success(bal): true
+            _: false
+        }
+
+        if !to_ok {
+            // Rollback: return money to source
+            self.accounts[from_id].deposit(amount)
+            let err2 = match deposit_result {
+                TransactionResult#account_frozen: "Destination account is frozen"
+                _: "Deposit failed"
+            }
+            return TransferResult#dest_error(err2)
+        }
+
+        return TransferResult#completed(
+            self.accounts[from_id].balance,
+            self.accounts[to_id].balance
+        )
+    }
+
+    func get_customer_total_balance(customer_id: int) -> int {
+        var total = 0
+        let cust = self.customers[customer_id]
+        for acc_id in cust.account_ids {
+            total = total + self.accounts[acc_id].balance
+        }
+        return total
+    }
+
+    func list_accounts() {
+        println("=== All Accounts ===")
+        for (id, acc) in self.accounts {
+            println("  {acc.format()}")
+        }
+    }
+
+    func list_customers() {
+        println("=== All Customers ===")
+        for (id, cust) in self.customers {
+            println("  {cust.format()}")
+        }
+    }
+}

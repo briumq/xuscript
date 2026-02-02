@@ -920,16 +920,32 @@ impl Compiler {
                 self.bc.ops.push(Op::StructInit(t_idx, n_idx));
                 Some(())
             }
-            Expr::EnumCtor { ty, variant, args } => {
-                for a in args.iter() {
-                    self.compile_expr(a)?;
-                }
-                let t_idx = self.add_constant(xu_ir::Constant::Str(ty.clone()));
-                let v_idx = self.add_constant(xu_ir::Constant::Str(variant.clone()));
-                if args.is_empty() {
-                    self.bc.ops.push(Op::EnumCtor(t_idx, v_idx));
+            Expr::EnumCtor { module, ty, variant, args } => {
+                if let Some(mod_expr) = module {
+                    // Cross-module enum: module.Type#variant
+                    self.compile_expr(mod_expr)?;
+                    for a in args.iter() {
+                        self.compile_expr(a)?;
+                    }
+                    let t_idx = self.add_constant(xu_ir::Constant::Str(ty.clone()));
+                    let v_idx = self.add_constant(xu_ir::Constant::Str(variant.clone()));
+                    if args.is_empty() {
+                        self.bc.ops.push(Op::EnumCtorMod(t_idx, v_idx));
+                    } else {
+                        self.bc.ops.push(Op::EnumCtorModN(t_idx, v_idx, args.len()));
+                    }
                 } else {
-                    self.bc.ops.push(Op::EnumCtorN(t_idx, v_idx, args.len()));
+                    // Local enum: Type#variant
+                    for a in args.iter() {
+                        self.compile_expr(a)?;
+                    }
+                    let t_idx = self.add_constant(xu_ir::Constant::Str(ty.clone()));
+                    let v_idx = self.add_constant(xu_ir::Constant::Str(variant.clone()));
+                    if args.is_empty() {
+                        self.bc.ops.push(Op::EnumCtor(t_idx, v_idx));
+                    } else {
+                        self.bc.ops.push(Op::EnumCtorN(t_idx, v_idx, args.len()));
+                    }
                 }
                 Some(())
             }

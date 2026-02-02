@@ -152,6 +152,55 @@ pub(crate) fn op_enum_ctor_n(
     Ok(())
 }
 
+/// Execute Op::EnumCtorMod - create an enum variant from module (no payload)
+#[inline(always)]
+pub(crate) fn op_enum_ctor_mod(
+    rt: &mut Runtime,
+    bc: &Bytecode,
+    stack: &mut Vec<Value>,
+    t_idx: u32,
+    v_idx: u32,
+) -> Result<(), String> {
+    let mod_val = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    if mod_val.get_tag() != crate::core::value::TAG_MODULE {
+        return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Expected module".into())));
+    }
+    let ty = rt.get_const_str(t_idx, &bc.constants);
+    let variant = rt.get_const_str(v_idx, &bc.constants);
+    // Create enum directly - the type is defined in the module
+    let v = rt.enum_new_checked(ty, variant, Box::new([]))?;
+    stack.push(v);
+    Ok(())
+}
+
+/// Execute Op::EnumCtorModN - create an enum variant from module (with payload)
+#[inline(always)]
+pub(crate) fn op_enum_ctor_mod_n(
+    rt: &mut Runtime,
+    bc: &Bytecode,
+    stack: &mut Vec<Value>,
+    t_idx: u32,
+    v_idx: u32,
+    argc: usize,
+) -> Result<(), String> {
+    // Stack: [module, arg1, arg2, ..., argN]
+    let mut payload: Vec<Value> = Vec::with_capacity(argc);
+    for _ in 0..argc {
+        payload.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
+    }
+    payload.reverse();
+    let mod_val = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    if mod_val.get_tag() != crate::core::value::TAG_MODULE {
+        return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Expected module".into())));
+    }
+    let ty = rt.get_const_str(t_idx, &bc.constants);
+    let variant = rt.get_const_str(v_idx, &bc.constants);
+    // Create enum directly - the type is defined in the module
+    let v = rt.enum_new_checked(ty, variant, payload.into_boxed_slice())?;
+    stack.push(v);
+    Ok(())
+}
+
 /// Execute Op::AssertType - assert value matches expected type
 #[inline(always)]
 pub(crate) fn op_assert_type(

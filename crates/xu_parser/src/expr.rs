@@ -113,16 +113,30 @@ impl<'a, 'b> Parser<'a, 'b> {
             match self.peek_kind() {
                 TokenKind::Hash => {
                     // Handle Type#variant - enum variant
-                    if let Expr::Ident(ty, _) = expr {
-                        self.bump();
-                        let variant = self.expect_ident()?;
-                        expr = Expr::EnumCtor {
-                            ty,
-                            variant,
-                            args: Box::new([]),
-                        };
-                    } else {
-                        break;
+                    match expr {
+                        Expr::Ident(ty, _) => {
+                            // Local enum: Type#variant
+                            self.bump();
+                            let variant = self.expect_ident()?;
+                            expr = Expr::EnumCtor {
+                                module: None,
+                                ty,
+                                variant,
+                                args: Box::new([]),
+                            };
+                        }
+                        Expr::Member(m) => {
+                            // Cross-module enum: module.Type#variant
+                            self.bump();
+                            let variant = self.expect_ident()?;
+                            expr = Expr::EnumCtor {
+                                module: Some(m.object),
+                                ty: m.field,
+                                variant,
+                                args: Box::new([]),
+                            };
+                        }
+                        _ => break,
                     }
                 }
                 TokenKind::ColonColon => {
@@ -248,8 +262,9 @@ impl<'a, 'b> Parser<'a, 'b> {
                 }
                 TokenKind::LParen => {
                     let args = self.parse_args()?;
-                    if let Expr::EnumCtor { ty, variant, .. } = expr {
+                    if let Expr::EnumCtor { module, ty, variant, .. } = expr {
                         expr = Expr::EnumCtor {
+                            module,
                             ty,
                             variant,
                             args: args.into_boxed_slice(),

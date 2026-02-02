@@ -178,6 +178,7 @@ pub enum Expr {
     Dict(Box<[(String, Expr)]>),
     StructInit(Box<StructInitExpr>),
     EnumCtor {
+        module: Option<Box<Expr>>,
         ty: String,
         variant: String,
         args: Box<[Expr]>,
