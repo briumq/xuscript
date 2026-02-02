@@ -486,7 +486,13 @@ impl<'a, 'b> Parser<'a, 'b> {
         let mut arms: Vec<(Pattern, Expr)> = Vec::with_capacity(4);
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let p = self.parse_pattern()?;
-            let b = self.parse_expr_block()?;
+            let b = if self.at(TokenKind::Colon) {
+                self.bump();
+                self.skip_trivia();
+                self.parse_expr(0)?
+            } else {
+                self.parse_expr_block()?
+            };
             arms.push((p, b));
             self.skip_layout();
         }

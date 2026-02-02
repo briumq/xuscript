@@ -134,10 +134,10 @@ func test_local_features() {
     let status3 = DemoStatus#failed("timeout")
 
     let status_text = match status3 {
-        DemoStatus#running { "In progress" }
-        DemoStatus#passed { "Success" }
-        DemoStatus#failed(reason) { "Failed: {reason}" }
-        _ { "Unknown" }
+        DemoStatus#running: "In progress"
+        DemoStatus#passed: "Success"
+        DemoStatus#failed(reason): "Failed: {reason}"
+        _: "Unknown"
     }
     println("Status: {status_text}")
 

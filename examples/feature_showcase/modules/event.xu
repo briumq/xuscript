@@ -45,28 +45,28 @@ Event does {
 
     func is_critical() -> bool {
         return match self.priority {
-            Priority#critical { true }
-            _ { false }
+            Priority#critical: true
+            _: false
         }
     }
 
     func priority_text() -> string {
         return match self.priority {
-            Priority#low { "Low" }
-            Priority#medium { "Medium" }
-            Priority#high { "High" }
-            Priority#critical { "CRITICAL" }
-            _ { "Unknown" }
+            Priority#low: "Low"
+            Priority#medium: "Medium"
+            Priority#high: "High"
+            Priority#critical: "CRITICAL"
+            _: "Unknown"
         }
     }
 
     func priority_level() -> int {
         return match self.priority {
-            Priority#low { 1 }
-            Priority#medium { 2 }
-            Priority#high { 3 }
-            Priority#critical { 4 }
-            _ { 0 }
+            Priority#low: 1
+            Priority#medium: 2
+            Priority#high: 3
+            Priority#critical: 4
+            _: 0
         }
     }
 
