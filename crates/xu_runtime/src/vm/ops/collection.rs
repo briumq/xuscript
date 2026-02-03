@@ -6,6 +6,7 @@
 //! - DictNew: Create a new dictionary
 //! - ListAppend: Append items to a list
 //! - DictInsertStrConst: Insert with string constant key
+//! - MakeRange: Create a range
 
 use smallvec::SmallVec;
 use xu_ir::Bytecode;
@@ -14,6 +15,7 @@ use crate::core::heap::ManagedObject;
 use crate::core::value::{DictKey, TAG_DICT, TAG_LIST, TAG_STR};
 use crate::core::Value;
 use crate::errors::messages::NOT_A_STRING;
+use crate::util::to_i64;
 use crate::Runtime;
 
 /// Execute Op::ListNew - create a new list
@@ -204,5 +206,21 @@ pub(crate) fn op_dict_insert_str_const(
         }
     }
     stack.push(dict);
+    Ok(())
+}
+
+/// Execute Op::MakeRange - create a range object
+#[inline(always)]
+pub(crate) fn op_make_range(
+    rt: &mut Runtime,
+    stack: &mut Vec<Value>,
+    inclusive: bool,
+) -> Result<(), String> {
+    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let start = to_i64(&a)?;
+    let end = to_i64(&b)?;
+    let id = rt.heap.alloc(ManagedObject::Range(start, end, inclusive));
+    stack.push(Value::range(id));
     Ok(())
 }
