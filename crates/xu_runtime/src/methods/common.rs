@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::errors::messages::{NOT_A_DICT, NOT_A_LIST, NOT_A_STRING};
 use crate::Runtime;
 use crate::Value;
 
@@ -40,7 +41,7 @@ pub fn expect_list(rt: &Runtime, value: Value) -> Result<&Vec<Value>, String> {
     if let crate::core::heap::ManagedObject::List(list) = obj {
         Ok(list)
     } else {
-        Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())))
+        Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())))
     }
 }
 
@@ -51,7 +52,7 @@ pub fn expect_list_mut(rt: &mut Runtime, value: Value) -> Result<&mut Vec<Value>
         let id = value.as_obj_id();
         let obj = rt.heap.get(id);
         if !matches!(obj, crate::core::heap::ManagedObject::List(_)) {
-            return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())));
+            return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())));
         }
     }
     
@@ -72,7 +73,7 @@ pub fn expect_dict(rt: &Runtime, value: Value) -> Result<&crate::core::value::Di
     if let crate::core::heap::ManagedObject::Dict(dict) = obj {
         Ok(dict)
     } else {
-        Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())))
+        Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())))
     }
 }
 
@@ -83,7 +84,7 @@ pub fn expect_dict_mut(rt: &mut Runtime, value: Value) -> Result<&mut crate::cor
         let id = value.as_obj_id();
         let obj = rt.heap.get(id);
         if !matches!(obj, crate::core::heap::ManagedObject::Dict(_)) {
-            return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+            return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
         }
     }
     
@@ -104,7 +105,7 @@ pub fn expect_str(rt: &Runtime, value: Value) -> Result<&crate::Text, String> {
     if let crate::core::heap::ManagedObject::Str(s) = obj {
         Ok(s)
     } else {
-        Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a string".into())))
+        Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_STRING.into())))
     }
 }
 

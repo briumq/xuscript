@@ -4,6 +4,7 @@
 // Reorganized module structure
 pub mod core;
 pub mod vm;
+pub mod errors;
 mod ast_exec;
 mod modules;
 mod util;

@@ -11,23 +11,18 @@ use crate::{
 
 impl<'a, 'b> Parser<'a, 'b> {
     pub(super) fn parse_expr(&mut self, min_bp: u8) -> Option<Expr> {
-        self.parse_expr_impl(min_bp, true)
+        let lhs = self.parse_prefix()?;
+        self.parse_expr_from_prefix(lhs, min_bp)
     }
 
     pub(super) fn parse_expr_no_struct_init(&mut self, min_bp: u8) -> Option<Expr> {
-        self.parse_expr_impl(min_bp, false)
+        self.with_struct_init(false, |p| p.parse_expr(min_bp))
     }
 
-    fn parse_expr_impl(&mut self, min_bp: u8, allow_struct_init: bool) -> Option<Expr> {
-        let lhs = self.parse_prefix_impl(allow_struct_init)?;
-        self.parse_expr_from_prefix_impl(lhs, min_bp, allow_struct_init)
-    }
-
-    fn parse_expr_from_prefix_impl(
+    fn parse_expr_from_prefix(
         &mut self,
         mut lhs: Expr,
         min_bp: u8,
-        allow_struct_init: bool,
     ) -> Option<Expr> {
         loop {
             if self.at(TokenKind::Newline) || self.at(TokenKind::StmtEnd) || self.at(TokenKind::Eof)
@@ -41,7 +36,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                     break;
                 }
                 self.bump();
-                let rhs = self.parse_expr_impl(r_bp, allow_struct_init)?;
+                let rhs = self.parse_expr(r_bp)?;
                 lhs = Expr::Range(Box::new(RangeExpr {
                     start: Box::new(lhs),
                     end: Box::new(rhs),
@@ -71,7 +66,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                 break;
             }
             self.bump();
-            let rhs = self.parse_expr_impl(r_bp, allow_struct_init)?;
+            let rhs = self.parse_expr(r_bp)?;
             lhs = Expr::Binary {
                 op,
                 left: Box::new(lhs),
@@ -81,12 +76,12 @@ impl<'a, 'b> Parser<'a, 'b> {
         Some(lhs)
     }
 
-    fn parse_prefix_impl(&mut self, allow_struct_init: bool) -> Option<Expr> {
+    fn parse_prefix(&mut self) -> Option<Expr> {
         self.skip_trivia();
         match self.peek_kind() {
             TokenKind::Bang => {
                 self.bump();
-                let expr = self.parse_expr_impl(prefix_binding_power(), allow_struct_init)?;
+                let expr = self.parse_expr(prefix_binding_power())?;
                 Some(Expr::Unary {
                     op: UnaryOp::Not,
                     expr: Box::new(expr),
@@ -94,17 +89,17 @@ impl<'a, 'b> Parser<'a, 'b> {
             }
             TokenKind::Minus => {
                 self.bump();
-                let expr = self.parse_expr_impl(prefix_binding_power(), allow_struct_init)?;
+                let expr = self.parse_expr(prefix_binding_power())?;
                 Some(Expr::Unary {
                     op: UnaryOp::Neg,
                     expr: Box::new(expr),
                 })
             }
-            _ => self.parse_postfix_expr_with_struct_init(allow_struct_init),
+            _ => self.parse_postfix_expr(),
         }
     }
 
-    fn parse_postfix_expr_with_struct_init(&mut self, allow_struct_init: bool) -> Option<Expr> {
+    fn parse_postfix_expr(&mut self) -> Option<Expr> {
         let mut expr = self.parse_primary()?;
         loop {
             if self.at(TokenKind::Newline) || self.at(TokenKind::StmtEnd) || self.at(TokenKind::Eof)
@@ -241,7 +236,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                 }
                 TokenKind::LBracket => {
                     self.bump();
-                    let start = self.parse_expr_impl(3, allow_struct_init)?;
+                    let start = self.parse_expr(3)?;
                     self.skip_trivia();
                     let index = if self.at(TokenKind::DotDot) || self.at(TokenKind::DotDotEq) {
                         self.bump();
@@ -357,7 +352,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                     }));
                 }
                 TokenKind::LBrace => {
-                    if allow_struct_init {
+                    if self.struct_init_allowed {
                         // Special handling for set{...} syntax
                         if let Expr::Ident(ty, _) = &expr {
                             if ty == "set" {
@@ -663,7 +658,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             self.bump();
             return Some(Expr::List(vec![].into_boxed_slice()));
         }
-        let first = self.parse_expr_impl(3, true)?;
+        let first = self.parse_expr(3)?;
         self.skip_layout();
         if self.at(TokenKind::RBracket) && matches!(first, Expr::Range(_)) {
             self.bump();

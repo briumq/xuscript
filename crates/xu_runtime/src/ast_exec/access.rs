@@ -1,3 +1,4 @@
+use crate::errors::messages::{NOT_A_DICT, NOT_A_LIST, NOT_A_STRING};
 use crate::Value;
 use crate::core::value::{DictKey, i64_to_text_fast};
 
@@ -21,7 +22,7 @@ impl Runtime {
             {
                 (me.ver, Self::hash_bytes(me.map.hasher(), field.as_bytes()))
             } else {
-                return Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+                return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
             };
             self.dict_version_last = Some((id.0, cur_ver));
 
@@ -146,14 +147,14 @@ impl Runtime {
                     Ok(self.option_none())
                 }
             } else {
-                Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())))
+                Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())))
             }
         } else if tag == crate::core::value::TAG_LIST && (field == "len" || field == "length") {
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::List(v) = self.heap.get(id) {
                 Ok(Value::from_i64(v.len() as i64))
             } else {
-                Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())))
+                Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())))
             }
         } else if tag == crate::core::value::TAG_TUPLE && (field == "len" || field == "length") {
             let id = obj.as_obj_id();
@@ -184,7 +185,7 @@ impl Runtime {
                 Ok(Value::from_i64(s.as_str().chars().count() as i64))
             } else {
                 Err(self.error(xu_syntax::DiagnosticKind::Raw(
-                    "Not a string".into(),
+                    NOT_A_STRING.into(),
                 )))
             }
         } else if tag == crate::core::value::TAG_DICT && (field == "len" || field == "length") {
@@ -199,7 +200,7 @@ impl Runtime {
                 }
                 Ok(Value::from_i64(n as i64))
             } else {
-                Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())))
+                Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())))
             }
         } else if tag == crate::core::value::TAG_DICT && field == "keys" {
             let id = obj.as_obj_id();
@@ -227,7 +228,7 @@ impl Runtime {
                 }
                 out
             } else {
-                return Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+                return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
             };
             let mut keys: Vec<Value> = Vec::with_capacity(keys_raw.len());
             for s in keys_raw {
@@ -256,7 +257,7 @@ impl Runtime {
                 }
                 out
             } else {
-                return Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+                return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
             };
             Ok(Value::list(self.heap.alloc(crate::core::heap::ManagedObject::List(values))))
         } else if tag == crate::core::value::TAG_DICT && field == "items" {
@@ -288,7 +289,7 @@ impl Runtime {
                     }
                     out
                 } else {
-                    return Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+                    return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
                 };
             let mut items: Vec<Value> = Vec::with_capacity(raw_items.len());
             for (k, v) in raw_items {
@@ -346,7 +347,7 @@ impl Runtime {
                     return Err(self.error(xu_syntax::DiagnosticKind::GetKeyRequired));
                 }
             } else {
-                return Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+                return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
             };
             self.dict_version_last = Some((id.0, cur_ver));
 
@@ -411,7 +412,7 @@ impl Runtime {
                 }
                 Ok(list[ui])
             } else {
-                Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())))
+                Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())))
             }
         } else if tag == crate::core::value::TAG_DICT {
             let id = obj.as_obj_id();
@@ -482,7 +483,7 @@ impl Runtime {
                     Err(self.error(xu_syntax::DiagnosticKind::GetKeyRequired))
                 }
             } else {
-                Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())))
+                Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())))
             }
         } else if tag == crate::core::value::TAG_STR {
             if index.is_int() {
@@ -494,7 +495,7 @@ impl Runtime {
                 let s = if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(id) {
                     s.as_str().to_string()
                 } else {
-                    return Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a string".into())));
+                    return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_STRING.into())));
                 };
                 let ui = i as usize;
                 let total = s.chars().count();
@@ -524,7 +525,7 @@ impl Runtime {
                 let s = if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(sid) {
                     s.as_str().to_string()
                 } else {
-                    return Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a string".into())));
+                    return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_STRING.into())));
                 };
                 let total = s.chars().count();
                 let len = if inclusive {

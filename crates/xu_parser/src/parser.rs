@@ -45,6 +45,7 @@ pub struct Parser<'a, 'b> {
     pub pending_stmts: Vec<Stmt>,
     pub tmp_counter: u32,
     pub allow_comma_terminator: bool,
+    pub struct_init_allowed: bool,
     pub bump: &'b bumpalo::Bump,
 }
 
@@ -72,6 +73,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             pending_stmts: Vec::new(),
             tmp_counter: 0,
             allow_comma_terminator: false,
+            struct_init_allowed: true,
             bump,
         }
     }
@@ -341,10 +343,19 @@ impl<'a, 'b> Parser<'a, 'b> {
         }
     }
 
+    #[inline]
     pub fn skip_layout(&mut self) {
-        while self.at(TokenKind::Newline) {
-            self.i += 1;
-        }
+        self.skip_trivia();
+    }
+
+    /// Execute a closure with struct_init_allowed temporarily set to a specific value.
+    #[inline]
+    pub fn with_struct_init<T>(&mut self, allowed: bool, f: impl FnOnce(&mut Self) -> T) -> T {
+        let old = self.struct_init_allowed;
+        self.struct_init_allowed = allowed;
+        let result = f(self);
+        self.struct_init_allowed = old;
+        result
     }
 
     pub fn cur_span(&self) -> Span {

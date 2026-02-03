@@ -4,6 +4,7 @@
 
 use super::heap::{Heap, ManagedObject, ObjectId};
 use super::text::Text;
+use crate::errors::messages::NOT_A_STRING;
 use ahash::RandomState;
 use hashbrown::HashMap;
 use std::fmt;
@@ -617,12 +618,12 @@ impl ValueExt for Value {
                         let other_s = if let ManagedObject::Str(s) = heap.get(other_id) {
                             s.as_str().to_string()
                         } else {
-                            return Err("Not a string".to_string());
+                            return Err(NOT_A_STRING.to_string());
                         };
                         let s_ptr = if let ManagedObject::Str(s) = heap.get_mut(id) {
                             s
                         } else {
-                            return Err("Not a string".to_string());
+                            return Err(NOT_A_STRING.to_string());
                         };
                         s_ptr.push_str(&other_s);
                         Ok(())
@@ -632,7 +633,7 @@ impl ValueExt for Value {
                         let s_ptr = if let ManagedObject::Str(s) = heap.get_mut(id) {
                             s
                         } else {
-                            return Err("Not a string".to_string());
+                            return Err(NOT_A_STRING.to_string());
                         };
                         // Actually we need to append other to self, not bs
                         let _ = bs; // unused

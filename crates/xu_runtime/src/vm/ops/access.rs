@@ -13,6 +13,7 @@ use xu_ir::Bytecode;
 use crate::core::heap::ManagedObject;
 use crate::core::value::{TAG_DICT, TAG_LIST, TAG_STR, TAG_TUPLE};
 use crate::core::Value;
+use crate::errors::messages::NOT_A_LIST;
 use crate::runtime::{DictCacheIntLast, DictCacheLast};
 use crate::vm::exception::throw_value;
 use crate::vm::stack::{Handler, IterState, Pending};
@@ -226,7 +227,7 @@ pub(crate) fn op_get_index(
                 return Ok(None);
             }
         } else {
-            return Err("Not a list".into());
+            return Err(NOT_A_LIST.into());
         }
     } else if tag == TAG_TUPLE && idx.is_int() {
         let id = obj.as_obj_id();

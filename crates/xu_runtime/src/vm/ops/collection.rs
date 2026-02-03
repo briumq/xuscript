@@ -13,6 +13,7 @@ use xu_ir::Bytecode;
 use crate::core::heap::ManagedObject;
 use crate::core::value::{DictKey, TAG_DICT, TAG_LIST, TAG_STR};
 use crate::core::Value;
+use crate::errors::messages::NOT_A_STRING;
 use crate::Runtime;
 
 /// Execute Op::ListNew - create a new list
@@ -56,7 +57,7 @@ pub(crate) fn op_dict_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) ->
             if let ManagedObject::Str(s) = rt.heap.get(k.as_obj_id()) {
                 DictKey::from_text(s)
             } else {
-                return Err("Not a string".into());
+                return Err(NOT_A_STRING.into());
             }
         } else if k.is_int() {
             DictKey::Int(k.as_i64())

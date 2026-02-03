@@ -646,6 +646,22 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     return Ok(flow);
                 }
             }
+            Op::StructInitSpread(t_idx, n_idx) => {
+                if let Some(flow) = types::op_struct_init_spread(
+                    rt,
+                    bc,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                    *t_idx,
+                    *n_idx,
+                )? {
+                    return Ok(flow);
+                }
+            }
             Op::EnumCtor(t_idx, v_idx) => {
                 types::op_enum_ctor(rt, bc, &mut stack, *t_idx, *v_idx)?;
             }

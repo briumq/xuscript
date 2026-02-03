@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use xu_ir::{AssignOp, AssignStmt, BinaryOp, Expr, Stmt};
 
+use crate::errors::messages::NOT_A_STRING;
 use crate::Text;
 use crate::Value;
 use crate::core::value::{DictKey, Function, UserFunction, ValueExt};
@@ -656,7 +657,7 @@ impl Runtime {
                         {
                             s.clone()
                         } else {
-                            return Err("Not a string".to_string());
+                            return Err(NOT_A_STRING.to_string());
                         };
                         s.append_value(&rhs, &self.heap);
                         return Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(s))));
@@ -755,7 +756,7 @@ impl Runtime {
                 let s = if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(idx.as_obj_id()) {
                     s.clone()
                 } else {
-                    return Err("Not a string".to_string());
+                    return Err(NOT_A_STRING.to_string());
                 };
                 DictKey::from_text(&s)
             } else if idx.is_int() {

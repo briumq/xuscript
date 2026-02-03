@@ -11,6 +11,7 @@ use crate::core::heap::ManagedObject;
 use crate::core::text::Text;
 use crate::core::value::{DictKey, TAG_DICT, TAG_LIST, TAG_RANGE};
 use crate::core::Value;
+use crate::errors::messages::{NOT_A_DICT, NOT_A_LIST};
 use crate::vm::stack::IterState;
 use crate::Runtime;
 
@@ -35,7 +36,7 @@ pub(crate) fn op_foreach_init(
         let len = match rt.heap.get(id) {
             ManagedObject::List(v) => v.len(),
             _ => {
-                return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())));
+                return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())));
             }
         };
         if len == 0 {
@@ -45,7 +46,7 @@ pub(crate) fn op_foreach_init(
         let first = match rt.heap.get(id) {
             ManagedObject::List(v) => v.get(0).cloned().unwrap_or(Value::VOID),
             _ => {
-                return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())));
+                return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())));
             }
         };
         iters.push(IterState::List { id, idx: 1, len });
@@ -106,7 +107,7 @@ pub(crate) fn op_foreach_init(
                     result
                 }
                 _ => {
-                    return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+                    return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
                 }
             };
             if raw_pairs.is_empty() {
@@ -134,7 +135,7 @@ pub(crate) fn op_foreach_init(
             let raw_keys: Vec<DictKey> = match rt.heap.get(id) {
                 ManagedObject::Dict(d) => d.map.keys().cloned().collect(),
                 _ => {
-                    return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+                    return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
                 }
             };
             if raw_keys.is_empty() {
@@ -204,7 +205,7 @@ pub(crate) fn op_foreach_next(
                 let item = match rt.heap.get(*id) {
                     ManagedObject::List(v) => v.get(*list_idx).cloned().unwrap_or(Value::VOID),
                     _ => {
-                        return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a list".into())));
+                        return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())));
                     }
                 };
                 *list_idx += 1;

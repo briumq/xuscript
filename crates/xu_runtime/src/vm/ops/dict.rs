@@ -3,6 +3,7 @@ use std::hash::{BuildHasher, Hash, Hasher};
 use crate::core::Value;
 use crate::core::heap::ManagedObject;
 use crate::core::value::{DictKey, TAG_DICT, TAG_STR, TAG_VOID};
+use crate::errors::messages::{NOT_A_DICT, NOT_A_STRING};
 
 use crate::Runtime;
 
@@ -51,7 +52,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
         if let ManagedObject::Str(s) = rt.heap.get(k.as_obj_id()) {
             DictKey::from_text(s)
         } else {
-            return Err("Not a string".into());
+            return Err(NOT_A_STRING.into());
         }
     } else if k.is_int() {
         DictKey::Int(k.as_i64())
@@ -74,7 +75,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
             }
         }
     } else {
-        return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+        return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
     }
     stack.push(recv);
     Ok(())
@@ -108,7 +109,7 @@ pub(crate) fn op_dict_merge(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<
     let other_dict_map = if let ManagedObject::Dict(b) = rt.heap.get(bid) {
         b.map.clone()
     } else {
-        return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a dict".into())));
+        return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
     };
 
     if let ManagedObject::Dict(a) = rt.heap.get_mut(aid) {

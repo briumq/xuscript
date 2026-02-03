@@ -7,6 +7,7 @@
 use crate::core::heap::ManagedObject;
 use crate::core::value::{TAG_BUILDER, TAG_STR};
 use crate::core::Value;
+use crate::errors::messages::NOT_A_STRING;
 use crate::util::Appendable;
 use crate::vm::exception::throw_value;
 use crate::vm::stack::{add_with_heap, Handler, IterState, Pending};
@@ -29,7 +30,7 @@ pub(crate) fn op_str_append(
         let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
             s.clone()
         } else {
-            return Err("Not a string".into());
+            return Err(NOT_A_STRING.into());
         };
         sa.append_value(&b, &rt.heap);
         stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
@@ -66,7 +67,7 @@ pub(crate) fn op_str_append_null(
         let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
             s.clone()
         } else {
-            return Err("Not a string".into());
+            return Err(NOT_A_STRING.into());
         };
         sa.append_null();
         stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
@@ -104,7 +105,7 @@ pub(crate) fn op_str_append_bool(
         let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
             s.clone()
         } else {
-            return Err("Not a string".into());
+            return Err(NOT_A_STRING.into());
         };
         sa.append_bool(b.as_bool());
         stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
@@ -142,7 +143,7 @@ pub(crate) fn op_str_append_int(
         let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
             s.clone()
         } else {
-            return Err("Not a string".into());
+            return Err(NOT_A_STRING.into());
         };
         sa.append_i64(b.as_i64());
         stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
@@ -180,7 +181,7 @@ pub(crate) fn op_str_append_float(
         let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
             s.clone()
         } else {
-            return Err("Not a string".into());
+            return Err(NOT_A_STRING.into());
         };
         sa.append_f64(b.as_f64());
         stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
@@ -218,7 +219,7 @@ pub(crate) fn op_str_append_str(
         let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
             s.clone()
         } else {
-            return Err("Not a string".into());
+            return Err(NOT_A_STRING.into());
         };
         if let ManagedObject::Str(sb) = rt.heap.get(b.as_obj_id()) {
             sa.append_str(sb.as_str());

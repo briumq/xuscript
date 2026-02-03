@@ -8,6 +8,7 @@
 use crate::core::heap::{ManagedObject, ObjectId};
 use crate::core::Value;
 use crate::core::value::ValueExt;
+use crate::errors::messages::NOT_A_STRING;
 use crate::util::Appendable;
 use crate::Runtime;
 use xu_ir::Op;
@@ -67,7 +68,7 @@ pub(crate) fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Valu
             if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
                 s.len()
             } else {
-                return Err("Not a string".into());
+                return Err(NOT_A_STRING.into());
             }
         } else {
             20 // estimate for non-string
@@ -76,7 +77,7 @@ pub(crate) fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Valu
             if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
                 s.len()
             } else {
-                return Err("Not a string".into());
+                return Err(NOT_A_STRING.into());
             }
         } else {
             20 // estimate for non-string

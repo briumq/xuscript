@@ -185,7 +185,12 @@ impl Compiler {
                 Some(())
             }
             Stmt::Match(_) => None, // TODO: implement match stmt bytecode compilation
-            Stmt::Block(_) => None, // Block statements fall back to AST execution
+            Stmt::Block(stmts) => {
+                for stmt in stmts.iter() {
+                    self.compile_stmt(stmt)?;
+                }
+                Some(())
+            }
             Stmt::Return(v) => self.compile_return(v.as_ref()),
             Stmt::Break => self.compile_break(),
             Stmt::Continue => self.compile_continue(),
@@ -909,20 +914,42 @@ impl Compiler {
                     self.compile_expr(mod_expr)?;
                     self.bc.ops.push(Op::Pop);
                 }
-                let mut names: Vec<String> =
-                    Vec::with_capacity(s.items.iter().filter(|x| matches!(x, xu_ir::StructInitItem::Field(_, _))).count());
-                for item in s.items.iter() {
-                    match item {
-                        xu_ir::StructInitItem::Field(k, v) => {
+                // Check if there's a spread item
+                let spread_expr = s.items.iter().find_map(|item| {
+                    if let xu_ir::StructInitItem::Spread(e) = item {
+                        Some(e)
+                    } else {
+                        None
+                    }
+                });
+
+                if let Some(spread_e) = spread_expr {
+                    // Compile spread source first (will be at bottom of stack)
+                    self.compile_expr(spread_e)?;
+                    // Then compile explicit field values
+                    let mut names: Vec<String> = Vec::new();
+                    for item in s.items.iter() {
+                        if let xu_ir::StructInitItem::Field(k, v) = item {
                             names.push(k.clone());
                             self.compile_expr(v)?;
                         }
-                        xu_ir::StructInitItem::Spread(_) => return None,
                     }
+                    let t_idx = self.add_constant(xu_ir::Constant::Str(s.ty.clone()));
+                    let n_idx = self.add_constant(xu_ir::Constant::Names(names));
+                    self.bc.ops.push(Op::StructInitSpread(t_idx, n_idx));
+                } else {
+                    // No spread - use regular StructInit
+                    let mut names: Vec<String> = Vec::with_capacity(s.items.len());
+                    for item in s.items.iter() {
+                        if let xu_ir::StructInitItem::Field(k, v) = item {
+                            names.push(k.clone());
+                            self.compile_expr(v)?;
+                        }
+                    }
+                    let t_idx = self.add_constant(xu_ir::Constant::Str(s.ty.clone()));
+                    let n_idx = self.add_constant(xu_ir::Constant::Names(names));
+                    self.bc.ops.push(Op::StructInit(t_idx, n_idx));
                 }
-                let t_idx = self.add_constant(xu_ir::Constant::Str(s.ty.clone()));
-                let n_idx = self.add_constant(xu_ir::Constant::Names(names));
-                self.bc.ops.push(Op::StructInit(t_idx, n_idx));
                 Some(())
             }
             Expr::EnumCtor { module, ty, variant, args } => {

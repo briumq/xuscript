@@ -114,6 +114,123 @@ pub(crate) fn op_struct_init(
     Ok(None)
 }
 
+/// Execute Op::StructInitSpread - initialize a struct instance with spread
+/// Stack layout: [spread_src, field_values...] (spread_src at bottom)
+#[inline(always)]
+pub(crate) fn op_struct_init_spread(
+    rt: &mut Runtime,
+    bc: &Bytecode,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    t_idx: u32,
+    n_idx: u32,
+) -> Result<Option<Flow>, String> {
+    let ty = rt.get_const_str(t_idx, &bc.constants).to_string();
+    let explicit_fields = rt.get_const_names(n_idx, &bc.constants).to_vec();
+    let layout = if let Some(l) = rt.struct_layouts.get(&ty).cloned() {
+        l
+    } else {
+        let err_val = Value::str(
+            rt.heap.alloc(ManagedObject::Str(
+                rt.error(xu_syntax::DiagnosticKind::UnknownStruct(ty.clone()))
+                    .into(),
+            )),
+        );
+        if let Some(flow) = throw_value(
+            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+        ) {
+            return Ok(Some(flow));
+        }
+        return Ok(None);
+    };
+
+    let mut values = vec![Value::VOID; layout.len()];
+
+    // Pop explicit field values first (they're on top of stack)
+    let mut explicit_values: Vec<Value> = Vec::with_capacity(explicit_fields.len());
+    for _ in 0..explicit_fields.len() {
+        explicit_values.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
+    }
+    explicit_values.reverse();
+
+    // Pop spread source (at bottom)
+    let spread_src = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+
+    // Apply values from spread source
+    let spread_tag = spread_src.get_tag();
+    if spread_tag == crate::core::value::TAG_STRUCT {
+        let id = spread_src.as_obj_id();
+        if let ManagedObject::Struct(si) = rt.heap.get(id) {
+            if si.ty.as_str() != ty.as_str() {
+                let err_val = Value::str(
+                    rt.heap.alloc(ManagedObject::Str(
+                        rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                            expected: ty.clone(),
+                            actual: si.ty.as_str().to_string(),
+                        })
+                        .into(),
+                    )),
+                );
+                if let Some(flow) = throw_value(
+                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                ) {
+                    return Ok(Some(flow));
+                }
+                return Ok(None);
+            }
+            for (i, fname) in si.field_names.iter().enumerate() {
+                if let Some(pos) = layout.iter().position(|f| f.as_str() == fname.as_str()) {
+                    values[pos] = si.fields[i];
+                }
+            }
+        }
+    } else if spread_tag == crate::core::value::TAG_DICT {
+        let id = spread_src.as_obj_id();
+        if let ManagedObject::Dict(db) = rt.heap.get(id) {
+            for (pos, fname) in layout.iter().enumerate() {
+                // Check shape properties first
+                if let Some(sid) = db.shape {
+                    if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
+                        if let Some(&off) = shape.prop_map.get(fname.as_str()) {
+                            if let Some(v) = db.prop_values.get(off) {
+                                values[pos] = *v;
+                                continue;
+                            }
+                        }
+                    }
+                }
+                // Check map
+                let hash = crate::Runtime::hash_bytes(db.map.hasher(), fname.as_bytes());
+                if let Some(v) = crate::Runtime::dict_get_by_str_with_hash(db, fname.as_str(), hash) {
+                    values[pos] = v;
+                }
+            }
+        }
+    }
+
+    // Override with explicit field values
+    for (k, v) in explicit_fields.iter().zip(explicit_values.into_iter()) {
+        if let Some(pos) = layout.iter().position(|f| f == k) {
+            values[pos] = v;
+        }
+    }
+
+    let id = rt
+        .heap
+        .alloc(ManagedObject::Struct(Box::new(crate::core::value::StructInstance {
+            ty: ty.clone(),
+            ty_hash: xu_ir::stable_hash64(&ty),
+            fields: values.into_boxed_slice(),
+            field_names: layout.clone(),
+        })));
+    stack.push(Value::struct_obj(id));
+    Ok(None)
+}
+
 /// Execute Op::EnumCtor - create an enum variant (no payload)
 #[inline(always)]
 pub(crate) fn op_enum_ctor(

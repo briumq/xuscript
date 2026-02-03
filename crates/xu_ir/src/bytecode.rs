@@ -67,6 +67,7 @@ pub enum Op {
     DefineStruct(u32),          // Index into constant pool (StructDef)
     DefineEnum(u32),            // Index into constant pool (EnumDef)
     StructInit(u32, u32),       // Index to String, Index to Names (Vec<String>)
+    StructInitSpread(u32, u32), // Index to String (type), Index to Names (explicit fields) - stack: [spread_src, field_values...]
     EnumCtor(u32, u32),         // Index to String (Enum name), Index to String (Ctor name)
     EnumCtorN(u32, u32, usize), // Index to String (Enum name), Index to String (Ctor name), args_count
     MakeFunction(u32),          // Index into constant pool (BytecodeFunction)

@@ -8,6 +8,7 @@ use crate::core::Value;
 use crate::core::value::ValueExt;
 use crate::Runtime;
 use crate::core::heap::ManagedObject;
+use crate::errors::messages::NOT_A_STRING;
 use xu_ir::BinaryOp;
 
 #[inline(always)]
@@ -43,7 +44,7 @@ fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Value, String> 
             if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
                 s.len()
             } else {
-                return Err("Not a string".into());
+                return Err(NOT_A_STRING.into());
             }
         } else {
             20
@@ -52,7 +53,7 @@ fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Value, String> 
             if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
                 s.len()
             } else {
-                return Err("Not a string".into());
+                return Err(NOT_A_STRING.into());
             }
         } else {
             20
