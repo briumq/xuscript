@@ -193,8 +193,29 @@ pub(super) fn dispatch(
             }
             Ok(rt.option_none())
         }
+        MethodKind::ListFindIndex => {
+            validate_arity(rt, method, args.len(), 1, 1)?;
+            
+            let f = args[0];
+            let list = expect_list(rt, recv)?;
+            let items = list.to_vec();
+            
+            for (index, item) in items.iter().enumerate() {
+                let found = rt.call_function(f, &[*item])?;
+                if !found.is_bool() {
+                    return Err(err(rt, xu_syntax::DiagnosticKind::InvalidConditionType(
+                        found.type_name().to_string(),
+                    )));
+                }
+                if found.as_bool() {
+                    return Ok(rt.option_some(Value::from_i64(index as i64)));
+                }
+            }
+            Ok(rt.option_none())
+        }
         _ => Err(rt.error(xu_syntax::DiagnosticKind::UnknownListMethod(
             method.to_string(),
         ))),
+
     }
 }
