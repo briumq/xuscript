@@ -77,7 +77,39 @@ pub(super) fn dispatch(
                 }
             }
 
-            // Slow path for string keys and large integer keys
+            // Fast path for string keys - avoid creating DictKey for existing keys
+            if args[0].get_tag() == crate::core::value::TAG_STR {
+                // Get key string and compute hash first
+                let (key_owned, hash) = {
+                    let key_str = expect_str(rt, args[0])?;
+                    let me = expect_dict(rt, recv)?;
+                    let hash = {
+                        let mut h = me.map.hasher().build_hasher();
+                        h.write_u8(0); // String discriminant
+                        key_str.as_bytes().hash(&mut h);
+                        h.finish()
+                    };
+                    (key_str.as_str().to_string(), hash)
+                };
+
+                let me = expect_dict_mut(rt, recv)?;
+                match me.map.raw_entry_mut().from_hash(hash, |k| k.is_str() && k.as_str() == key_owned) {
+                    RawEntryMut::Occupied(mut o) => {
+                        // 值更新 - 不增加版本号
+                        *o.get_mut() = value;
+                    }
+                    RawEntryMut::Vacant(vac) => {
+                        // 新 key - 需要创建 DictKey
+                        let key = DictKey::from_str(&key_owned);
+                        vac.insert(key, value);
+                        me.ver += 1;
+                        rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
+                    }
+                }
+                return Ok(Value::VOID);
+            }
+
+            // Slow path for large integer keys
             let key = get_dict_key_from_value(rt, &args[0])?;
 
             let me = expect_dict_mut(rt, recv)?;

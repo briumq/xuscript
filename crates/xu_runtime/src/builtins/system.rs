@@ -245,13 +245,21 @@ pub fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<Value, S
             sb.push_str(&s);
         }
     } else if v.get_tag() == crate::core::value::TAG_STR {
-        let text = if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(v.as_obj_id()) {
-            s.clone()
+        // Optimize: get string pointer and length first, then push
+        let str_id = v.as_obj_id();
+        let (ptr, len) = if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(str_id) {
+            (s.as_str().as_ptr(), s.as_str().len())
         } else {
-            "".into()
+            (std::ptr::null(), 0)
         };
-        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
-            sb.push_str(text.as_str());
+        if !ptr.is_null() {
+            // SAFETY: We're accessing the same heap, and the string won't be moved
+            // during this operation since we're not allocating
+            let str_slice = unsafe { std::slice::from_raw_parts(ptr, len) };
+            let str_ref = unsafe { std::str::from_utf8_unchecked(str_slice) };
+            if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+                sb.push_str(str_ref);
+            }
         }
     } else if v.get_tag() == crate::core::value::TAG_BUILDER {
         let s = if let crate::core::heap::ManagedObject::Builder(s) = rt.heap.get(v.as_obj_id()) {

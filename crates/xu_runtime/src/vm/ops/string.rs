@@ -5,6 +5,7 @@
 //! - Builder*: String builder operations
 
 use crate::core::heap::ManagedObject;
+use crate::core::text::Text;
 use crate::core::value::{TAG_BUILDER, TAG_STR};
 use crate::core::Value;
 use crate::errors::messages::NOT_A_STRING;
@@ -27,13 +28,32 @@ pub(crate) fn op_str_append(
     let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     if a.get_tag() == TAG_STR {
-        let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-            s.clone()
+        // Fast path: both operands are strings - use concat2
+        if b.get_tag() == TAG_STR {
+            let result = {
+                let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                    s
+                } else {
+                    return Err(NOT_A_STRING.into());
+                };
+                let sb = if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
+                    s
+                } else {
+                    return Err(NOT_A_STRING.into());
+                };
+                Text::concat2(sa, sb)
+            };
+            stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
         } else {
-            return Err(NOT_A_STRING.into());
-        };
-        sa.append_value(&b, &rt.heap);
-        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
+            // Slow path: need to convert b to string
+            let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                s.clone()
+            } else {
+                return Err(NOT_A_STRING.into());
+            };
+            sa.append_value(&b, &rt.heap);
+            stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
+        }
     } else {
         match add_with_heap(rt, a, b) {
             Ok(r) => stack.push(r),

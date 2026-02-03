@@ -200,11 +200,11 @@ impl Runtime {
         v
     }
 
-    /// Get cached string Value for small integers (0-9999)
+    /// Get cached string Value for small integers (0-999999)
     /// Returns None if the integer is out of range
     #[inline]
     pub fn get_small_int_string(&mut self, i: i64) -> Option<Value> {
-        const MAX_CACHED: usize = 10000;
+        const MAX_CACHED: usize = 1000000;
         if i < 0 || i >= MAX_CACHED as i64 {
             return None;
         }
