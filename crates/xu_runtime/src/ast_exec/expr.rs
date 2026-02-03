@@ -428,6 +428,37 @@ impl Runtime {
                 self.call_function(f, &args)
             }
             Expr::MethodCall(m) => {
+                // Check if this might be a static method call (Type.method())
+                // If receiver is an Ident, try static method first before evaluating receiver
+                if let Expr::Ident(type_name, _) = m.receiver.as_ref() {
+                    let static_name = format!("__static__{}__{}", type_name, m.method);
+                    // Try to find static method in env
+                    if let Some(func) = self.env.get(&static_name) {
+                        let args = self.eval_args(&m.args)?;
+                        return self.call_function(func, &args);
+                    }
+                    // If no static method found, fall through to try as instance method
+                }
+                // Check for cross-module static method (module.Type.method())
+                if let Expr::Member(inner_m) = m.receiver.as_ref() {
+                    // Try to get module and check for static method
+                    if let Ok(mod_val) = self.eval_expr(&inner_m.object) {
+                        if mod_val.get_tag() == crate::core::value::TAG_MODULE {
+                            let static_name = format!("__static__{}__{}", inner_m.field, m.method);
+                            let id = mod_val.as_obj_id();
+                            let func_opt = if let crate::core::heap::ManagedObject::Module(module) = self.heap.get(id) {
+                                module.exports.map.get(&static_name).copied()
+                            } else {
+                                None
+                            };
+                            if let Some(func) = func_opt {
+                                let args = self.eval_args(&m.args)?;
+                                return self.call_function(func, &args);
+                            }
+                        }
+                    }
+                }
+                // Fall back to instance method call
                 let recv = self.eval_expr(&m.receiver)?;
                 let args = self.eval_args(&m.args)?;
                 let slot_idx = if let Some(idx) = m.ic_slot.get() {

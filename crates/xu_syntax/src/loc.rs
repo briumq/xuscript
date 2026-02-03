@@ -15,6 +15,7 @@ pub enum DiagnosticKind {
     InvalidAssignmentTarget,
     ExpectedImportPath,
     TrailingInterpolationTokens,
+    KeywordAsIdentifier(String),
 
     // Analyzer - Errors
     UnreachableCode,
@@ -133,6 +134,9 @@ impl DiagnosticsFormatter {
             }
             DiagnosticKind::TrailingInterpolationTokens => {
                 "Interpolation expression has trailing tokens".into()
+            }
+            DiagnosticKind::KeywordAsIdentifier(kw) => {
+                format!("Keyword '{}' cannot be used as an identifier", kw)
             }
 
             DiagnosticKind::UndefinedIdentifier(name) => format!("Undefined identifier: {}", name),

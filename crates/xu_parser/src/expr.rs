@@ -187,34 +187,8 @@ impl<'a, 'b> Parser<'a, 'b> {
                     self.bump();
                     let field = if self.at(TokenKind::Ident) {
                         self.expect_ident()?
-                    } else if self.at(TokenKind::KwHas)
-                        || self.at(TokenKind::KwIs)
-                        || self.at(TokenKind::KwIf)
-                        || self.at(TokenKind::KwElse)
-                        || self.at(TokenKind::KwMatch)
-                        || self.at(TokenKind::KwFor)
-                        || self.at(TokenKind::KwWhile)
-                        || self.at(TokenKind::KwWhen)
-                        || self.at(TokenKind::KwReturn)
-                        || self.at(TokenKind::KwBreak)
-                        || self.at(TokenKind::KwContinue)
-                        || self.at(TokenKind::KwFunc)
-                        || self.at(TokenKind::KwLet)
-                        || self.at(TokenKind::KwVar)
-                        || self.at(TokenKind::KwUse)
-                        || self.at(TokenKind::KwAs)
-                        || self.at(TokenKind::KwIn)
-                        || self.at(TokenKind::KwWith)
-                        || self.at(TokenKind::KwDoes)
-                        || self.at(TokenKind::KwInner)
-                        || self.at(TokenKind::KwStatic)
-                        || self.at(TokenKind::KwSelf)
-                        || self.at(TokenKind::KwAsync)
-                        || self.at(TokenKind::KwAwait)
-                        || self.at(TokenKind::KwCan)
-                        || self.at(TokenKind::True)
-                        || self.at(TokenKind::False)
-                    {
+                    } else if self.peek_kind().is_keyword() {
+                        // Allow keywords as field names (e.g., obj.has, obj.is)
                         let t = self.bumped();
                         self.token_text(&t).to_string()
                     } else if self.at(TokenKind::Int) {
@@ -266,60 +240,14 @@ impl<'a, 'b> Parser<'a, 'b> {
                             args: args.into_boxed_slice(),
                         };
                     } else if let Expr::Member(m) = expr {
-                        if let Expr::Ident(ty, _) = m.object.as_ref() {
-                            if ty.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
-                                expr = Expr::Call(Box::new(CallExpr {
-                                    callee: Box::new(Expr::Ident(
-                                        static_name(ty, &m.field),
-                                        std::cell::Cell::new(None),
-                                    )),
-                                    args: args.into_boxed_slice(),
-                                }));
-                            } else {
-                                expr = Expr::MethodCall(Box::new(MethodCallExpr {
-                                    receiver: m.object,
-                                    method: m.field,
-                                    args: args.into_boxed_slice(),
-                                    ic_slot: std::cell::Cell::new(None),
-                                    receiver_ty: std::cell::Cell::new(None),
-                                }));
-                            }
-                        } else if let Expr::Member(inner_m) = m.object.as_ref() {
-                            // Handle module.TypeName.method() form
-                            // Transform to module.__static__TypeName__method()
-                            if inner_m
-                                .field
-                                .chars()
-                                .next()
-                                .is_some_and(|c| c.is_ascii_uppercase())
-                            {
-                                let mangled = static_name(&inner_m.field, &m.field);
-                                expr = Expr::Call(Box::new(CallExpr {
-                                    callee: Box::new(Expr::Member(Box::new(MemberExpr {
-                                        object: inner_m.object.clone(),
-                                        field: mangled,
-                                        ic_slot: std::cell::Cell::new(None),
-                                    }))),
-                                    args: args.into_boxed_slice(),
-                                }));
-                            } else {
-                                expr = Expr::MethodCall(Box::new(MethodCallExpr {
-                                    receiver: m.object,
-                                    method: m.field,
-                                    args: args.into_boxed_slice(),
-                                    ic_slot: std::cell::Cell::new(None),
-                                    receiver_ty: std::cell::Cell::new(None),
-                                }));
-                            }
-                        } else {
-                            expr = Expr::MethodCall(Box::new(MethodCallExpr {
-                                receiver: m.object,
-                                method: m.field,
-                                args: args.into_boxed_slice(),
-                                ic_slot: std::cell::Cell::new(None),
-                                receiver_ty: std::cell::Cell::new(None),
-                            }));
-                        }
+                        // Always generate MethodCall, let runtime decide if it's static or instance
+                        expr = Expr::MethodCall(Box::new(MethodCallExpr {
+                            receiver: m.object,
+                            method: m.field,
+                            args: args.into_boxed_slice(),
+                            ic_slot: std::cell::Cell::new(None),
+                            receiver_ty: std::cell::Cell::new(None),
+                        }));
                     } else {
                         expr = Expr::Call(Box::new(CallExpr {
                             callee: Box::new(expr),
@@ -331,18 +259,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                     let t = self.bumped();
                     let method = self.token_text(&t).to_string();
                     let args = self.parse_args()?;
-                    if let Expr::Ident(ty, _) = &expr {
-                        if ty.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
-                            expr = Expr::Call(Box::new(CallExpr {
-                                callee: Box::new(Expr::Ident(
-                                    static_name(ty, &method),
-                                    std::cell::Cell::new(None),
-                                )),
-                                args: args.into_boxed_slice(),
-                            }));
-                            continue;
-                        }
-                    }
+                    // Always generate MethodCall, let runtime decide if it's static or instance
                     expr = Expr::MethodCall(Box::new(MethodCallExpr {
                         receiver: Box::new(expr),
                         method,
@@ -730,8 +647,10 @@ impl<'a, 'b> Parser<'a, 'b> {
             let key = if self.at(TokenKind::Str) {
                 let key_tok = self.bumped();
                 unquote(self.token_text(&key_tok))
-            } else if self.at(TokenKind::Ident) {
-                self.expect_ident()?
+            } else if self.at(TokenKind::Ident) || self.peek_kind().is_keyword() {
+                // Allow keywords as dict keys (e.g., { has: 1, is: 2 })
+                let t = self.bumped();
+                self.token_text(&t).to_string()
             } else {
                 let span = self.cur_span();
                 self.diagnostics.push(Diagnostic::error_kind(
@@ -781,7 +700,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                 let value = self.parse_expr(0)?;
                 entries.push(StructInitItem::Spread(value));
             } else {
-                let key = self.expect_ident()?;
+                let key = self.expect_field_name()?;
                 self.expect(TokenKind::Colon)?;
                 let value = self.parse_expr(0)?;
                 entries.push(StructInitItem::Field(key, value));

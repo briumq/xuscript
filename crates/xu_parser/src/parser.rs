@@ -189,20 +189,36 @@ impl<'a, 'b> Parser<'a, 'b> {
 
     pub fn expect_ident(&mut self) -> Option<String> {
         self.skip_trivia();
-        if matches!(
-            self.peek_kind(),
-            TokenKind::KwCan | TokenKind::KwAsync | TokenKind::KwAwait
-        ) {
+        // Check if current token is a keyword that cannot be used as identifier
+        let kind = self.peek_kind();
+        if kind.is_keyword() {
             let t = self.bumped();
             let kw = self.token_text(&t).to_string();
-            self.diagnostics.push(Diagnostic::error(
-                format!("Reserved keyword cannot be used as identifier: {}", kw),
+            self.diagnostics.push(Diagnostic::error_kind(
+                xu_syntax::DiagnosticKind::KeywordAsIdentifier(kw),
                 Some(t.span),
             ));
             return None;
         }
         let t = self.expect(TokenKind::Ident)?;
         Some(self.token_text(&t).to_string())
+    }
+
+    /// Expect an identifier or keyword (for field names where keywords are allowed)
+    pub fn expect_field_name(&mut self) -> Option<String> {
+        self.skip_trivia();
+        let kind = self.peek_kind();
+        if kind == TokenKind::Ident || kind.is_keyword() {
+            let t = self.bumped();
+            Some(self.token_text(&t).to_string())
+        } else {
+            let span = self.cur_span();
+            self.diagnostics.push(Diagnostic::error_kind(
+                xu_syntax::DiagnosticKind::ExpectedToken("identifier".to_string()),
+                Some(span),
+            ));
+            None
+        }
     }
 
     pub fn at_arrow(&self) -> bool {
@@ -316,7 +332,8 @@ impl<'a, 'b> Parser<'a, 'b> {
                     BraceContent::Block
                 }
             }
-            Some(TokenKind::Ident) => {
+            Some(kind) if kind == TokenKind::Ident || kind.is_keyword() => {
+                // Allow keywords as field names (e.g., { has: 1, is: 2 })
                 if self.peek_kind_skipping(1, 1) == Some(TokenKind::Colon) {
                     BraceContent::FieldInit
                 } else {

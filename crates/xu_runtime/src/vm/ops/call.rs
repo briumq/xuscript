@@ -573,6 +573,90 @@ pub(crate) fn op_make_function(
     Ok(())
 }
 
+/// Execute Op::CallStaticOrMethod - try static method first, fall back to instance method
+/// Stack layout: [args...] (no receiver on stack - receiver is looked up by name)
+#[inline(always)]
+pub(crate) fn op_call_static_or_method(
+    rt: &mut Runtime,
+    bc: &Bytecode,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    type_idx: u32,
+    m_idx: u32,
+    method_hash: u64,
+    n: usize,
+    slot_idx: Option<usize>,
+) -> Result<Option<Flow>, String> {
+    let type_name = rt.get_const_str(type_idx, &bc.constants);
+    let method = rt.get_const_str(m_idx, &bc.constants);
+
+    // First try static method: __static__{type_name}__{method}
+    let static_name = format!("__static__{}__{}", type_name, method);
+    if let Some(func) = rt.env.get(&static_name) {
+        // Static method found - call it directly
+        if stack.len() < n {
+            return Err(format!("Stack underflow in CallStaticOrMethod"));
+        }
+        let args: smallvec::SmallVec<[Value; 8]> = stack.drain(stack.len() - n..).collect();
+        match rt.call_function(func, &args) {
+            Ok(v) => stack.push(v),
+            Err(e) => {
+                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                if let Some(flow) = throw_value(
+                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                ) {
+                    return Ok(Some(flow));
+                }
+                return Ok(None);
+            }
+        }
+        return Ok(None);
+    }
+
+    // Static method not found - try as instance method on a global variable
+    if let Some(recv) = rt.env.get(type_name) {
+        if stack.len() < n {
+            return Err(format!("Stack underflow in CallStaticOrMethod"));
+        }
+        let args_start = stack.len() - n;
+        let res = rt.call_method_with_ic_raw(
+            recv,
+            method,
+            method_hash,
+            &stack[args_start..],
+            slot_idx,
+        );
+        stack.truncate(args_start);
+        match res {
+            Ok(v) => stack.push(v),
+            Err(e) => {
+                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                if let Some(flow) = throw_value(
+                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                ) {
+                    return Ok(Some(flow));
+                }
+            }
+        }
+        return Ok(None);
+    }
+
+    // Neither static method nor global variable found - error
+    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(
+        format!("Undefined identifier: {}", type_name).into(),
+    )));
+    if let Some(flow) = throw_value(
+        rt, ip, handlers, stack, iters, pending, thrown, err_val,
+    ) {
+        return Ok(Some(flow));
+    }
+    Ok(None)
+}
+
 /// Execute Op::Return - return from function
 #[inline(always)]
 pub(crate) fn op_return(stack: &mut Vec<Value>) -> Result<Flow, String> {

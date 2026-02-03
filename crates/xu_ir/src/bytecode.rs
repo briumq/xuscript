@@ -73,6 +73,9 @@ pub enum Op {
     MakeFunction(u32),          // Index into constant pool (BytecodeFunction)
     Call(usize),
     CallMethod(u32, u64, usize, Option<usize>), // Index to String (Method name), hash, args_count, slot
+    /// Try static method first, fall back to instance method
+    /// (type_name_idx, method_name_idx, method_hash, args_count, slot)
+    CallStaticOrMethod(u32, u32, u64, usize, Option<usize>),
     Inc,
     IncLocal(usize),
     MakeRange(bool),

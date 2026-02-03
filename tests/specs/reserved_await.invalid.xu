@@ -1,2 +1,2 @@
-// expect_error:"Reserved keyword cannot be used as identifier"
+// expect_error:"Keyword 'await' cannot be used as an identifier"
 let await = 1

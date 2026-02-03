@@ -74,6 +74,7 @@
 | E2005 | UNTERMINATED_BLOCK_COMMENT | 未终止注释 |
 | E2006 | UNEXPECTED_CHAR | 意外字符 |
 | E2007 | UNCLOSED_DELIMITER | 未闭合分隔符 |
+| E2008 | KEYWORD_AS_IDENTIFIER | 关键字不能作为标识符 |
 | E3001 | INDEX_OUT_OF_RANGE | 索引越界 |
 | E3002 | DIVISION_BY_ZERO | 除零错误 |
 | E3003 | KEY_NOT_FOUND | 键不存在 |
@@ -316,6 +317,25 @@ error[P002]: 期望标识符
    |
    = help: 标识符以字母或下划线开头
 ```
+
+### P002b: 关键字不能作为标识符
+
+text
+
+```
+error[E2008]: 关键字不能作为标识符
+  --> {file}:{line}:{col}
+   |
+ {line} |     func inner() { }
+   |          ^^^^^ 'inner' 是保留关键字
+   |
+   = help: 选择其他名称，如 'inner_func' 或 '_inner'
+   = note: 保留关键字: if, else, for, while, func, return, break, continue,
+           let, var, match, when, has, does, inner, static, self, use, as,
+           is, with, can, async, await, true, false
+```
+
+**触发条件**: 在需要标识符的位置使用了关键字
 
 ### P003: 期望类型
 

@@ -274,7 +274,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                 continue;
             }
 
-            let field_name = self.expect_ident()?;
+            let field_name = self.expect_field_name()?;
             self.expect(TokenKind::Colon)?;
             let field_ty = self.parse_type_ref()?;
             self.skip_layout();

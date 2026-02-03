@@ -152,3 +152,39 @@ pub struct Token {
     /// Span in source text.
     pub span: Span,
 }
+
+impl TokenKind {
+    /// Returns true if this token kind is a keyword.
+    pub fn is_keyword(&self) -> bool {
+        matches!(
+            self,
+            TokenKind::True
+                | TokenKind::False
+                | TokenKind::KwLet
+                | TokenKind::KwVar
+                | TokenKind::KwIs
+                | TokenKind::KwWith
+                | TokenKind::KwHas
+                | TokenKind::KwIf
+                | TokenKind::KwElse
+                | TokenKind::KwWhile
+                | TokenKind::KwFor
+                | TokenKind::KwIn
+                | TokenKind::KwFunc
+                | TokenKind::KwReturn
+                | TokenKind::KwBreak
+                | TokenKind::KwContinue
+                | TokenKind::KwDoes
+                | TokenKind::KwInner
+                | TokenKind::KwStatic
+                | TokenKind::KwSelf
+                | TokenKind::KwUse
+                | TokenKind::KwAs
+                | TokenKind::KwMatch
+                | TokenKind::KwWhen
+                | TokenKind::KwCan
+                | TokenKind::KwAsync
+                | TokenKind::KwAwait
+        )
+    }
+}

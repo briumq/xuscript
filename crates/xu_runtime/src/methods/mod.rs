@@ -100,6 +100,7 @@ impl MethodKind {
             "find" => Self::ListFind,
             "find_index" => Self::ListFindIndex,
             "length" => Self::Len,
+            "len" => Self::Len,
             "contains" => Self::Contains,
             "clear" => Self::Clear,
             "remove" => Self::Remove,

@@ -134,6 +134,7 @@ pub mod codes {
     pub const UNTERMINATED_BLOCK_COMMENT: &str = "E2005";
     pub const UNEXPECTED_CHAR: &str = "E2006";
     pub const UNCLOSED_DELIMITER: &str = "E2007";
+    pub const KEYWORD_AS_IDENTIFIER: &str = "E2008";
 
     // 3xxx - Runtime
     pub const INDEX_OUT_OF_RANGE: &str = "E3001";

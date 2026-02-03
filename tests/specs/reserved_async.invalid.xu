@@ -1,2 +1,2 @@
-// expect_error:"Reserved keyword cannot be used as identifier"
+// expect_error:"Keyword 'async' cannot be used as an identifier"
 let async = 1

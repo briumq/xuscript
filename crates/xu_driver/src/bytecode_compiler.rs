@@ -1019,20 +1019,59 @@ impl Compiler {
                     self.compile_expr(&m.args[1])?;
                     self.bc.ops.push(Op::DictInsert);
                 }
-                // All other cases: generate generic CallMethod
+                // All other cases: generate generic CallMethod or CallStaticOrMethod
                 else {
-                    self.compile_expr(&m.receiver)?;
-                    for a in m.args.iter() {
-                        self.compile_expr(a)?;
+                    // Check if receiver is an Ident - might be a static method call
+                    if let Expr::Ident(name, _) = m.receiver.as_ref() {
+                        // Check if this identifier is a known local variable
+                        let is_local = self.resolve_local(name).is_some();
+
+                        if is_local {
+                            // It's a local variable - use regular CallMethod
+                            self.compile_expr(&m.receiver)?;
+                            for a in m.args.iter() {
+                                self.compile_expr(a)?;
+                            }
+                            let slot = self.alloc_ic_slot();
+                            let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
+                            self.bc.ops.push(Op::CallMethod(
+                                m_idx,
+                                xu_ir::stable_hash64(m.method.as_str()),
+                                m.args.len(),
+                                Some(slot),
+                            ));
+                        } else {
+                            // Not a local - could be a global variable or a type name
+                            // Generate CallStaticOrMethod to try static method first
+                            // Stack layout: [args...] - no receiver on stack for static methods
+                            for a in m.args.iter() {
+                                self.compile_expr(a)?;
+                            }
+                            let slot = self.alloc_ic_slot();
+                            let type_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
+                            let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
+                            self.bc.ops.push(Op::CallStaticOrMethod(
+                                type_idx,
+                                m_idx,
+                                xu_ir::stable_hash64(m.method.as_str()),
+                                m.args.len(),
+                                Some(slot),
+                            ));
+                        }
+                    } else {
+                        self.compile_expr(&m.receiver)?;
+                        for a in m.args.iter() {
+                            self.compile_expr(a)?;
+                        }
+                        let slot = self.alloc_ic_slot();
+                        let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
+                        self.bc.ops.push(Op::CallMethod(
+                            m_idx,
+                            xu_ir::stable_hash64(m.method.as_str()),
+                            m.args.len(),
+                            Some(slot),
+                        ));
                     }
-                    let slot = self.alloc_ic_slot();
-                    let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
-                    self.bc.ops.push(Op::CallMethod(
-                        m_idx,
-                        xu_ir::stable_hash64(m.method.as_str()),
-                        m.args.len(),
-                        Some(slot),
-                    ));
                 }
                 Some(())
             }
