@@ -39,11 +39,11 @@ Task 1 assigned successfully
 Original: Hello, Task Management System!
 Length: 30
 Uppercase: HELLO, TASK MANAGEMENT SYSTEM!
-Starts with Hello: true
+Starts with 'Hello': true
 
 === List Operations ===
 Priorities: low, medium, high, urgent
-Has high: true
+Has 'high': true
 
 === Dict Operations ===
 API URL: https://api.example.com

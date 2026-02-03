@@ -219,6 +219,9 @@ impl<'a> Lexer<'a> {
                 Some('"') => {
                     self.lex_string();
                 }
+                Some('\'') => {
+                    self.lex_single_quote_string();
+                }
                 Some('.') => {
                     if self.peek_str("...") {
                         self.i += 3;
@@ -479,6 +482,38 @@ impl<'a> Lexer<'a> {
                 break;
             }
             if ch == '"' {
+                self.i += 1;
+                self.push(TokenKind::Str, start, self.i);
+                return;
+            }
+            if ch == '\\' {
+                self.i += 1;
+                if self.i >= self.bytes.len() {
+                    break;
+                }
+                let esc = self.peek_char().unwrap();
+                self.i += esc.len_utf8();
+                continue;
+            }
+            self.i += ch.len_utf8();
+        }
+        self.diagnostics.push(Diagnostic::error_kind(
+            DiagnosticKind::UnterminatedString,
+            Some(Span::new(start as u32, self.i as u32)),
+        ));
+    }
+
+    /// Lex a single-quoted string (e.g., 'hello')
+    /// Single-quoted strings are treated the same as double-quoted strings
+    fn lex_single_quote_string(&mut self) {
+        let start = self.i;
+        self.i += 1; // skip opening '
+        while self.i < self.bytes.len() {
+            let ch = self.peek_char().unwrap();
+            if ch == '\n' || ch == '\r' {
+                break;
+            }
+            if ch == '\'' {
                 self.i += 1;
                 self.push(TokenKind::Str, start, self.i);
                 return;

@@ -15,7 +15,10 @@ impl<'a, 'b> Parser<'a, 'b> {
         if raw.len() < 2 {
             return Some(Expr::Str(String::new()));
         }
-        let inner = if raw.starts_with("\"\"\"") && raw.ends_with("\"\"\"") && raw.len() >= 6 {
+        // Handle single-quoted strings
+        let inner = if raw.starts_with('\'') && raw.ends_with('\'') {
+            &raw[1..raw.len() - 1]
+        } else if raw.starts_with("\"\"\"") && raw.ends_with("\"\"\"") && raw.len() >= 6 {
             &raw[3..raw.len() - 3]
         } else {
             &raw[1..raw.len() - 1]

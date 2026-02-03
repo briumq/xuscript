@@ -326,16 +326,13 @@ func main() {
     println("Original: {message}")
     println("Length: {message.length()}")
     println("Uppercase: {message.to_upper()}")
-    let starts_hello = message.starts_with("Hello")
-    println("Starts with Hello: {starts_hello}")
+    println("Starts with 'Hello': {message.starts_with('Hello')}")
 
     // 演示列表操作
     println("\n=== List Operations ===")
     let priorities = ["low", "medium", "high", "urgent"]
-    let joined = priorities.join(", ")
-    println("Priorities: {joined}")
-    let has_high = priorities.contains("high")
-    println("Has high: {has_high}")
+    println("Priorities: {priorities.join(', ')}")
+    println("Has 'high': {priorities.contains('high')}")
 
     // 演示字典操作
     println("\n=== Dict Operations ===")

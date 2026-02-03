@@ -25,7 +25,7 @@ Author has {
     bio: string = ""
     
     func to_string() -> string {
-        return "Author(id: {self.id}, name: {self.name}, email: {self.email})"
+        return "Author{id: {self.id}, name: {self.name}, email: {self.email}}"
     }
 }
 
@@ -41,7 +41,7 @@ Book has {
     
     func to_string() -> string {
         let status = self.status_string()
-        return "Book(id: {self.id}, title: {self.title}, author: {self.author.name}, status: {status})"
+        return "Book{id: {self.id}, title: {self.title}, author: {self.author.name}, status: {status}}"
     }
     
     func status_string() -> string {
@@ -85,7 +85,7 @@ User has {
     
     func to_string() -> string {
         let type_str = self.user_type_string()
-        return "User(id: {self.id}, name: {self.name}, type: {type_str})"
+        return "User{id: {self.id}, name: {self.name}, type: {type_str}}"
     }
     
     func user_type_string() -> string {
@@ -218,7 +218,7 @@ Library has {
         println("图书馆 '{self.name}' 的图书列表：")
         for book in self.books {
             // 直接输出，不使用 to_string 方法
-            println("Book(id: {book.id}, title: {book.title}, author: {book.author.name})")
+            println("Book{id: {book.id}, title: {book.title}, author: {book.author.name}}")
         }
     }
 
@@ -226,7 +226,7 @@ Library has {
         println("图书馆 '{self.name}' 的用户列表：")
         for u in self.users {
             // 直接输出，不使用 to_string 方法
-            println("User(id: {u.id}, name: {u.name})")
+            println("User{id: {u.id}, name: {u.name}}")
         }
     }
 
@@ -234,7 +234,7 @@ Library has {
         println("图书馆 '{self.name}' 的作者列表：")
         for author in self.authors {
             // 直接输出，不使用 to_string 方法
-            println("Author(id: {author.id}, name: {author.name}, email: {author.email})")
+            println("Author{id: {author.id}, name: {author.name}, email: {author.email}}")
         }
     }
 }

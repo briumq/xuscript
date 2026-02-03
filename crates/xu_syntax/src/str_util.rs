@@ -48,6 +48,40 @@ impl<'a> InterpolationParser<'a> {
         Self { input }
     }
 
+    /// Check if the content starting at position looks like a struct literal field pattern
+    /// e.g., "id: {x}" where we have identifier, colon, and then an interpolation
+    fn looks_like_struct_literal(&self, start: usize) -> bool {
+        let rest = &self.input[start..];
+        let mut chars = rest.chars().peekable();
+
+        // Skip identifier
+        let first = chars.next();
+        if !first.map(crate::is_ident_start).unwrap_or(false) {
+            return false;
+        }
+        while chars.peek().map(|&c| crate::is_ident_continue(c)).unwrap_or(false) {
+            chars.next();
+        }
+
+        // Skip optional whitespace
+        while chars.peek().map(|&c| c.is_whitespace()).unwrap_or(false) {
+            chars.next();
+        }
+
+        // Expect colon
+        if chars.next() != Some(':') {
+            return false;
+        }
+
+        // Skip optional whitespace
+        while chars.peek().map(|&c| c.is_whitespace()).unwrap_or(false) {
+            chars.next();
+        }
+
+        // Check if next is { (interpolation)
+        chars.peek() == Some(&'{')
+    }
+
     pub fn parse<F>(&self, mut on_piece: F)
     where
         F: FnMut(InterpolationPiece<'a>),
@@ -88,12 +122,21 @@ impl<'a> InterpolationParser<'a> {
                         j += n.len_utf8();
                         continue;
                     }
-                    if n == '"' {
+                    // If { is followed by whitespace then " or another {, treat { as literal
+                    if n == '"' || n == '{' {
                         buffer.push('{');
                         continue 'outer;
                     }
                     break;
                 }
+
+                // Check for pattern like {id: {expr}} - treat outer { as literal
+                // This handles cases like "Author{id: {x}}"
+                if self.looks_like_struct_literal(i) {
+                    buffer.push('{');
+                    continue;
+                }
+
                 if !buffer.is_empty() {
                     on_piece(InterpolationPiece::Str(std::mem::take(&mut buffer)));
                 }
