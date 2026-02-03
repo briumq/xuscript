@@ -248,6 +248,104 @@ impl Text {
         Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
     }
 
+    /// Concatenate a string with an integer efficiently (avoids cloning)
+    #[inline]
+    pub fn concat_str_int(a: &Text, i: i64) -> Text {
+        let mut int_buf = [0u8; 32];
+        let digits = write_i64_to_buf(i, &mut int_buf);
+        let al = a.len();
+        let bl = digits.len();
+        let total = al + bl;
+        if total <= INLINE_CAP {
+            let mut buf = [0u8; INLINE_CAP];
+            buf[..al].copy_from_slice(a.as_str().as_bytes());
+            buf[al..total].copy_from_slice(digits);
+            return Text::Inline {
+                len: total as u8,
+                buf,
+            };
+        }
+
+        let mut out = String::with_capacity(total);
+        out.push_str(a.as_str());
+        // SAFETY: digits is valid UTF-8 (ASCII digits)
+        out.push_str(unsafe { str::from_utf8_unchecked(digits) });
+        Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
+    }
+
+    /// Concatenate a string with a bool efficiently (avoids cloning)
+    #[inline]
+    pub fn concat_str_bool(a: &Text, b: bool) -> Text {
+        let suffix = if b { "true" } else { "false" };
+        let al = a.len();
+        let bl = suffix.len();
+        let total = al + bl;
+        if total <= INLINE_CAP {
+            let mut buf = [0u8; INLINE_CAP];
+            buf[..al].copy_from_slice(a.as_str().as_bytes());
+            buf[al..total].copy_from_slice(suffix.as_bytes());
+            return Text::Inline {
+                len: total as u8,
+                buf,
+            };
+        }
+
+        let mut out = String::with_capacity(total);
+        out.push_str(a.as_str());
+        out.push_str(suffix);
+        Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
+    }
+
+    /// Concatenate a string with "()" efficiently (avoids cloning)
+    #[inline]
+    pub fn concat_str_null(a: &Text) -> Text {
+        let al = a.len();
+        let total = al + 2; // "()" is 2 bytes
+        if total <= INLINE_CAP {
+            let mut buf = [0u8; INLINE_CAP];
+            buf[..al].copy_from_slice(a.as_str().as_bytes());
+            buf[al] = b'(';
+            buf[al + 1] = b')';
+            return Text::Inline {
+                len: total as u8,
+                buf,
+            };
+        }
+
+        let mut out = String::with_capacity(total);
+        out.push_str(a.as_str());
+        out.push_str("()");
+        Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
+    }
+
+    /// Concatenate a string with a float efficiently (avoids cloning)
+    #[inline]
+    pub fn concat_str_float(a: &Text, f: f64) -> Text {
+        // For whole numbers, use integer formatting
+        if f.fract() == 0.0 {
+            return Self::concat_str_int(a, f as i64);
+        }
+        let mut float_buf = ryu::Buffer::new();
+        let digits = float_buf.format(f);
+        let al = a.len();
+        let bl = digits.len();
+        let total = al + bl;
+        if total <= INLINE_CAP {
+            let mut buf = [0u8; INLINE_CAP];
+            buf[..al].copy_from_slice(a.as_str().as_bytes());
+            buf[al..total].copy_from_slice(digits.as_bytes());
+            return Text::Inline {
+                len: total as u8,
+                buf,
+            };
+        }
+
+        let mut out = String::with_capacity(total);
+        out.push_str(a.as_str());
+        out.push_str(digits);
+        Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
+    }
+
     /// Concatenate multiple strings efficiently by pre-calculating total length
     pub fn concat_many(parts: &[&str]) -> Text {
         let total: usize = parts.iter().map(|s| s.len()).sum();

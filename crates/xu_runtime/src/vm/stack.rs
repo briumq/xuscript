@@ -61,7 +61,24 @@ pub(crate) enum Pending {
 pub(crate) fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Value, String> {
     let at = a.get_tag();
     let bt = b.get_tag();
-    if at == TAG_STR || bt == TAG_STR {
+    if at == TAG_STR && bt == TAG_STR {
+        // Fast path: both are strings - use Text::concat2
+        let result = {
+            let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                s
+            } else {
+                return Err(NOT_A_STRING.into());
+            };
+            let sb = if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
+                s
+            } else {
+                return Err(NOT_A_STRING.into());
+            };
+            crate::core::text::Text::concat2(sa, sb)
+        };
+        Ok(Value::str(rt.heap.alloc(ManagedObject::Str(result))))
+    } else if at == TAG_STR || bt == TAG_STR {
+        // Slow path: one is string, one is not
         // Pre-calculate lengths to avoid reallocations
         let a_len = if at == TAG_STR {
             if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {

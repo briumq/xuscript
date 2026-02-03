@@ -44,38 +44,78 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
         }
     }
 
-    // Slow path for string keys and large integer keys
-    let key = if k.get_tag() == TAG_STR {
-        if let ManagedObject::Str(s) = rt.heap.get(k.as_obj_id()) {
-            DictKey::from_text(s)
-        } else {
-            return Err(NOT_A_STRING.into());
-        }
-    } else if k.is_int() {
-        DictKey::Int(k.as_i64())
-    } else {
-        return Err(rt.error(xu_syntax::DiagnosticKind::DictKeyRequired));
-    };
+    // Fast path for string keys - avoid creating DictKey for existing keys
+    if k.get_tag() == TAG_STR {
+        // Get key string and compute hash first
+        let (key_ptr, key_len, hash) = {
+            let key_str = if let ManagedObject::Str(s) = rt.heap.get(k.as_obj_id()) {
+                s
+            } else {
+                return Err(NOT_A_STRING.into());
+            };
+            let d = if let ManagedObject::Dict(d) = rt.heap.get(id) {
+                d
+            } else {
+                return Err(NOT_A_DICT.into());
+            };
+            let hash = {
+                let mut h = d.map.hasher().build_hasher();
+                h.write_u8(0); // String discriminant
+                key_str.as_bytes().hash(&mut h);
+                h.finish()
+            };
+            // Store pointer and length for later use
+            (key_str.as_str().as_ptr(), key_str.len(), hash)
+        };
 
-    if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
-        let mut hasher = d.map.hasher().build_hasher();
-        key.hash(&mut hasher);
-        let h = hasher.finish();
-        match d.map.raw_entry_mut().from_hash(h, |k| k == &key) {
+        let d = if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
+            d
+        } else {
+            return Err(NOT_A_DICT.into());
+        };
+
+        // SAFETY: key_ptr/key_len are valid, we haven't modified the heap
+        let key_str = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(key_ptr, key_len)) };
+
+        match d.map.raw_entry_mut().from_hash(hash, |dk| dk.is_str() && dk.as_str() == key_str) {
             hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
-                *o.get_mut() = v.clone();
+                *o.get_mut() = v;
             }
             hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
-                vac.insert(key, v.clone());
+                // Only create DictKey when inserting new key
+                let key = DictKey::from_str(key_str);
+                vac.insert(key, v);
                 d.ver += 1;
                 rt.dict_version_last = Some((id.0, d.ver));
             }
         }
-    } else {
-        return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
+        stack.push(recv);
+        return Ok(());
     }
-    stack.push(recv);
-    Ok(())
+
+    // Slow path for large integer keys
+    if k.is_int() {
+        let key = DictKey::Int(k.as_i64());
+        if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
+            let mut hasher = d.map.hasher().build_hasher();
+            key.hash(&mut hasher);
+            let h = hasher.finish();
+            match d.map.raw_entry_mut().from_hash(h, |kk| kk == &key) {
+                hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
+                    *o.get_mut() = v;
+                }
+                hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
+                    vac.insert(key, v);
+                    d.ver += 1;
+                    rt.dict_version_last = Some((id.0, d.ver));
+                }
+            }
+        }
+        stack.push(recv);
+        return Ok(());
+    }
+
+    Err(rt.error(xu_syntax::DiagnosticKind::DictKeyRequired))
 }
 
 pub(crate) fn op_dict_merge(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), String> {

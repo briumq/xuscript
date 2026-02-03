@@ -84,13 +84,16 @@ pub(crate) fn op_str_append_null(
 ) -> Result<Option<Flow>, String> {
     let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     if a.get_tag() == TAG_STR {
-        let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-            s.clone()
-        } else {
-            return Err(NOT_A_STRING.into());
+        // Use concat_str_null to avoid cloning
+        let result = {
+            let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                s
+            } else {
+                return Err(NOT_A_STRING.into());
+            };
+            Text::concat_str_null(sa)
         };
-        sa.append_null();
-        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
+        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
     } else {
         match add_with_heap(rt, a, Value::VOID) {
             Ok(r) => stack.push(r),
@@ -122,13 +125,16 @@ pub(crate) fn op_str_append_bool(
     let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     if a.get_tag() == TAG_STR && b.is_bool() {
-        let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-            s.clone()
-        } else {
-            return Err(NOT_A_STRING.into());
+        // Use concat_str_bool to avoid cloning
+        let result = {
+            let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                s
+            } else {
+                return Err(NOT_A_STRING.into());
+            };
+            Text::concat_str_bool(sa, b.as_bool())
         };
-        sa.append_bool(b.as_bool());
-        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
+        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
     } else {
         match add_with_heap(rt, a, b) {
             Ok(r) => stack.push(r),
@@ -160,13 +166,16 @@ pub(crate) fn op_str_append_int(
     let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     if a.get_tag() == TAG_STR && b.is_int() {
-        let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-            s.clone()
-        } else {
-            return Err(NOT_A_STRING.into());
+        // Fast path: use concat_str_int to avoid cloning
+        let result = {
+            let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                s
+            } else {
+                return Err(NOT_A_STRING.into());
+            };
+            Text::concat_str_int(sa, b.as_i64())
         };
-        sa.append_i64(b.as_i64());
-        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
+        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
     } else {
         match add_with_heap(rt, a, b) {
             Ok(r) => stack.push(r),
@@ -198,13 +207,16 @@ pub(crate) fn op_str_append_float(
     let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     if a.get_tag() == TAG_STR && b.is_f64() {
-        let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-            s.clone()
-        } else {
-            return Err(NOT_A_STRING.into());
+        // Use concat_str_float to avoid cloning
+        let result = {
+            let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                s
+            } else {
+                return Err(NOT_A_STRING.into());
+            };
+            Text::concat_str_float(sa, b.as_f64())
         };
-        sa.append_f64(b.as_f64());
-        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
+        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
     } else {
         match add_with_heap(rt, a, b) {
             Ok(r) => stack.push(r),
@@ -236,15 +248,21 @@ pub(crate) fn op_str_append_str(
     let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
     if a.get_tag() == TAG_STR && b.get_tag() == TAG_STR {
-        let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-            s.clone()
-        } else {
-            return Err(NOT_A_STRING.into());
+        // Use concat2 to avoid cloning - more efficient than clone + append
+        let result = {
+            let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
+                s
+            } else {
+                return Err(NOT_A_STRING.into());
+            };
+            let sb = if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
+                s
+            } else {
+                return Err(NOT_A_STRING.into());
+            };
+            Text::concat2(sa, sb)
         };
-        if let ManagedObject::Str(sb) = rt.heap.get(b.as_obj_id()) {
-            sa.append_str(sb.as_str());
-        }
-        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
+        stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
     } else {
         match add_with_heap(rt, a, b) {
             Ok(r) => stack.push(r),
