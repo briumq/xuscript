@@ -1,0 +1,352 @@
+// 任务管理系统示例
+// 展示 XuScript 的核心特性
+
+// 模块导入（模拟）
+// use "utils" as utils
+
+// 枚举定义
+TaskStatus with [ pending | in_progress | completed | cancelled ]
+
+Priority with [ low | medium | high | urgent ]
+
+// 结构体定义
+User has {
+    id: string
+    name: string
+    email: string
+    role: string = "user"
+
+    func greet() {
+        println("Hello, {self.name}!")
+    }
+
+    func is_admin() -> bool {
+        return self.role == "admin"
+    }
+
+    static func create(id: string, name: string, email: string, role: string = "user") -> User {
+        return User{ id: id, name: name, email: email, role: role }
+    }
+}
+
+// 任务结构体
+Task has {
+    id: string
+    title: string
+    description: string
+    status: TaskStatus = TaskStatus#pending
+    priority: Priority = Priority#medium
+    assignee: Option[User] = Option#none
+    created_at: string
+    due_at: Option[string] = Option#none
+
+    func mark_in_progress() {
+        self.status = TaskStatus#in_progress
+    }
+
+    func mark_completed() {
+        self.status = TaskStatus#completed
+    }
+
+    func mark_cancelled() {
+        self.status = TaskStatus#cancelled
+    }
+
+    func assign_to(user: User) {
+        self.assignee = Option#some(user)
+    }
+
+    func unassign() {
+        self.assignee = Option#none
+    }
+
+    func has_due_date() -> bool {
+        return !self.due_at.none
+    }
+
+    func to_string() -> string {
+        let assignee_str = if !self.assignee.none {
+            "Assigned to: {self.assignee.value.name}"
+        } else {
+            "Unassigned"
+        }
+        
+        let due_str = if !self.due_at.none {
+            "Due: {self.due_at.value}"
+        } else {
+            "No due date"
+        }
+
+        return "[{self.id}] {self.title} - {self.status} ({self.priority})\n" +
+               "  {self.description}\n" +
+               "  {assignee_str}\n" +
+               "  {due_str}"
+    }
+
+    static func create(id: string, title: string, description: string, priority: Priority = Priority#medium) -> Task {
+        let now = "2024-01-01 12:00:00" // 模拟当前时间
+        return Task{
+            id: id,
+            title: title,
+            description: description,
+            status: TaskStatus#pending,
+            priority: priority,
+            assignee: Option#none,
+            created_at: now,
+            due_at: Option#none
+        }
+    }
+}
+
+// 任务服务
+TaskService has {
+    tasks: {string: Task}
+    users: {string: User}
+    task_counter: int = 1
+    user_counter: int = 1
+
+    func create_task(title: string, description: string, priority: Priority = Priority#medium) -> Task {
+        let task_id = "TASK-" + self.task_counter.to_string()
+        self.task_counter = self.task_counter + 1
+        let task = Task.create(task_id, title, description, priority)
+        self.tasks[task_id] = task
+        return task
+    }
+
+    func get_task(id: string) -> Option[Task] {
+        if self.tasks.contains(id) {
+            return Option#some(self.tasks[id])
+        } else {
+            return Option#none
+        }
+    }
+
+    func list_tasks(status: Option[TaskStatus] = Option#none) -> [Task] {
+        var result: [Task] = []
+        for (_, task) in self.tasks {
+            if status.none || task.status == status.value {
+                result.push(task)
+            }
+        }
+        return result
+    }
+
+    func create_user(name: string, email: string, role: string = "user") -> User {
+        let user_id = "USER-" + self.user_counter.to_string()
+        self.user_counter = self.user_counter + 1
+        let user = User.create(user_id, name, email, role)
+        self.users[user_id] = user
+        return user
+    }
+
+    func get_user(id: string) -> Option[User] {
+        if self.users.contains(id) {
+            return Option#some(self.users[id])
+        } else {
+            return Option#none
+        }
+    }
+
+    func assign_task(task_id: string, user_id: string) -> Result[bool, string] {
+        let task = self.get_task(task_id)
+        if !task.none {
+            let user = self.get_user(user_id)
+            if !user.none {
+                task.value.assign_to(user.value)
+                return Result#ok(true)
+            } else {
+                return Result#err("User not found")
+            }
+        } else {
+            return Result#err("Task not found")
+        }
+    }
+
+    func update_task_status(task_id: string, status: TaskStatus) -> Result[bool, string] {
+        let task = self.get_task(task_id)
+        if !task.none {
+            match status {
+                TaskStatus#in_progress: task.value.mark_in_progress()
+                TaskStatus#completed: task.value.mark_completed()
+                TaskStatus#cancelled: task.value.mark_cancelled()
+                _: return Result#err("Invalid status")
+            }
+            return Result#ok(true)
+        } else {
+            return Result#err("Task not found")
+        }
+    }
+
+    func search_tasks(query: string) -> [Task] {
+        var result: [Task] = []
+        for (_, task) in self.tasks {
+            if task.title.contains(query) || task.description.contains(query) {
+                result.push(task)
+            }
+        }
+        return result
+    }
+
+    func get_task_statistics() {
+        let total = self.tasks.length
+        let by_status = {}
+        let by_priority = {}
+        let by_assignee = {}
+
+        for (_, task) in self.tasks {
+            // 按状态统计
+            let status_str = task.status
+            if by_status.contains(status_str) {
+                by_status[status_str] = by_status[status_str] + 1
+            } else {
+                by_status[status_str] = 1
+            }
+
+            // 按优先级统计
+            let priority_str = task.priority
+            if by_priority.contains(priority_str) {
+                by_priority[priority_str] = by_priority[priority_str] + 1
+            } else {
+                by_priority[priority_str] = 1
+            }
+
+            // 按负责人统计
+            if !task.assignee.none {
+                let assignee_id = task.assignee.value.id
+                if by_assignee.contains(assignee_id) {
+                    by_assignee[assignee_id] = by_assignee[assignee_id] + 1
+                } else {
+                    by_assignee[assignee_id] = 1
+                }
+            }
+        }
+
+        return {
+            total: total,
+            by_status: by_status,
+            by_priority: by_priority,
+            by_assignee: by_assignee
+        }
+    }
+}
+
+
+
+// 主函数
+func main() {
+    println("=== Task Management System ===")
+
+    // 创建任务服务
+    let task_service = TaskService{ tasks: {}, users: {}, task_counter: 1, user_counter: 1 }
+
+    // 创建用户
+    let admin = task_service.create_user("Admin User", "admin@example.com", "admin")
+    let alice = task_service.create_user("Alice Smith", "alice@example.com")
+    let bob = task_service.create_user("Bob Johnson", "bob@example.com")
+
+    // 打招呼
+    admin.greet()
+    alice.greet()
+    bob.greet()
+
+    // 创建任务
+    let task1 = task_service.create_task(
+        "Implement user authentication",
+        "Create login and registration functionality",
+        Priority#high
+    )
+
+    let task2 = task_service.create_task(
+        "Design dashboard UI",
+        "Create responsive dashboard design",
+        Priority#medium
+    )
+
+    let task3 = task_service.create_task(
+        "Fix database bug",
+        "Resolve issue with data persistence",
+        Priority#urgent
+    )
+
+    let task4 = task_service.create_task(
+        "Write documentation",
+        "Create user guide and API documentation",
+        Priority#low
+    )
+
+    // 分配任务
+    let assign_result1 = task_service.assign_task(task1.id, alice.id)
+    let assign_result2 = task_service.assign_task(task2.id, bob.id)
+    let assign_result3 = task_service.assign_task(task3.id, alice.id)
+
+    // 打印分配结果
+    if assign_result1 {
+        println("Task 1 assigned successfully")
+    } else {
+        println("Error assigning task 1: {assign_result1}")
+    }
+
+    // 更新任务状态
+    task_service.update_task_status(task1.id, TaskStatus#in_progress)
+    task_service.update_task_status(task3.id, TaskStatus#in_progress)
+
+    // 列出任务
+    println("\n=== All Tasks ===")
+    let all_tasks = task_service.list_tasks()
+    for task in all_tasks {
+        println(task.to_string())
+        println("---")
+    }
+
+    // 列出进行中的任务
+    println("\n=== In Progress Tasks ===")
+    let in_progress_tasks = task_service.list_tasks(Option#some(TaskStatus#in_progress))
+    for task in in_progress_tasks {
+        println("- {task.title} ({task.priority})")
+    }
+
+    // 搜索任务
+    println("\n=== Search Results for 'database' ===")
+    let search_results = task_service.search_tasks("database")
+    for task in search_results {
+        println("- {task.title}")
+    }
+
+    // 完成任务
+    task_service.update_task_status(task1.id, TaskStatus#completed)
+    task_service.update_task_status(task2.id, TaskStatus#completed)
+
+    // 获取统计信息
+    println("\n=== Task Statistics ===")
+    task_service.get_task_statistics()
+
+    // 演示字符串操作
+    println("\n=== String Operations ===")
+    let message = "Hello, Task Management System!"
+    println("Original: {message}")
+    println("Length: {message.length()}")
+    println("Uppercase: {message.to_upper()}")
+    println("Starts with 'Hello': {message.starts_with('Hello')}")
+
+    // 演示列表操作
+    println("\n=== List Operations ===")
+    let priorities = ["low", "medium", "high", "urgent"]
+    println("Priorities: {priorities.join(', ')}")
+    println("Has 'high': {priorities.contains('high')}")
+
+    // 演示字典操作
+    println("\n=== Dict Operations ===")
+    let config = {
+        "api_url": "https://api.example.com",
+        "timeout": 30,
+        "debug": true
+    }
+    println("API URL: {config.api_url}")
+    println("Timeout: {config.timeout}")
+
+    println("\n=== System Ready ===")
+    println("Task management system is ready for use!")
+}
+
+// 调用主函数
+main()

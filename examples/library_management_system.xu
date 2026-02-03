@@ -1,0 +1,373 @@
+// 图书管理系统示例
+// 包含图书、作者和图书馆的管理功能
+
+// 枚举定义：图书状态
+BookStatus with [
+    available |
+    borrowed |
+    reserved |
+    lost
+]
+
+// 枚举定义：用户类型
+UserType with [
+    student |
+    teacher |
+    staff |
+    visitor
+]
+
+// 结构体定义：作者
+Author has {
+    id: int
+    name: string
+    email: string
+    bio: string = ""
+    
+    func to_string() -> string {
+        return "Author{id: {self.id}, name: '{self.name}', email: '{self.email}'}"
+    }
+}
+
+// 结构体定义：图书
+Book has {
+    id: int
+    title: string
+    author: Author
+    isbn: string
+    status: BookStatus = BookStatus#available
+    borrowed_by: Option[string] = Option#none
+    borrowed_date: Option[string] = Option#none
+    
+    func to_string() -> string {
+        return "Book{id: {self.id}, title: '{self.title}', author: {self.author.name}, status: {self.status_string()}}"
+    }
+    
+    func status_string() -> string {
+        return match self.status {
+            BookStatus#available { "可借" }
+            BookStatus#borrowed { "已借出" }
+            BookStatus#reserved { "已预约" }
+            BookStatus#lost { "丢失" }
+            _ { "未知" }
+        }
+    }
+    
+    func can_borrow() -> bool {
+        return self.status == BookStatus#available
+    }
+    
+    func borrow_by(user_id: string, date: string) {
+        if self.can_borrow() {
+            self.status = BookStatus#borrowed
+            self.borrowed_by = Option#some(user_id)
+            self.borrowed_date = Option#some(date)
+        }
+    }
+    
+    func return_book() {
+        if self.status == BookStatus#borrowed {
+            self.status = BookStatus#available
+            self.borrowed_by = Option#none
+            self.borrowed_date = Option#none
+        }
+    }
+}
+
+// 结构体定义：用户
+User has {
+    id: string
+    name: string
+    email: string
+    user_type: UserType
+    borrowed_books: [int] = []
+    
+    func to_string() -> string {
+        return "User{id: '{self.id}', name: '{self.name}', type: {self.user_type_string()}}"
+    }
+    
+    func user_type_string() -> string {
+        return match self.user_type {
+            UserType#student { "学生" }
+            UserType#teacher { "教师" }
+            UserType#staff { "staff" }
+            UserType#visitor { "访客" }
+            _ { "未知" }
+        }
+    }
+    
+    func borrow_book(book_id: int) {
+        if !self.borrowed_books.contains(book_id) {
+            self.borrowed_books.push(book_id)
+        }
+    }
+    
+    func return_book(book_id: int) {
+        // 简单实现：遍历列表找到并移除
+        var i = 0
+        while i < self.borrowed_books.length() {
+            if self.borrowed_books[i] == book_id {
+                self.borrowed_books.remove(i)
+                break
+            }
+            i += 1
+        }
+    }
+}
+
+// 结构体定义：图书馆
+Library has {
+    name: string
+    books: [Book] = []
+    users: [User] = []
+    authors: [Author] = []
+    
+    func add_book(book: Book) {
+        self.books.push(book)
+    }
+    
+    func add_user(user: User) {
+        self.users.push(user)
+    }
+    
+    func add_author(author: Author) {
+        self.authors.push(author)
+    }
+    
+    func find_book_by_id(id: int) -> Option[Book] {
+        return self.books.find(func(book) -> book.id == id)
+    }
+    
+    func find_user_by_id(id: string) -> Option[User] {
+        return self.users.find(func(user) -> user.id == id)
+    }
+    
+    func find_author_by_id(id: int) -> Option[Author] {
+        return self.authors.find(func(author) -> author.id == id)
+    }
+    
+    func search_books_by_title(title: string) -> [Book] {
+        // 简单实现：遍历列表找到包含指定标题的图书
+        let result: [Book] = []
+        for book in self.books {
+            // 这里简化处理，实际应该使用字符串包含方法
+            // 暂时返回所有图书
+            result.push(book)
+        }
+        return result
+    }
+    
+    func search_books_by_author(author_name: string) -> [Book] {
+        // 简单实现：遍历列表找到指定作者的图书
+        let result: [Book] = []
+        for book in self.books {
+            // 这里简化处理，实际应该使用字符串包含方法
+            // 暂时返回所有图书
+            result.push(book)
+        }
+        return result
+    }
+    
+    func borrow_book(book_id: int, user_id: string, date: string) -> Result[bool, string] {
+        when book = self.find_book_by_id(book_id), user = self.find_user_by_id(user_id) {
+            if book.can_borrow() {
+                book.borrow_by(user_id, date)
+                user.borrow_book(book_id)
+                return Result#ok(true)
+            } else {
+                return Result#err("图书不可借，当前状态：{book.status_string()}")
+            }
+        } else {
+            return Result#err("图书或用户不存在")
+        }
+    }
+    
+    func return_book(book_id: int, user_id: string) -> Result[bool, string] {
+        when book = self.find_book_by_id(book_id), user = self.find_user_by_id(user_id) {
+            if book.status == BookStatus#borrowed {
+                when borrowed_user = book.borrowed_by {
+                    if borrowed_user == user_id {
+                        book.return_book()
+                        user.return_book(book_id)
+                        return Result#ok(true)
+                    } else {
+                        return Result#err("此图书不是由该用户借出的")
+                    }
+                } else {
+                    return Result#err("图书状态异常")
+                }
+            } else {
+                return Result#err("图书未借出")
+            }
+        } else {
+            return Result#err("图书或用户不存在")
+        }
+    }
+    
+    func get_available_books() -> [Book] {
+        return self.books.filter(func(book) -> book.status == BookStatus#available)
+    }
+    
+    func get_borrowed_books() -> [Book] {
+        return self.books.filter(func(book) -> book.status == BookStatus#borrowed)
+    }
+    
+    func print_books() {
+        println("图书馆 '{self.name}' 的图书列表：")
+        for book in self.books {
+            // 直接输出，不使用 to_string 方法
+            println("Book{id: {book.id}, title: '{book.title}', author: {book.author.name}}")
+        }
+    }
+    
+    func print_users() {
+        println("图书馆 '{self.name}' 的用户列表：")
+        for user in self.users {
+            // 直接输出，不使用 to_string 方法
+            println("User{id: '{user.id}', name: '{user.name}', type: {user.user_type_string()}}")
+        }
+    }
+    
+    func print_authors() {
+        println("图书馆 '{self.name}' 的作者列表：")
+        for author in self.authors {
+            // 直接输出，不使用 to_string 方法
+            println("Author{id: {author.id}, name: '{author.name}', email: '{author.email}'}")
+        }
+    }
+}
+
+// 模块级变量：用于生成唯一ID
+var counter = 0
+
+// 辅助函数：生成唯一ID
+func generate_id() -> int {
+    counter += 1
+    return counter
+}
+
+// 主函数
+func main() {
+    // 创建图书馆
+    let library = Library{name: "大学图书馆"}
+    
+    // 创建作者
+    let authors = [
+        Author{id: generate_id(), name: "张三", email: "zhangsan@example.com", bio: "计算机科学教授"},
+        Author{id: generate_id(), name: "李四", email: "lisi@example.com", bio: "文学作家"},
+        Author{id: generate_id(), name: "王五", email: "wangwu@example.com", bio: "历史学者"}
+    ]
+    
+    // 添加作者到图书馆
+    for author in authors {
+        library.add_author(author)
+    }
+    
+    // 创建图书
+    let books = [
+        Book{id: generate_id(), title: "计算机科学导论", author: authors[0], isbn: "978-7-111-60000-1"},
+        Book{id: generate_id(), title: "Python编程基础", author: authors[0], isbn: "978-7-111-60000-2"},
+        Book{id: generate_id(), title: "中国文学史", author: authors[1], isbn: "978-7-111-60000-3"},
+        Book{id: generate_id(), title: "现代小说选", author: authors[1], isbn: "978-7-111-60000-4"},
+        Book{id: generate_id(), title: "中国古代史", author: authors[2], isbn: "978-7-111-60000-5"},
+        Book{id: generate_id(), title: "世界通史", author: authors[2], isbn: "978-7-111-60000-6"}
+    ]
+    
+    // 添加图书到图书馆
+    for book in books {
+        library.add_book(book)
+    }
+    
+    // 创建用户
+    let users = [
+        User{id: "u001", name: "小明", email: "xiaoming@example.com", user_type: UserType#student},
+        User{id: "u002", name: "小红", email: "xiaohong@example.com", user_type: UserType#teacher},
+        User{id: "u003", name: "小刚", email: "xiaogang@example.com", user_type: UserType#staff}
+    ]
+    
+    // 添加用户到图书馆
+    for user in users {
+        library.add_user(user)
+    }
+    
+    // 打印初始状态
+    println("=== 初始状态 ===")
+    library.print_authors()
+    println()
+    library.print_books()
+    println()
+    library.print_users()
+    println()
+    
+    // 测试借书功能
+    println("=== 测试借书功能 ===")
+    let borrow_result = library.borrow_book(books[0].id, users[0].id, "2023-10-01")
+    match borrow_result {
+        Result#ok(success) { println("借书成功：{success}") }
+        Result#err(msg) { println("借书失败：{msg}") }
+        _ { println("未知结果") }
+    }
+    
+    // 测试再次借同一本书
+    let borrow_result2 = library.borrow_book(books[0].id, users[1].id, "2023-10-01")
+    match borrow_result2 {
+        Result#ok(success) { println("再次借书成功：{success}") }
+        Result#err(msg) { println("再次借书失败：{msg}") }
+        _ { println("未知结果") }
+    }
+    println()
+    
+    // 打印借书后的状态
+    println("=== 借书后的状态 ===")
+    library.print_books()
+    println()
+    library.print_users()
+    println()
+    
+    // 测试还书功能
+    println("=== 测试还书功能 ===")
+    let return_result = library.return_book(books[0].id, users[0].id)
+    match return_result {
+        Result#ok(success) { println("还书成功：{success}") }
+        Result#err(msg) { println("还书失败：{msg}") }
+        _ { println("未知结果") }
+    }
+    println()
+    
+    // 打印还书后的状态
+    println("=== 还书后的状态 ===")
+    library.print_books()
+    println()
+    library.print_users()
+    println()
+    
+    // 测试搜索功能
+    println("=== 测试搜索功能 ===")
+    println("搜索包含'计算机'的图书：")
+    let computer_books = library.search_books_by_title("计算机")
+    for book in computer_books {
+        println(book.to_string())
+    }
+    println()
+    
+    println("搜索作者为'李四'的图书：")
+    let lisi_books = library.search_books_by_author("李四")
+    for book in lisi_books {
+        println(book.to_string())
+    }
+    println()
+    
+    // 测试获取可借图书
+    println("=== 测试获取可借图书 ===")
+    let available_books = library.get_available_books()
+    println("可借图书数量：{available_books.length()}")
+    for book in available_books {
+        println(book.to_string())
+    }
+    println()
+    
+    println("示例运行完成！")
+}
+
+// 调用主函数
+main()

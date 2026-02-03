@@ -1,0 +1,430 @@
+// 电子商务系统示例
+
+// 枚举定义
+ProductCategory with [ electronics | clothing | food | books | home ]
+OrderStatus with [ pending | processing | shipped | delivered | cancelled ]
+PaymentStatus with [ unpaid | paid | refunded ]
+Result with [ ok(value: any) | err(message: string) ]
+
+// 结构体定义
+Product has {
+    id: string
+    name: string
+    price: float
+    category: ProductCategory
+    stock: int = 0
+    description: string = ""
+
+    // 静态方法
+    static func create(id: string, name: string, price: float, category: ProductCategory, stock: int = 0) -> Product {
+        return Product{ id: id, name: name, price: price, category: category, stock: stock }
+    }
+
+    // 实例方法
+    func is_available() -> bool {
+        return self.stock > 0
+    }
+
+    func get_display_price() -> string {
+        return "¥{self.price}"
+    }
+}
+
+// 购物车项
+CartItem has {
+    product: Product
+    quantity: int
+
+    func get_subtotal() -> float {
+        return self.product.price * self.quantity
+    }
+
+    func to_string() -> string {
+        return "{self.product.name} x {self.quantity} ({self.get_subtotal()})"
+    }
+}
+
+// 购物车
+ShoppingCart has {
+    items: [CartItem] = []
+
+    func add_product(product: Product, quantity: int = 1) -> Result {
+        if quantity <= 0 {
+            return Result#err("Quantity must be positive")
+        }
+
+        if !product.is_available() {
+            return Result#err("Product is out of stock")
+        }
+
+        if product.stock < quantity {
+            return Result#err("Insufficient stock")
+        }
+
+        // 检查购物车中是否已有该产品
+        when existing_item = self.items.find(func(item) -> item.product.id == product.id) {
+            existing_item.quantity += quantity
+        } else {
+            let new_item = CartItem{ product: product, quantity: quantity }
+            self.items.push(new_item)
+        }
+
+        return Result#ok(self)
+    }
+
+    func remove_product(product_id: string) -> Result {
+        var index = 0
+        var found = false
+        for item in self.items {
+            if item.product.id == product_id {
+                found = true
+                break
+            }
+            index += 1
+        }
+
+        if found {
+            self.items.remove(index)
+            return Result#ok(self)
+        } else {
+            return Result#err("Product not found in cart")
+        }
+    }
+
+    func update_quantity(product_id: string, quantity: int) -> Result {
+        if quantity <= 0 {
+            return self.remove_product(product_id)
+        }
+
+        when item = self.items.find(func(item) -> item.product.id == product_id) {
+            if item.product.stock < quantity {
+                return Result#err("Insufficient stock")
+            }
+            item.quantity = quantity
+            return Result#ok(self)
+        } else {
+            return Result#err("Product not found in cart")
+        }
+    }
+
+    func get_total() -> float {
+        var total = 0.0
+        for item in self.items {
+            total += item.get_subtotal()
+        }
+        return total
+    }
+
+    func get_total_items() -> int {
+        var total = 0
+        for item in self.items {
+            total += item.quantity
+        }
+        return total
+    }
+
+    func is_empty() -> bool {
+        return self.items.length == 0
+    }
+
+    func clear() {
+        self.items.clear()
+    }
+
+    func to_string() -> string {
+        if self.is_empty() {
+            return "Shopping cart is empty"
+        }
+
+        var result = "Shopping Cart:\n"
+        for item in self.items {
+            result += "- {item.to_string()}\n"
+        }
+        result += "Total: ¥{self.get_total()}\n"
+        result += "Total items: {self.get_total_items()}"
+        return result
+    }
+}
+
+// 订单
+Order has {
+    id: string
+    items: [CartItem]
+    total: float
+    status: OrderStatus = OrderStatus#pending
+    payment_status: PaymentStatus = PaymentStatus#unpaid
+    created_at: string
+
+    static func create(id: string, cart: ShoppingCart) -> Order {
+        return Order{
+            id: id,
+            items: cart.items,
+            total: cart.get_total(),
+            created_at: "2026-02-03"
+        }
+    }
+
+    func process_payment() -> Result {
+        if self.payment_status == PaymentStatus#paid {
+            return Result#err("Order is already paid")
+        }
+
+        self.payment_status = PaymentStatus#paid
+        self.status = OrderStatus#processing
+        return Result#ok(self)
+    }
+
+    func ship() -> Result {
+        if self.payment_status != PaymentStatus#paid {
+            return Result#err("Order must be paid before shipping")
+        }
+
+        if self.status != OrderStatus#processing {
+            return Result#err("Order is not in processing status")
+        }
+
+        self.status = OrderStatus#shipped
+        return Result#ok(self)
+    }
+
+    func deliver() -> Result {
+        if self.status != OrderStatus#shipped {
+            return Result#err("Order must be shipped before delivery")
+        }
+
+        self.status = OrderStatus#delivered
+        return Result#ok(self)
+    }
+
+    func cancel() -> Result {
+        if self.status == OrderStatus#delivered {
+            return Result#err("Delivered orders cannot be cancelled")
+        }
+
+        self.status = OrderStatus#cancelled
+        if self.payment_status == PaymentStatus#paid {
+            self.payment_status = PaymentStatus#refunded
+        }
+        return Result#ok(self)
+    }
+
+    func to_string() -> string {
+        var result = "Order #{self.id}\n"
+        result += "Status: {self.get_status_text()}\n"
+        result += "Payment: {self.get_payment_status_text()}\n"
+        result += "Created: {self.created_at}\n"
+        result += "Items:\n"
+        for item in self.items {
+            result += "- {item.to_string()}\n"
+        }
+        result += "Total: ¥{self.total}"
+        return result
+    }
+
+    func get_status_text() -> string {
+        return match self.status {
+            OrderStatus#pending: "Pending"
+            OrderStatus#processing: "Processing"
+            OrderStatus#shipped: "Shipped"
+            OrderStatus#delivered: "Delivered"
+            OrderStatus#cancelled: "Cancelled"
+            _: "Unknown"
+        }
+    }
+
+    func get_payment_status_text() -> string {
+        return match self.payment_status {
+            PaymentStatus#unpaid: "Unpaid"
+            PaymentStatus#paid: "Paid"
+            PaymentStatus#refunded: "Refunded"
+            _: "Unknown"
+        }
+    }
+}
+
+// 产品仓库
+ProductRepository has {
+    products: {string: Product} = {}
+
+    func add_product(product: Product) {
+        self.products[product.id] = product
+    }
+
+    func get_product(id: string) -> Result {
+        when product = self.products.get(id) {
+            return Result#ok(product)
+        } else {
+            return Result#err("Product not found")
+        }
+    }
+
+    func get_products_by_category(category: ProductCategory) -> [Product] {
+        var result: [Product] = []
+        for product in self.products.values() {
+            if product.category == category {
+                result.push(product)
+            }
+        }
+        return result
+    }
+
+    func get_available_products() -> [Product] {
+        return self.products.values().filter(func(p) -> p.is_available())
+    }
+
+    func update_stock(id: string, quantity: int) -> Result {
+        when product = self.products.get(id) {
+            product.stock = quantity
+            return Result#ok(product)
+        } else {
+            return Result#err("Product not found")
+        }
+    }
+}
+
+// 辅助函数
+func generate_order_id() -> string {
+    return "ORD-20260203-12345"
+}
+
+func display_product_list(products: [Product]) {
+    if products.length == 0 {
+        println("No products found")
+    } else {
+        println("Products:")
+        for product in products {
+            println("[{product.category}] {product.name} - {product.get_display_price()} (Stock: {product.stock})")
+        }
+    }
+}
+
+// 主函数
+func main() {
+    // 初始化产品仓库
+    let repo = ProductRepository{}
+
+    // 添加示例产品
+    repo.add_product(Product::create("p1", "Smartphone X", 5999.99, ProductCategory#electronics, 50))
+    repo.add_product(Product::create("p2", "Laptop Pro", 9999.99, ProductCategory#electronics, 30))
+    repo.add_product(Product::create("p3", "T-Shirt", 99.99, ProductCategory#clothing, 100))
+    repo.add_product(Product::create("p4", "Jeans", 199.99, ProductCategory#clothing, 80))
+    repo.add_product(Product::create("p5", "Book: Rust Programming", 89.99, ProductCategory#books, 20))
+    repo.add_product(Product::create("p6", "Coffee Beans", 49.99, ProductCategory#food, 60))
+
+    // 展示所有产品
+    println("=== Available Products ===")
+    display_product_list(repo.get_available_products())
+
+    // 按类别展示产品
+    println("\n=== Electronics Products ===")
+    display_product_list(repo.get_products_by_category(ProductCategory#electronics))
+
+    // 创建购物车
+    let cart = ShoppingCart{}
+
+    // 添加产品到购物车
+    println("\n=== Shopping Cart Operations ===")
+
+    when smartphone = repo.get_product("p1") {
+        match cart.add_product(smartphone, 1) {
+            Result#ok(_): println("Added Smartphone X to cart")
+            Result#err(msg): println("Error adding product: {msg}")
+            _: println("Unknown result")
+        }
+    } else {
+        println("Smartphone not found")
+    }
+
+    when laptop = repo.get_product("p2") {
+        match cart.add_product(laptop, 1) {
+            Result#ok(_): println("Added Laptop Pro to cart")
+            Result#err(msg): println("Error adding product: {msg}")
+            _: println("Unknown result")
+        }
+    } else {
+        println("Laptop not found")
+    }
+
+    when tshirt = repo.get_product("p3") {
+        match cart.add_product(tshirt, 2) {
+            Result#ok(_): println("Added 2 T-Shirts to cart")
+            Result#err(msg): println("Error adding product: {msg}")
+            _: println("Unknown result")
+        }
+    } else {
+        println("T-Shirt not found")
+    }
+
+    // 展示购物车
+    println("\n=== Shopping Cart ===")
+    println(cart.to_string())
+
+    // 更新购物车项数量
+    println("\n=== Updating Cart ===")
+    match cart.update_quantity("p3", 3) {
+        Result#ok(_): println("Updated T-Shirt quantity to 3")
+        Result#err(msg): println("Error updating quantity: {msg}")
+        _: println("Unknown result")
+    }
+
+    // 移除产品
+    match cart.remove_product("p2") {
+        Result#ok(_): println("Removed Laptop Pro from cart")
+        Result#err(msg): println("Error removing product: {msg}")
+        _: println("Unknown result")
+    }
+
+    // 再次展示购物车
+    println("\n=== Updated Shopping Cart ===")
+    println(cart.to_string())
+
+    // 创建订单
+    println("\n=== Creating Order ===")
+    let order = Order::create(generate_order_id(), cart)
+    println(order.to_string())
+
+    // 处理订单
+    println("\n=== Processing Order ===")
+    match order.process_payment() {
+        Result#ok(_): println("Payment processed successfully")
+        Result#err(msg): println("Error processing payment: {msg}")
+        _: println("Unknown result")
+    }
+
+    match order.ship() {
+        Result#ok(_): println("Order shipped")
+        Result#err(msg): println("Error shipping order: {msg}")
+        _: println("Unknown result")
+    }
+
+    match order.deliver() {
+        Result#ok(_): println("Order delivered")
+        Result#err(msg): println("Error delivering order: {msg}")
+        _: println("Unknown result")
+    }
+
+    // 展示最终订单状态
+    println("\n=== Final Order Status ===")
+    println(order.to_string())
+
+    // 测试取消订单
+    println("\n=== Testing Order Cancellation ===")
+    match order.cancel() {
+        Result#ok(_): println("Order cancelled")
+        Result#err(msg): println("Error cancelling order: {msg}")
+        _: println("Unknown result")
+    }
+
+    println("\n=== Order After Cancellation ===")
+    println(order.to_string())
+
+    // 测试空购物车
+    println("\n=== Testing Empty Cart ===")
+    cart.clear()
+    println(cart.to_string())
+
+    println("\n=== E-Commerce System Demo Complete ===")
+}
+
+// 运行主函数
+main()

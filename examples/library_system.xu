@@ -1,0 +1,287 @@
+// 图书管理系统示例
+// 基于测试脚本的成功经验重新实现
+
+// 枚举定义：图书状态
+BookStatus with [ available | borrowed | reserved | lost ]
+
+// 枚举定义：用户类型
+UserType with [ student | teacher | staff | visitor ]
+
+// 结构体定义：作者
+Author has {
+    id: int
+    name: string
+    email: string
+    bio: string = ""
+}
+
+// 结构体定义：图书
+Book has {
+    id: int
+    title: string
+    author: Author
+    isbn: string
+    status: BookStatus = BookStatus#available
+    borrowed_by: Option[string] = Option#none
+    borrowed_date: Option[string] = Option#none
+    
+    func can_borrow() -> bool {
+        return self.status == BookStatus#available
+    }
+    
+    func borrow(user_id: string, date: string) {
+        if self.can_borrow() {
+            self.status = BookStatus#borrowed
+            self.borrowed_by = Option#some(user_id)
+            self.borrowed_date = Option#some(date)
+        }
+    }
+    
+    func return_book() {
+        if self.status == BookStatus#borrowed {
+            self.status = BookStatus#available
+            self.borrowed_by = Option#none
+            self.borrowed_date = Option#none
+        }
+    }
+}
+
+// 结构体定义：用户
+User has {
+    id: string
+    name: string
+    email: string
+    user_type: UserType
+    borrowed_books: [int] = []
+    
+    func borrow_book(book_id: int) {
+        // 简单实现：添加到列表
+        self.borrowed_books.push(book_id)
+    }
+    
+    func return_book(book_id: int) {
+        // 简单实现：遍历列表找到并移除
+        var i = 0
+        while i < self.borrowed_books.length() {
+            if self.borrowed_books[i] == book_id {
+                self.borrowed_books.remove(i)
+                break
+            }
+            i += 1
+        }
+    }
+}
+
+// 结构体定义：图书馆
+Library has {
+    name: string
+    books: [Book] = []
+    users: [User] = []
+    authors: [Author] = []
+    
+    func add_book(book: Book) {
+        self.books.push(book)
+    }
+    
+    func add_user(user: User) {
+        self.users.push(user)
+    }
+    
+    func add_author(author: Author) {
+        self.authors.push(author)
+    }
+    
+    func find_book_by_id(id: int) -> Option[Book] {
+        // 简单实现：遍历列表找到图书
+        for book in self.books {
+            if book.id == id {
+                return Option#some(book)
+            }
+        }
+        return Option#none
+    }
+    
+    func find_user_by_id(id: string) -> Option[User] {
+        // 简单实现：遍历列表找到用户
+        for user in self.users {
+            if user.id == id {
+                return Option#some(user)
+            }
+        }
+        return Option#none
+    }
+    
+    func borrow_book(book_id: int, user_id: string, date: string) -> Result[bool, string] {
+        when book = self.find_book_by_id(book_id), user = self.find_user_by_id(user_id) {
+            if book.can_borrow() {
+                book.borrow(user_id, date)
+                user.borrow_book(book_id)
+                return Result#ok(true)
+            } else {
+                return Result#err("Book not available")
+            }
+        } else {
+            return Result#err("Book or user not found")
+        }
+    }
+    
+    func return_book(book_id: int, user_id: string) -> Result[bool, string] {
+        when book = self.find_book_by_id(book_id), user = self.find_user_by_id(user_id) {
+            if book.status == BookStatus#borrowed {
+                book.return_book()
+                user.return_book(book_id)
+                return Result#ok(true)
+            } else {
+                return Result#err("Book not borrowed")
+            }
+        } else {
+            return Result#err("Book or user not found")
+        }
+    }
+    
+    func get_available_books() -> [Book] {
+        // 简单实现：遍历列表找到可借图书
+        let result: [Book] = []
+        for book in self.books {
+            if book.can_borrow() {
+                result.push(book)
+            }
+        }
+        return result
+    }
+    
+    func print_books() {
+        println("Library '{self.name}' books:")
+        for book in self.books {
+            println("Book: {book.title} by {book.author.name}, status: {book.status}")
+        }
+    }
+    
+    func print_users() {
+        println("Library '{self.name}' users:")
+        for user in self.users {
+            println("User: {user.name}, id: {user.id}, type: {user.user_type}")
+        }
+    }
+    
+    func print_authors() {
+        println("Library '{self.name}' authors:")
+        for author in self.authors {
+            println("Author: {author.name}, id: {author.id}, email: {author.email}")
+        }
+    }
+}
+
+// 模块级变量：用于生成唯一ID
+var counter = 0
+
+// 辅助函数：生成唯一ID
+func generate_id() -> int {
+    counter += 1
+    return counter
+}
+
+// 主函数
+func main() {
+    println("=== Library Management System ===")
+    
+    // 创建图书馆
+    let library = Library{name: "University Library"}
+    println("Created library: {library.name}")
+    println()
+    
+    // 创建作者
+    let authors = [
+        Author{id: generate_id(), name: "Zhang San", email: "zhangsan@example.com", bio: "Computer Science Professor"},
+        Author{id: generate_id(), name: "Li Si", email: "lisi@example.com", bio: "Literature Writer"},
+        Author{id: generate_id(), name: "Wang Wu", email: "wangwu@example.com", bio: "History Scholar"}
+    ]
+    
+    // 添加作者到图书馆
+    for author in authors {
+        library.add_author(author)
+    }
+    
+    // 打印作者列表
+    library.print_authors()
+    println()
+    
+    // 创建图书
+    let books = [
+        Book{id: generate_id(), title: "Introduction to Computer Science", author: authors[0], isbn: "978-7-111-60000-1"},
+        Book{id: generate_id(), title: "Python Programming Basics", author: authors[0], isbn: "978-7-111-60000-2"},
+        Book{id: generate_id(), title: "Chinese Literature History", author: authors[1], isbn: "978-7-111-60000-3"},
+        Book{id: generate_id(), title: "Modern Novel Selection", author: authors[1], isbn: "978-7-111-60000-4"},
+        Book{id: generate_id(), title: "Chinese Ancient History", author: authors[2], isbn: "978-7-111-60000-5"},
+        Book{id: generate_id(), title: "World History", author: authors[2], isbn: "978-7-111-60000-6"}
+    ]
+    
+    // 添加图书到图书馆
+    for book in books {
+        library.add_book(book)
+    }
+    
+    // 打印图书列表
+    library.print_books()
+    println()
+    
+    // 创建用户
+    let users = [
+        User{id: "u001", name: "Xiao Ming", email: "xiaoming@example.com", user_type: UserType#student},
+        User{id: "u002", name: "Xiao Hong", email: "xiaohong@example.com", user_type: UserType#teacher},
+        User{id: "u003", name: "Xiao Gang", email: "xiaogang@example.com", user_type: UserType#staff}
+    ]
+    
+    // 添加用户到图书馆
+    for user in users {
+        library.add_user(user)
+    }
+    
+    // 打印用户列表
+    library.print_users()
+    println()
+    
+    // 测试借书功能
+    println("=== Testing Borrow Function ===")
+    let borrow_result = library.borrow_book(books[0].id, users[0].id, "2023-10-01")
+    match borrow_result {
+        Result#ok(success) { println("Borrow book successfully: {success}") }
+        Result#err(msg) { println("Borrow book failed: {msg}") }
+        _ { println("Unknown result") }
+    }
+    println()
+    
+    // 打印借书后的状态
+    println("=== After Borrowing ===")
+    library.print_books()
+    println()
+    
+    // 测试还书功能
+    println("=== Testing Return Function ===")
+    let return_result = library.return_book(books[0].id, users[0].id)
+    match return_result {
+        Result#ok(success) { println("Return book successfully: {success}") }
+        Result#err(msg) { println("Return book failed: {msg}") }
+        _ { println("Unknown result") }
+    }
+    println()
+    
+    // 打印还书后的状态
+    println("=== After Returning ===")
+    library.print_books()
+    println()
+    
+    // 测试获取可借图书
+    println("=== Testing Available Books ===")
+    let available_books = library.get_available_books()
+    println("Available books count: {available_books.length()}")
+    for book in available_books {
+        println("Book: {book.title} by {book.author.name}")
+    }
+    println()
+    
+    println("=== Library Management System Demo Complete ===")
+}
+
+// 调用主函数
+main()
