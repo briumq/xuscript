@@ -11,7 +11,7 @@
 use xu_ir::Bytecode;
 
 use crate::core::heap::ManagedObject;
-use crate::core::value::{TAG_DICT, TAG_LIST, TAG_STR, TAG_TUPLE};
+use crate::core::value::{TAG_DICT, TAG_LIST, TAG_STR, TAG_TUPLE, ELEMENTS_MAX};
 use crate::core::Value;
 use crate::errors::messages::NOT_A_LIST;
 use crate::runtime::{DictCacheIntLast, DictCacheLast};
@@ -116,7 +116,7 @@ pub(crate) fn op_get_index(
             let mut val = None;
             if idx.is_int() {
                 let key = idx.as_i64();
-                if key >= 0 && key < 1024 {
+                if key >= 0 && key < ELEMENTS_MAX {
                     let ui = key as usize;
                     if ui < me.elements.len() {
                         let v = me.elements[ui];
@@ -396,7 +396,7 @@ pub(crate) fn op_dict_get_int_const(
     let id = obj.as_obj_id();
     if let ManagedObject::Dict(me) = rt.heap.get(id) {
         let mut val = None;
-        if i >= 0 && i < 1024 {
+        if i >= 0 && i < ELEMENTS_MAX {
             let ui = i as usize;
             if ui < me.elements.len() {
                 let v = me.elements[ui];

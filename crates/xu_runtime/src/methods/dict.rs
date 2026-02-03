@@ -54,8 +54,31 @@ pub(super) fn dispatch(
         MethodKind::DictInsert | MethodKind::ListInsert => {
             validate_arity(rt, method, args.len(), 2, 2)?;
 
-            let key = get_dict_key_from_value(rt, &args[0])?;
             let value = args[1].clone();
+
+            // Fast path for small integer keys - use elements array
+            if args[0].is_int() {
+                let i = args[0].as_i64();
+                if i >= 0 && i < crate::core::value::ELEMENTS_MAX {
+                    let idx = i as usize;
+                    let me = expect_dict_mut(rt, recv)?;
+                    // Ensure elements array is large enough
+                    if me.elements.len() <= idx {
+                        me.elements.resize(idx + 1, crate::Value::VOID);
+                    }
+                    // Check if this is a new key (was VOID before)
+                    let was_void = me.elements[idx].get_tag() == crate::core::value::TAG_VOID;
+                    me.elements[idx] = value;
+                    if was_void {
+                        me.ver += 1;
+                        rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
+                    }
+                    return Ok(Value::VOID);
+                }
+            }
+
+            // Slow path for string keys and large integer keys
+            let key = get_dict_key_from_value(rt, &args[0])?;
 
             let me = expect_dict_mut(rt, recv)?;
             let mut hasher = me.map.hasher().build_hasher();
@@ -81,8 +104,27 @@ pub(super) fn dispatch(
 
             let i = to_i64(&args[0])?;
             let value = args[1].clone();
-            let me = expect_dict_mut(rt, recv)?;
 
+            // Fast path for small integer keys - use elements array
+            if i >= 0 && i < crate::core::value::ELEMENTS_MAX {
+                let idx = i as usize;
+                let me = expect_dict_mut(rt, recv)?;
+                // Ensure elements array is large enough
+                if me.elements.len() <= idx {
+                    me.elements.resize(idx + 1, crate::Value::VOID);
+                }
+                // Check if this is a new key (was VOID before)
+                let was_void = me.elements[idx].get_tag() == crate::core::value::TAG_VOID;
+                me.elements[idx] = value;
+                if was_void {
+                    me.ver += 1;
+                    rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
+                }
+                return Ok(Value::VOID);
+            }
+
+            // Slow path for large integer keys
+            let me = expect_dict_mut(rt, recv)?;
             let h = Runtime::hash_dict_key_int(me.map.hasher(), i);
             let key = DictKey::Int(i);
 
@@ -280,22 +322,31 @@ pub(super) fn dispatch(
         }
         MethodKind::Clear => {
             validate_arity(rt, method, args.len(), 0, 0)?;
-            
+
             let me = expect_dict_mut(rt, recv)?;
             me.map.clear();
+            me.elements.clear();
+            me.prop_values.clear();
             me.ver += 1;
             rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
-            
+
             Ok(Value::VOID)
         }
         MethodKind::DictKeys => {
             validate_arity(rt, method, args.len(), 0, 0)?;
-            
+
             let mut keys: Vec<(bool, Rc<String>)> = Vec::new();
 
             {
                 let me = expect_dict(rt, recv)?;
-                keys.reserve(me.map.len());
+                keys.reserve(me.map.len() + me.elements.len());
+
+                // Include keys from elements array
+                for (i, ev) in me.elements.iter().enumerate() {
+                    if ev.get_tag() != crate::core::value::TAG_VOID {
+                        keys.push((false, Rc::new(i.to_string())));
+                    }
+                }
 
                 for k in me.map.keys() {
                 match k {
@@ -308,7 +359,7 @@ pub(super) fn dispatch(
                 }
             }
             }
-            
+
             let mut result = Vec::with_capacity(keys.len());
             for (is_str, data) in keys {
                 if is_str {
@@ -317,14 +368,23 @@ pub(super) fn dispatch(
                     result.push(Value::from_i64(data.parse().unwrap()));
                 }
             }
-            
+
             Ok(create_list_value(rt, result))
         }
         MethodKind::DictValues => {
             validate_arity(rt, method, args.len(), 0, 0)?;
-            
+
             let me = expect_dict(rt, recv)?;
-            let values: Vec<_> = me.map.values().cloned().collect();
+            let mut values: Vec<_> = Vec::with_capacity(me.map.len() + me.elements.len());
+
+            // Include values from elements array
+            for ev in &me.elements {
+                if ev.get_tag() != crate::core::value::TAG_VOID {
+                    values.push(*ev);
+                }
+            }
+
+            values.extend(me.map.values().cloned());
             Ok(create_list_value(rt, values))
         }
         MethodKind::GetOrDefault => {
@@ -344,7 +404,14 @@ pub(super) fn dispatch(
 
             {
                 let me = expect_dict(rt, recv)?;
-                items_data.reserve(me.map.len());
+                items_data.reserve(me.map.len() + me.elements.len());
+
+                // Include items from elements array
+                for (i, ev) in me.elements.iter().enumerate() {
+                    if ev.get_tag() != crate::core::value::TAG_VOID {
+                        items_data.push((false, Rc::new(i.to_string()), *ev));
+                    }
+                }
 
                 for (k, v) in me.map.iter() {
                 match k {
