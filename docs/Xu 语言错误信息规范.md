@@ -18,30 +18,85 @@
 
 ### 2.1 错误码格式
 
-text
-
 ```
-[类别][编号]
+[级别][类别][序号]
 
-类别:
-  L = Lexer (词法)
-  P = Parser (语法)
-  R = Resolver (名称解析)
-  T = Type (类型)
-  E = Eval (运行时)
+级别:
+  E = Error (错误，阻止编译/运行)
+  W = Warning (警告，代码质量问题)
+  I = Info (提示信息)
 
-编号: 3位数字
+类别 (4位数字):
+  0xxx = 通用/标识符
+  1xxx = 类型系统
+  2xxx = 语法/解析
+  3xxx = 运行时
+  4xxx = 导入/模块
+  5xxx = 方法/成员
 ```
 
-### 2.2 错误分类
+### 2.2 Severity 级别
 
-|类别|前缀|范围|说明|
+|级别|说明|退出码|
+|---|---|---|
+|Error|阻止编译/运行的严重错误|1|
+|Warning|代码质量问题，不阻止运行|0|
+|Info|提示信息，如废弃 API 提醒|0|
+
+### 2.3 错误分类
+
+|类别码|含义|Error 范围|Warning 范围|
 |---|---|---|---|
-|词法错误|L|L001-L099|字符、Token 识别|
-|语法错误|P|P001-P199|语法结构|
-|名称解析|R|R001-R099|变量、函数、类型查找|
-|类型错误|T|T001-T199|类型检查、推断|
-|运行时错误|E|E001-E199|执行时错误|
+|0xxx|通用/标识符|E0001-E0099|W0001-W0099|
+|1xxx|类型系统|E1001-E1099|-|
+|2xxx|语法/解析|E2001-E2099|-|
+|3xxx|运行时|E3001-E3099|-|
+|4xxx|导入/模块|E4001-E4099|-|
+|5xxx|方法/成员|E5001-E5099|-|
+
+### 2.4 已实现的错误代码
+
+#### Errors (E)
+
+| 代码 | 名称 | 说明 |
+|------|------|------|
+| E0001 | UNDEFINED_IDENTIFIER | 未定义标识符 |
+| E1001 | TYPE_MISMATCH | 类型不匹配 |
+| E1002 | ARGUMENT_COUNT_MISMATCH | 参数数量错误 |
+| E1003 | RETURN_TYPE_MISMATCH | 返回类型错误 |
+| E1004 | INVALID_CONDITION_TYPE | 无效条件类型 |
+| E1005 | INVALID_ITERATOR_TYPE | 无效迭代器类型 |
+| E1006 | INVALID_UNARY_OPERAND | 无效一元操作数 |
+| E2001 | EXPECTED_TOKEN | 期望的 token |
+| E2002 | EXPECTED_EXPRESSION | 期望表达式 |
+| E2003 | INVALID_ASSIGNMENT_TARGET | 无效赋值目标 |
+| E2004 | UNTERMINATED_STRING | 未终止字符串 |
+| E2005 | UNTERMINATED_BLOCK_COMMENT | 未终止注释 |
+| E2006 | UNEXPECTED_CHAR | 意外字符 |
+| E2007 | UNCLOSED_DELIMITER | 未闭合分隔符 |
+| E3001 | INDEX_OUT_OF_RANGE | 索引越界 |
+| E3002 | DIVISION_BY_ZERO | 除零错误 |
+| E3003 | KEY_NOT_FOUND | 键不存在 |
+| E3004 | INTEGER_OVERFLOW | 整数溢出 |
+| E3005 | RECURSION_LIMIT_EXCEEDED | 递归限制超出 |
+| E3006 | NOT_CALLABLE | 不可调用 |
+| E4001 | CIRCULAR_IMPORT | 循环导入 |
+| E4002 | IMPORT_FAILED | 导入失败 |
+| E4003 | FILE_NOT_FOUND | 文件未找到 |
+| E4004 | PATH_NOT_ALLOWED | 路径不允许 |
+| E5001 | UNKNOWN_STRUCT | 未知结构体 |
+| E5002 | UNKNOWN_MEMBER | 未知成员 |
+| E5003 | UNKNOWN_ENUM_VARIANT | 未知枚举变体 |
+| E5004 | UNSUPPORTED_METHOD | 不支持的方法 |
+| E5005 | INVALID_MEMBER_ACCESS | 无效成员访问 |
+
+#### Warnings (W)
+
+| 代码 | 名称 | 说明 |
+|------|------|------|
+| W0001 | UNREACHABLE_CODE | 不可达代码 |
+| W0002 | SHADOWING | 变量遮蔽 |
+| W0003 | VOID_ASSIGNMENT | void 赋值 |
 
 ---
 
@@ -49,58 +104,30 @@ text
 
 ### 3.1 标准格式
 
-text
-
 ```
-error[错误码]: 错误描述
-  --> 文件:行:列
-   |
-行 | 源代码
-   | ^^^^ 指向错误位置
-   |
-   = help: 修复建议
-   = note: 补充说明
+{级别} [{错误码}]:{行}:{列}: {文件}: {错误描述}
+  | {源代码}
+  | {指向错误位置}
 ```
 
 ### 3.2 示例
 
-text
-
 ```
-error[L001]: 未闭合的字符串
-  --> main.xu:3:15
-   |
- 3 |     let msg = "hello
-   |               ^ 字符串从这里开始
-   |
-   = help: 用 " 结束字符串，或使用 """ 多行字符串
+Error [E0001]:5:10: main.xu: Undefined identifier: user
+  |     println(user.name)
+  |             ^^^^
 ```
 
-text
-
 ```
-error[P012]: 变量声明缺少初始化
-  --> main.xu:5:5
-   |
- 5 |     let x
-   |         ^ 变量 'x' 没有初始值
-   |
-   = help: Xu 要求变量必须初始化
-   = note: 尝试 `let x = 0` 或 `let x = ""`
+Warning [W0002]:4:9: main.xu: Variable 's' shadows an existing binding
+  |     let s = 2
+  |         ^
 ```
 
-text
-
 ```
-error[T003]: 类型不匹配
-  --> main.xu:7:13
-   |
- 7 |     let x: int = "hello"
-   |            ---   ^^^^^^^ 发现 string
-   |            |
-   |            期望 int
-   |
-   = help: 移除类型标注或提供正确类型的值
+Error [E1001]:7:14: main.xu: Type mismatch: expected int but got string
+  |     let x: int = "hello"
+  |                  ^^^^^^^
 ```
 
 ### 3.3 多行错误
@@ -1493,6 +1520,11 @@ impl CompileError {
 
 |版本|变更|
 |---|---|
+|v1.1|重构错误告警机制|
+||新增 Severity 级别: Error, Warning, Info|
+||新增 Shadowing DiagnosticKind (W0002)|
+||错误代码按类别重新组织 (0xxx-5xxx)|
+||遮蔽从 Error 降级为 Warning|
 |v1.0|初始错误信息规范|
 ||词法错误 L001-L007|
 ||语法错误 P001-P062|
