@@ -4,6 +4,9 @@ use crate::core::value::Value;
 use crate::core::value::{DictStr, ModuleInstance};
 use std::collections::HashSet;
 
+// Re-export from xu_ir for use within the runtime crate
+pub(crate) use xu_ir::infer_module_alias;
+
 #[derive(Clone, Debug)]
 pub(crate) struct ImportParseCacheEntry {
     stamp: ImportStamp,
@@ -55,18 +58,6 @@ impl Runtime {
 
         result
     }
-}
-
-pub(crate) fn infer_module_alias(path: &str) -> String {
-    let mut last = path;
-    if let Some((_, tail)) = path.rsplit_once('/') {
-        last = tail;
-    } else if let Some((_, tail)) = path.rsplit_once('\\') {
-        last = tail;
-    }
-    let last = last.trim_end_matches('/');
-    let last = last.trim_end_matches('\\');
-    last.strip_suffix(".xu").unwrap_or(last).to_string()
 }
 
 pub(crate) fn import_path(rt: &mut Runtime, path: &str) -> Result<Value, String> {

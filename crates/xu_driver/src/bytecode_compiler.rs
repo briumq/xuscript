@@ -5,7 +5,7 @@
 
 use xu_ir::{
     AssignOp, AssignStmt, BinaryOp, Bytecode, BytecodeFunction, Expr, IfStmt, Module, Op, Pattern,
-    ReceiverType, Stmt, UnaryOp,
+    ReceiverType, Stmt, UnaryOp, infer_module_alias,
 };
 
 pub fn compile_module(module: &Module) -> Option<Bytecode> {
@@ -27,18 +27,6 @@ fn extract_to_text_arg(expr: &Expr) -> Option<&Expr> {
         }
     }
     None
-}
-
-fn infer_module_alias(path: &str) -> String {
-    let mut last = path;
-    if let Some((_, tail)) = path.rsplit_once('/') {
-        last = tail;
-    } else if let Some((_, tail)) = path.rsplit_once('\\') {
-        last = tail;
-    }
-    let last = last.trim_end_matches('/');
-    let last = last.trim_end_matches('\\');
-    last.strip_suffix(".xu").unwrap_or(last).to_string()
 }
 
 /// Collect all binding names from a pattern in order
@@ -155,6 +143,34 @@ impl Compiler {
             Expr::Group(e) => self.is_const_expr(e),
             _ => false,
         }
+    }
+
+    /// Compile a single part of an interpolated string and emit the appropriate StrAppend* op.
+    fn compile_interp_part(&mut self, expr: &Expr) -> Option<()> {
+        match expr {
+            Expr::Bool(_) => {
+                self.compile_expr(expr)?;
+                self.bc.ops.push(Op::StrAppendBool);
+            }
+            Expr::Int(_) => {
+                self.compile_expr(expr)?;
+                self.bc.ops.push(Op::StrAppendInt);
+            }
+            Expr::Float(_) => {
+                self.compile_expr(expr)?;
+                self.bc.ops.push(Op::StrAppendFloat);
+            }
+            Expr::Str(s) => {
+                let s_idx = self.add_constant(xu_ir::Constant::Str(s.clone()));
+                self.bc.ops.push(Op::Const(s_idx));
+                self.bc.ops.push(Op::StrAppendStr);
+            }
+            _ => {
+                self.compile_expr(expr)?;
+                self.bc.ops.push(Op::StrAppend);
+            }
+        }
+        Some(())
     }
 
     fn compile_stmt(&mut self, stmt: &Stmt) -> Option<()> {
@@ -712,58 +728,14 @@ impl Compiler {
                     let f_idx = self.add_constant(xu_ir::Constant::Str(first.clone()));
                     self.bc.ops.push(Op::Const(f_idx));
                     for p in &parts[1..] {
-                        match p {
-                            Expr::Bool(_) => {
-                                self.compile_expr(p)?;
-                                self.bc.ops.push(Op::StrAppendBool)
-                            }
-                            Expr::Int(_) => {
-                                self.compile_expr(p)?;
-                                self.bc.ops.push(Op::StrAppendInt)
-                            }
-                            Expr::Float(_) => {
-                                self.compile_expr(p)?;
-                                self.bc.ops.push(Op::StrAppendFloat)
-                            }
-                            Expr::Str(s) => {
-                                let s_idx = self.add_constant(xu_ir::Constant::Str(s.clone()));
-                                self.bc.ops.push(Op::Const(s_idx));
-                                self.bc.ops.push(Op::StrAppendStr);
-                            }
-                            _ => {
-                                self.compile_expr(p)?;
-                                self.bc.ops.push(Op::StrAppend);
-                            }
-                        }
+                        self.compile_interp_part(p)?;
                     }
                     return Some(());
                 }
                 let empty_idx = self.add_constant(xu_ir::Constant::Str(String::new()));
                 self.bc.ops.push(Op::Const(empty_idx));
                 for p in parts {
-                    match p {
-                        Expr::Bool(_) => {
-                            self.compile_expr(p)?;
-                            self.bc.ops.push(Op::StrAppendBool)
-                        }
-                        Expr::Int(_) => {
-                            self.compile_expr(p)?;
-                            self.bc.ops.push(Op::StrAppendInt)
-                        }
-                        Expr::Float(_) => {
-                            self.compile_expr(p)?;
-                            self.bc.ops.push(Op::StrAppendFloat)
-                        }
-                        Expr::Str(s) => {
-                            let s_idx = self.add_constant(xu_ir::Constant::Str(s.clone()));
-                            self.bc.ops.push(Op::Const(s_idx));
-                            self.bc.ops.push(Op::StrAppendStr);
-                        }
-                        _ => {
-                            self.compile_expr(p)?;
-                            self.bc.ops.push(Op::StrAppend);
-                        }
-                    }
+                    self.compile_interp_part(p)?;
                 }
                 Some(())
             }

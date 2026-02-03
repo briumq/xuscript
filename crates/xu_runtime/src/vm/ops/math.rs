@@ -7,8 +7,7 @@
 use crate::core::Value;
 use crate::core::value::ValueExt;
 use crate::Runtime;
-use crate::core::heap::ManagedObject;
-use crate::errors::messages::NOT_A_STRING;
+use crate::vm::stack::add_with_heap;
 use xu_ir::BinaryOp;
 
 #[inline(always)]
@@ -28,58 +27,6 @@ pub(super) fn op_add(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), Str
             Ok(())
         }
         Err(e) => Err(e),
-    }
-}
-
-#[inline(always)]
-fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Value, String> {
-    use crate::core::value::TAG_STR;
-    use crate::util::Appendable;
-
-    let at = a.get_tag();
-    let bt = b.get_tag();
-
-    if at == TAG_STR || bt == TAG_STR {
-        let a_len = if at == TAG_STR {
-            if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                s.len()
-            } else {
-                return Err(NOT_A_STRING.into());
-            }
-        } else {
-            20
-        };
-        let b_len = if bt == TAG_STR {
-            if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
-                s.len()
-            } else {
-                return Err(NOT_A_STRING.into());
-            }
-        } else {
-            20
-        };
-
-        let mut result = String::with_capacity(a_len + b_len);
-
-        if at == TAG_STR {
-            if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
-                result.push_str(s.as_str());
-            }
-        } else {
-            result.append_value(&a, &rt.heap);
-        }
-
-        if bt == TAG_STR {
-            if let ManagedObject::Str(s) = rt.heap.get(b.as_obj_id()) {
-                result.push_str(s.as_str());
-            }
-        } else {
-            result.append_value(&b, &rt.heap);
-        }
-
-        Ok(Value::str(rt.heap.alloc(ManagedObject::Str(result.into()))))
-    } else {
-        a.bin_op(BinaryOp::Add, b)
     }
 }
 
