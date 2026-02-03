@@ -1,0 +1,4 @@
+// expect_warn:"shadows"
+func f(x: int) {
+    let x = 2
+}

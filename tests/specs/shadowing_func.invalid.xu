@@ -1,4 +1,0 @@
-// test: shadowing_function_error [expect_error: "shadowing"]
-func f(x: int) {
-    let x = 2
-}

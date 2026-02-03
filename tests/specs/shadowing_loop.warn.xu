@@ -1,0 +1,6 @@
+// expect_warn:"shadows"
+let x = 0
+for i in 0..5 {
+    let x = 2
+    print(x)
+}

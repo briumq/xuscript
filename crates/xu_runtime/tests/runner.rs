@@ -301,6 +301,28 @@ fn run_test(suite_name: &str, _suite_root: &str, path: &PathBuf, strategy: Strat
                         panic!("Expected error containing {:?}, got:\n{}", contains, joined);
                     }
                 }
+                Some(Expectation::ExpectWarn { contains }) => {
+                    let driver = Driver::new();
+                    let parsed = driver
+                        .parse_text(path.to_string_lossy().as_ref(), &src, true)
+                        .unwrap();
+                    let warns: Vec<_> = parsed
+                        .diagnostics
+                        .into_iter()
+                        .filter(|d| matches!(d.severity, xu_syntax::Severity::Warning))
+                        .collect();
+                    if warns.is_empty() {
+                        panic!("Expected warning, got none: {}", path.display());
+                    }
+                    let joined = warns
+                        .iter()
+                        .map(|d| d.message.clone())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    if !joined.contains(&contains) {
+                        panic!("Expected warning containing {:?}, got:\n{}", contains, joined);
+                    }
+                }
                 Some(Expectation::ExpectPanic { contains }) => match run_spec_file(path, &src) {
                     Ok(_) => panic!("Expected runtime failure, got success: {}", path.display()),
                     Err(e) => {
@@ -426,6 +448,7 @@ fn run_test(suite_name: &str, _suite_root: &str, path: &PathBuf, strategy: Strat
 #[derive(Debug, Clone)]
 enum Expectation {
     ExpectError { contains: String },
+    ExpectWarn { contains: String },
     ExpectPanic { contains: String },
     Skip { reason: String },
 }
@@ -439,6 +462,9 @@ fn parse_expectation(src: &str) -> Option<Expectation> {
         }
         if let Some(s) = parse_expectation_from_line(line, "expect_error:") {
             return Some(Expectation::ExpectError { contains: s });
+        }
+        if let Some(s) = parse_expectation_from_line(line, "expect_warn:") {
+            return Some(Expectation::ExpectWarn { contains: s });
         }
         if let Some(s) = parse_expectation_from_line(line, "expect_panic:") {
             return Some(Expectation::ExpectPanic { contains: s });

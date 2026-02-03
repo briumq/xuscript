@@ -1,6 +1,0 @@
-// test: shadowing_for_body_error [expect_error: "shadowing"]
-let x = 0
-for i in 0..5 {
-    let x = 2
-    print(x)
-}
