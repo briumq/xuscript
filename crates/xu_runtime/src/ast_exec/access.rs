@@ -314,6 +314,16 @@ impl Runtime {
                 items.push(pair);
             }
             Ok(Value::list(self.heap.alloc(crate::core::heap::ManagedObject::List(items))))
+        } else if tag == crate::core::value::TAG_DICT {
+            // Generic dict field access - treat field as a string key
+            let id = obj.as_obj_id();
+            if let crate::core::heap::ManagedObject::Dict(me) = self.heap.get(id) {
+                let key_hash = Self::hash_bytes(me.map.hasher(), field.as_bytes());
+                Self::dict_get_by_str_with_hash(me, field, key_hash)
+                    .ok_or_else(|| self.error(xu_syntax::DiagnosticKind::KeyNotFound(field.to_string())))
+            } else {
+                Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())))
+            }
         } else if tag == crate::core::value::TAG_MODULE {
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::Module(m) = self.heap.get(id) {

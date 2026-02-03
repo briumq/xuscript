@@ -323,7 +323,12 @@ pub fn analyze_stmts(
                 // Note: We don't check for shadowing here because for-loop variables
                 // semantically have their own scope limited to the loop body.
                 // Sequential for loops with the same variable name are a common pattern.
-                let idx = scope.last().expect("Scope stack underflow").len();
+                // Reuse existing slot if the variable name already exists in scope
+                let idx = if let Some(&existing_idx) = scope.last().expect("Scope stack underflow").get(&s.var) {
+                    existing_idx
+                } else {
+                    scope.last().expect("Scope stack underflow").len()
+                };
                 scope.last_mut().expect("Scope stack underflow").insert(s.var.clone(), idx);
                 if let Some(sp) = finder.find_name_or_next(&s.var) {
                     def_spans.last_mut().expect("Def spans stack underflow").insert(s.var.clone(), sp);
@@ -501,7 +506,12 @@ pub(crate) fn analyze_local_stmts_shim(
             }
             Stmt::ForEach(s) => {
                 analyze_expr(&mut s.iter, funcs, scope, finder, out);
-                let idx = scope.last().unwrap().len();
+                // Reuse existing slot if the variable name already exists in scope
+                let idx = if let Some(&existing_idx) = scope.last().unwrap().get(&s.var) {
+                    existing_idx
+                } else {
+                    scope.last().unwrap().len()
+                };
                 scope.last_mut().unwrap().insert(s.var.clone(), idx);
                 analyze_local_stmts_shim(&mut s.body, funcs, scope, finder, out);
             }
