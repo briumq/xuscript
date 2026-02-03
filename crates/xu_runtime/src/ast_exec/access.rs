@@ -120,6 +120,19 @@ impl Runtime {
             } else {
                 Err(self.error(xu_syntax::DiagnosticKind::Raw("Not a struct".into())))
             }
+        } else if tag == crate::core::value::TAG_ENUM && (field == "name" || field == "type_name") {
+            let id = obj.as_obj_id();
+            if let crate::core::heap::ManagedObject::Enum(e) = self.heap.get(id) {
+                let (ty, variant, _) = e.as_ref();
+                let s = if field == "name" {
+                    variant.clone()
+                } else {
+                    ty.clone()
+                };
+                Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(s))))
+            } else {
+                Err(self.error(xu_syntax::DiagnosticKind::Raw("Not an enum".into())))
+            }
         } else if tag == crate::core::value::TAG_ENUM && (field == "has" || field == "none") {
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::Enum(e) = self.heap.get(id) {

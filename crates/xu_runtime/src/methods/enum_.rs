@@ -1,3 +1,4 @@
+use crate::core::heap::ManagedObject;
 use crate::Value;
 
 use super::MethodKind;
@@ -25,6 +26,42 @@ pub(super) fn dispatch(
     }
     let (ty, variant, payload) = rt.enum_parts_cloned(recv)?;
 
+    // 通用枚举方法（所有枚举都支持）
+    match kind {
+        MethodKind::EnumName => {
+            if !args.is_empty() {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 0,
+                    expected_max: 0,
+                    actual: args.len(),
+                }));
+            }
+            return Ok(Value::str(rt.heap.alloc(ManagedObject::Str(variant))));
+        }
+        MethodKind::EnumTypeName => {
+            if !args.is_empty() {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 0,
+                    expected_max: 0,
+                    actual: args.len(),
+                }));
+            }
+            return Ok(Value::str(rt.heap.alloc(ManagedObject::Str(ty))));
+        }
+        MethodKind::IntToString => {
+            if !args.is_empty() {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 0,
+                    expected_max: 0,
+                    actual: args.len(),
+                }));
+            }
+            return Ok(Value::str(rt.heap.alloc(ManagedObject::Str(format!("{}#{}", ty, variant).into()))));
+        }
+        _ => {}
+    }
+
+    // Option/Result 特有方法
     let is_option = ty.as_str() == "Option";
     let is_result = ty.as_str() == "Result";
     if !is_option && !is_result {

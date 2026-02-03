@@ -1,0 +1,55 @@
+// 测试枚举字符串方法
+// 验证 .name, .type_name, .to_string() 对所有枚举类型的支持
+
+// 1. 自定义枚举测试
+Status with [ pending | approved | rejected ]
+
+let s = Status#pending
+println("=== 自定义枚举测试 ===")
+println("s.name = " + s.name)
+println("s.type_name = " + s.type_name)
+println("s.to_string() = " + s.to_string())
+
+// 验证不同变体
+let s2 = Status#approved
+println("s2.name = " + s2.name)
+
+// 2. Option 枚举测试
+println("\n=== Option 枚举测试 ===")
+let opt_some = Option#some(42)
+let opt_none = Option#none
+
+println("opt_some.name = " + opt_some.name)
+println("opt_some.type_name = " + opt_some.type_name)
+println("opt_some.to_string() = " + opt_some.to_string())
+
+println("opt_none.name = " + opt_none.name)
+println("opt_none.to_string() = " + opt_none.to_string())
+
+// 3. Result 枚举测试
+println("\n=== Result 枚举测试 ===")
+let res_ok = Result#ok("success")
+let res_err = Result#err("failed")
+
+println("res_ok.name = " + res_ok.name)
+println("res_ok.type_name = " + res_ok.type_name)
+println("res_ok.to_string() = " + res_ok.to_string())
+
+println("res_err.name = " + res_err.name)
+println("res_err.to_string() = " + res_err.to_string())
+
+// 4. 带 payload 的自定义枚举
+println("\n=== 带 payload 的枚举测试 ===")
+Response with [ success(data: string) | error(code: int, msg: string) ]
+
+let resp1 = Response#success("ok")
+let resp2 = Response#error(404, "not found")
+
+println("resp1.name = " + resp1.name)
+println("resp1.type_name = " + resp1.type_name)
+println("resp1.to_string() = " + resp1.to_string())
+
+println("resp2.name = " + resp2.name)
+println("resp2.to_string() = " + resp2.to_string())
+
+println("\n=== 所有测试通过 ===")

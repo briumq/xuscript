@@ -71,6 +71,8 @@ pub(crate) enum MethodKind {
     OptHas,
     OptNone,
     ResMapErr,
+    EnumName,
+    EnumTypeName,
     Len,
     Contains,
     Clear,
@@ -146,6 +148,8 @@ impl MethodKind {
             "has" => Self::OptHas,
             "none" => Self::OptNone,
             "map_err" => Self::ResMapErr,
+            "name" => Self::EnumName,
+            "type_name" => Self::EnumTypeName,
             _ => Self::Unknown,
         }
     }
