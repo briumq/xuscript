@@ -60,10 +60,13 @@ impl<'a> Finder<'a> {
 }
 
 pub fn report_shadowing(name: &str, finder: &mut Finder<'_>, out: &mut Vec<Diagnostic>) {
-    out.push(Diagnostic::error_kind(
-        DiagnosticKind::Raw(format!("shadowing: {name}")),
-        finder.find_name_or_next(name),
-    ));
+    out.push(
+        Diagnostic::warning_kind(
+            DiagnosticKind::Shadowing(name.to_string()),
+            finder.find_name_or_next(name),
+        )
+        .with_code(xu_syntax::codes::SHADOWING),
+    );
 }
 
 pub fn collect_pattern_binds(pat: &Pattern, out: &mut Vec<String>) {

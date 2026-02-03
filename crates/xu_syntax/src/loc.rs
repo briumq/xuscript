@@ -16,9 +16,12 @@ pub enum DiagnosticKind {
     ExpectedImportPath,
     TrailingInterpolationTokens,
 
-    // Analyzer
+    // Analyzer - Errors
     UnreachableCode,
     VoidAssignment,
+
+    // Analyzer - Warnings
+    Shadowing(String),
     TypeMismatch {
         expected: String,
         actual: String,
@@ -119,6 +122,7 @@ impl DiagnosticsFormatter {
 
             DiagnosticKind::UnreachableCode => "Unreachable code".into(),
             DiagnosticKind::VoidAssignment => "Cannot assign void to a variable".into(),
+            DiagnosticKind::Shadowing(name) => format!("Variable '{}' shadows an existing binding", name),
             DiagnosticKind::DidYouMean(s) => format!("Did you mean '{}'?", s),
 
             DiagnosticKind::ExpectedToken(s) => format!("Expected {}", s),
