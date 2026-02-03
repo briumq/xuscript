@@ -1,5 +1,6 @@
 use super::Parser;
-use crate::parser::{infix_binding_power, prefix_binding_power};
+use crate::mangling::static_name;
+use crate::parser::{infix_binding_power, prefix_binding_power, BraceContent};
 
 use xu_syntax::{Diagnostic, DiagnosticKind, TokenKind, unquote};
 
@@ -149,7 +150,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                                 let args = self.parse_args()?;
                                 expr = Expr::Call(Box::new(CallExpr {
                                     callee: Box::new(Expr::Ident(
-                                        format!("__static__{}__{}", ty, method),
+                                        static_name(&ty, &method),
                                         std::cell::Cell::new(None),
                                     )),
                                     args: args.into_boxed_slice(),
@@ -166,11 +167,11 @@ impl<'a, 'b> Parser<'a, 'b> {
                             let method = self.expect_ident()?;
                             if self.at(TokenKind::LParen) {
                                 let args = self.parse_args()?;
-                                let static_name = format!("__static__{}__{}", m.field, method);
+                                let mangled = static_name(&m.field, &method);
                                 expr = Expr::Call(Box::new(CallExpr {
                                     callee: Box::new(Expr::Member(Box::new(MemberExpr {
                                         object: m.object,
-                                        field: static_name,
+                                        field: mangled,
                                         ic_slot: std::cell::Cell::new(None),
                                     }))),
                                     args: args.into_boxed_slice(),
@@ -274,7 +275,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                             if ty.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
                                 expr = Expr::Call(Box::new(CallExpr {
                                     callee: Box::new(Expr::Ident(
-                                        format!("__static__{}__{}", ty, m.field),
+                                        static_name(ty, &m.field),
                                         std::cell::Cell::new(None),
                                     )),
                                     args: args.into_boxed_slice(),
@@ -297,12 +298,11 @@ impl<'a, 'b> Parser<'a, 'b> {
                                 .next()
                                 .is_some_and(|c| c.is_ascii_uppercase())
                             {
-                                let static_name =
-                                    format!("__static__{}__{}", inner_m.field, m.field);
+                                let mangled = static_name(&inner_m.field, &m.field);
                                 expr = Expr::Call(Box::new(CallExpr {
                                     callee: Box::new(Expr::Member(Box::new(MemberExpr {
                                         object: inner_m.object.clone(),
-                                        field: static_name,
+                                        field: mangled,
                                         ic_slot: std::cell::Cell::new(None),
                                     }))),
                                     args: args.into_boxed_slice(),
@@ -340,7 +340,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                         if ty.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
                             expr = Expr::Call(Box::new(CallExpr {
                                 callee: Box::new(Expr::Ident(
-                                    format!("__static__{}__{}", ty, method),
+                                    static_name(ty, &method),
                                     std::cell::Cell::new(None),
                                 )),
                                 args: args.into_boxed_slice(),
@@ -761,22 +761,14 @@ impl<'a, 'b> Parser<'a, 'b> {
     }
 
     /// Check if the current `{` looks like struct/dict literal syntax (not a block).
-    /// Returns true for: `{ }`, `{ ident: }`, `{ ... }`
-    /// Returns false for: `{ statement }` where statement doesn't match above patterns
     fn looks_like_struct_init(&self) -> bool {
         if !self.at(TokenKind::LBrace) {
             return false;
         }
-        let next = self.peek_kind_after_lbrace();
-        match next {
-            Some(TokenKind::RBrace) => true,   // Empty: { }
-            Some(TokenKind::Ellipsis) => true, // Spread: { ...expr }
-            Some(TokenKind::Ident) => {
-                // Field init: { ident: value }
-                self.peek_kind_after_lbrace_ident() == Some(TokenKind::Colon)
-            }
-            _ => false,
-        }
+        matches!(
+            self.classify_brace_content(),
+            BraceContent::Empty | BraceContent::FieldInit | BraceContent::Spread
+        )
     }
 
     fn parse_struct_init_fields(&mut self) -> Option<Vec<StructInitItem>> {

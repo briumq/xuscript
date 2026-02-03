@@ -1,4 +1,6 @@
 use std::cell::Cell;
+use crate::mangling::{method_name, static_name, METHOD_PREFIX};
+use crate::parser::BraceContent;
 use crate::{
     AssignOp, AssignStmt, DeclKind, DoesBlock, EnumDef, Expr, ForEachStmt, FuncDef, IfStmt,
     MemberExpr, MatchStmt, Param, Pattern, Stmt, StructDef, StructField, TypeRef, UseStmt, Visibility,
@@ -60,31 +62,15 @@ impl<'a, 'b> Parser<'a, 'b> {
         }
     }
 
-    /// Check if the current `{` starts a block statement (not a dict literal).
-    /// Dict literal patterns:
-    /// - `{ }` empty dict (but we treat as empty block for simplicity)
-    /// - `{ "key": value }` string key
-    /// - `{ ident: value }` identifier key (note the colon)
-    /// Everything else is a block statement.
+    /// Check if the current `{` starts a block statement (not a dict/struct literal).
     fn is_block_stmt(&self) -> bool {
         if !self.at(TokenKind::LBrace) {
             return false;
         }
-        let next = self.peek_kind_after_lbrace();
-        match next {
-            // String followed by `:` is a dict literal
-            Some(TokenKind::Str) => {
-                let after = self.peek_kind_after_lbrace_skip_one();
-                after != Some(TokenKind::Colon)
-            }
-            // Identifier followed by `:` is a dict literal
-            Some(TokenKind::Ident) => {
-                let after = self.peek_kind_after_lbrace_ident();
-                after != Some(TokenKind::Colon)
-            }
-            // Everything else is a block (including empty `{}`)
-            _ => true,
-        }
+        matches!(
+            self.classify_brace_content(),
+            BraceContent::Block | BraceContent::Empty
+        )
     }
 
     /// Parse a block statement: `{ stmts... }`
@@ -261,10 +247,10 @@ impl<'a, 'b> Parser<'a, 'b> {
             if self.at(TokenKind::KwFunc) {
                 let mut f = self.parse_func_def(item_vis)?;
                 if is_static {
-                    f.name = format!("__static__{}__{}", name, f.name);
-                } else if !f.name.starts_with("__method__") {
+                    f.name = static_name(&name, &f.name);
+                } else if !f.name.starts_with(METHOD_PREFIX) {
                     let original = f.name.clone();
-                    f.name = format!("__method__{}__{}", name, original);
+                    f.name = method_name(&name, &original);
                     let needs_self = f
                         .params
                         .first()
@@ -378,7 +364,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             let ty = self.parse_type_ref()?;
             self.expect(TokenKind::RParen)?;
             let method = self.expect_ident()?;
-            let internal = format!("__method__{}__{}", ty.name, method);
+            let internal = method_name(&ty.name, &method);
             self.expect(TokenKind::LParen)?;
             let mut params = self.parse_params()?;
             self.expect(TokenKind::RParen)?;
@@ -488,10 +474,10 @@ impl<'a, 'b> Parser<'a, 'b> {
 
             let mut f = self.parse_func_def(fvis)?;
             if is_static {
-                f.name = format!("__static__{}__{}", target, f.name);
-            } else if !f.name.starts_with("__method__") {
+                f.name = static_name(&target, &f.name);
+            } else if !f.name.starts_with(METHOD_PREFIX) {
                 let original = f.name.clone();
-                f.name = format!("__method__{}__{}", target, original);
+                f.name = method_name(&target, &original);
                 let needs_self = f
                     .params
                     .first()

@@ -904,9 +904,10 @@ impl Compiler {
                 Some(())
             }
             Expr::StructInit(s) => {
-                // Cross-module struct init not supported in bytecode yet
-                if s.module.is_some() {
-                    return None;
+                // Cross-module struct init: compile module expr and discard (types are globally registered)
+                if let Some(mod_expr) = &s.module {
+                    self.compile_expr(mod_expr)?;
+                    self.bc.ops.push(Op::Pop);
                 }
                 let mut names: Vec<String> =
                     Vec::with_capacity(s.items.iter().filter(|x| matches!(x, xu_ir::StructInitItem::Field(_, _))).count());
@@ -927,29 +928,20 @@ impl Compiler {
             Expr::EnumCtor { module, ty, variant, args } => {
                 if let Some(mod_expr) = module {
                     // Cross-module enum: module.Type#variant
+                    // Compile module expression and discard (types are globally registered)
                     self.compile_expr(mod_expr)?;
-                    for a in args.iter() {
-                        self.compile_expr(a)?;
-                    }
-                    let t_idx = self.add_constant(xu_ir::Constant::Str(ty.clone()));
-                    let v_idx = self.add_constant(xu_ir::Constant::Str(variant.clone()));
-                    if args.is_empty() {
-                        self.bc.ops.push(Op::EnumCtorMod(t_idx, v_idx));
-                    } else {
-                        self.bc.ops.push(Op::EnumCtorModN(t_idx, v_idx, args.len()));
-                    }
+                    self.bc.ops.push(Op::Pop);
+                }
+                // Compile arguments
+                for a in args.iter() {
+                    self.compile_expr(a)?;
+                }
+                let t_idx = self.add_constant(xu_ir::Constant::Str(ty.clone()));
+                let v_idx = self.add_constant(xu_ir::Constant::Str(variant.clone()));
+                if args.is_empty() {
+                    self.bc.ops.push(Op::EnumCtor(t_idx, v_idx));
                 } else {
-                    // Local enum: Type#variant
-                    for a in args.iter() {
-                        self.compile_expr(a)?;
-                    }
-                    let t_idx = self.add_constant(xu_ir::Constant::Str(ty.clone()));
-                    let v_idx = self.add_constant(xu_ir::Constant::Str(variant.clone()));
-                    if args.is_empty() {
-                        self.bc.ops.push(Op::EnumCtor(t_idx, v_idx));
-                    } else {
-                        self.bc.ops.push(Op::EnumCtorN(t_idx, v_idx, args.len()));
-                    }
+                    self.bc.ops.push(Op::EnumCtorN(t_idx, v_idx, args.len()));
                 }
                 Some(())
             }

@@ -69,8 +69,6 @@ pub enum Op {
     StructInit(u32, u32),       // Index to String, Index to Names (Vec<String>)
     EnumCtor(u32, u32),         // Index to String (Enum name), Index to String (Ctor name)
     EnumCtorN(u32, u32, usize), // Index to String (Enum name), Index to String (Ctor name), args_count
-    EnumCtorMod(u32, u32),      // Module enum: stack has module, (type_idx, variant_idx)
-    EnumCtorModN(u32, u32, usize), // Module enum with args: stack has module + args, (type_idx, variant_idx, args_count)
     MakeFunction(u32),          // Index into constant pool (BytecodeFunction)
     Call(usize),
     CallMethod(u32, u64, usize, Option<usize>), // Index to String (Method name), hash, args_count, slot

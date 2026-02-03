@@ -652,12 +652,6 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             Op::EnumCtorN(t_idx, v_idx, argc) => {
                 types::op_enum_ctor_n(rt, bc, &mut stack, *t_idx, *v_idx, *argc)?;
             }
-            Op::EnumCtorMod(t_idx, v_idx) => {
-                types::op_enum_ctor_mod(rt, bc, &mut stack, *t_idx, *v_idx)?;
-            }
-            Op::EnumCtorModN(t_idx, v_idx, argc) => {
-                types::op_enum_ctor_mod_n(rt, bc, &mut stack, *t_idx, *v_idx, *argc)?;
-            }
             Op::MakeFunction(f_idx) => {
                 call::op_make_function(rt, bc, &mut stack, *f_idx)?;
             }

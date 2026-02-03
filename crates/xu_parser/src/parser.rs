@@ -12,6 +12,21 @@ use crate::{
     Expr, Module, Pattern, Stmt,
 };
 
+/// Classification of brace content for disambiguation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BraceContent {
+    /// Empty braces: `{ }`
+    Empty,
+    /// Field/key initialization with identifier: `{ ident: value }`
+    FieldInit,
+    /// Dict literal with string key: `{ "key": value }`
+    DictLiteral,
+    /// Spread expression: `{ ...expr }`
+    Spread,
+    /// Block statement: `{ statements }`
+    Block,
+}
+
 
 
 /// Parse result.
@@ -240,12 +255,23 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.tokens.get(self.i + n).map(|t| t.kind)
     }
 
-    /// Peek at the token kind after `{`, skipping whitespace/newlines.
-    pub fn peek_kind_after_lbrace(&self) -> Option<TokenKind> {
-        let mut j = self.i + 1; // skip the `{`
+    /// Peek at the token kind after skipping `start_offset` tokens and then `skip_tokens` non-whitespace tokens.
+    /// Whitespace (newlines) is always skipped between tokens.
+    ///
+    /// Examples:
+    /// - `peek_kind_skipping(1, 0)` - peek after `{` (skip 1 token, then 0 more)
+    /// - `peek_kind_skipping(1, 1)` - peek after `{ ident` or `{ "str"` (skip 1 token, then 1 more)
+    pub fn peek_kind_skipping(&self, start_offset: usize, skip_tokens: usize) -> Option<TokenKind> {
+        let mut j = self.i + start_offset;
+        let mut skipped = 0;
         while j < self.tokens.len() {
             let kind = self.tokens[j].kind;
             if kind == TokenKind::Newline {
+                j += 1;
+                continue;
+            }
+            if skipped < skip_tokens {
+                skipped += 1;
                 j += 1;
                 continue;
             }
@@ -254,61 +280,49 @@ impl<'a, 'b> Parser<'a, 'b> {
         None
     }
 
+    /// Peek at the token kind after `{`, skipping whitespace/newlines.
+    #[inline]
+    pub fn peek_kind_after_lbrace(&self) -> Option<TokenKind> {
+        self.peek_kind_skipping(1, 0)
+    }
+
     /// Peek at the token kind after `{ ident`, skipping whitespace/newlines.
+    #[inline]
     pub fn peek_kind_after_lbrace_ident(&self) -> Option<TokenKind> {
-        let mut j = self.i + 1; // skip the `{`
-        // Skip whitespace to find the identifier
-        while j < self.tokens.len() {
-            let kind = self.tokens[j].kind;
-            if kind == TokenKind::Newline {
-                j += 1;
-                continue;
-            }
-            break;
-        }
-        // Skip the identifier
-        if j < self.tokens.len() && self.tokens[j].kind == TokenKind::Ident {
-            j += 1;
-        }
-        // Skip whitespace after identifier
-        while j < self.tokens.len() {
-            let kind = self.tokens[j].kind;
-            if kind == TokenKind::Newline {
-                j += 1;
-                continue;
-            }
-            return Some(kind);
-        }
-        None
+        self.peek_kind_skipping(1, 1)
     }
 
     /// Peek at the token kind after `{ <token>`, skipping whitespace/newlines.
     /// Used for checking what follows a string literal in `{ "key": ... }`.
+    #[inline]
     pub fn peek_kind_after_lbrace_skip_one(&self) -> Option<TokenKind> {
-        let mut j = self.i + 1; // skip the `{`
-        // Skip whitespace to find the first token
-        while j < self.tokens.len() {
-            let kind = self.tokens[j].kind;
-            if kind == TokenKind::Newline {
-                j += 1;
-                continue;
+        self.peek_kind_skipping(1, 1)
+    }
+
+    /// Classify what kind of content is inside braces.
+    /// Must be called when positioned at `{`.
+    pub fn classify_brace_content(&self) -> BraceContent {
+        debug_assert!(self.at(TokenKind::LBrace));
+        let next = self.peek_kind_skipping(1, 0);
+        match next {
+            Some(TokenKind::RBrace) => BraceContent::Empty,
+            Some(TokenKind::Ellipsis) => BraceContent::Spread,
+            Some(TokenKind::Str) => {
+                if self.peek_kind_skipping(1, 1) == Some(TokenKind::Colon) {
+                    BraceContent::DictLiteral
+                } else {
+                    BraceContent::Block
+                }
             }
-            break;
-        }
-        // Skip the first token (e.g., string literal)
-        if j < self.tokens.len() {
-            j += 1;
-        }
-        // Skip whitespace after the token
-        while j < self.tokens.len() {
-            let kind = self.tokens[j].kind;
-            if kind == TokenKind::Newline {
-                j += 1;
-                continue;
+            Some(TokenKind::Ident) => {
+                if self.peek_kind_skipping(1, 1) == Some(TokenKind::Colon) {
+                    BraceContent::FieldInit
+                } else {
+                    BraceContent::Block
+                }
             }
-            return Some(kind);
+            _ => BraceContent::Block,
         }
-        None
     }
 
     pub fn bumped(&mut self) -> Token {

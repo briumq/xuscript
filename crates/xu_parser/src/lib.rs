@@ -4,6 +4,7 @@
 //!
 mod expr;
 mod interp;
+pub mod mangling;
 mod parser;
 mod stmt;
 mod types;
