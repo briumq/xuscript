@@ -17,6 +17,18 @@ pub fn compile_module(module: &Module) -> Option<Bytecode> {
     Some(c.bc)
 }
 
+/// Check if an expression is a to_text(expr) call and return the inner expression
+fn extract_to_text_arg(expr: &Expr) -> Option<&Expr> {
+    if let Expr::Call(c) = expr {
+        if let Expr::Ident(name, _) = c.callee.as_ref() {
+            if name == "to_text" && c.args.len() == 1 {
+                return Some(&c.args[0]);
+            }
+        }
+    }
+    None
+}
+
 fn infer_module_alias(path: &str) -> String {
     let mut last = path;
     if let Some((_, tail)) = path.rsplit_once('/') {
@@ -571,6 +583,17 @@ impl Compiler {
                 if let Some(folded) = self.try_fold_binary(*op, left, right) {
                     self.bc.ops.push(folded);
                     return Some(());
+                }
+                // Optimize "string_literal" + to_text(var) pattern
+                if *op == BinaryOp::Add {
+                    if let Expr::Str(_) = left.as_ref() {
+                        if let Some(inner) = extract_to_text_arg(right) {
+                            self.compile_expr(left)?;
+                            self.compile_expr(inner)?;
+                            self.bc.ops.push(Op::StrAppend);
+                            return Some(());
+                        }
+                    }
                 }
                 // Short-circuit evaluation for && and ||
                 if *op == BinaryOp::And {
