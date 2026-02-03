@@ -1,5 +1,3 @@
-use crate::core::value::ValueExt;
-
 use xu_ir::{Bytecode, Op};
 
 use crate::core::Value;
@@ -10,7 +8,7 @@ use crate::{Flow, Runtime};
 use super::exception::throw_value;
 
 use super::ops::dict as dict_ops;
-use super::ops::{access, assign, call, collection, compare, iter, string, types};
+use super::ops::{access, assign, call, collection, compare, iter, math, string, types};
 use super::stack::{add_with_heap, stack_underflow, Handler, IterState, Pending};
 
 pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, String> {
@@ -217,118 +215,55 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::Sub => {
-                let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let a = stack.last_mut().ok_or_else(|| stack_underflow(ip, op))?;
-                match a.bin_op(xu_ir::BinaryOp::Sub, b) {
-                    Ok(r) => *a = r,
-                    Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
-                        }
-                        continue;
-                    }
+                if let Some(flow) = math::op_sub(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Mul => {
-                let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let a = stack.last_mut().ok_or_else(|| stack_underflow(ip, op))?;
-                match a.bin_op(xu_ir::BinaryOp::Mul, b) {
-                    Ok(r) => *a = r,
-                    Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
-                        }
-                        continue;
-                    }
+                if let Some(flow) = math::op_mul(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Div => {
-                let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let a = stack.last_mut().ok_or_else(|| stack_underflow(ip, op))?;
-                match a.bin_op(xu_ir::BinaryOp::Div, b) {
-                    Ok(r) => *a = r,
-                    Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
-                        }
-                        continue;
-                    }
+                if let Some(flow) = math::op_div(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Mod => {
-                let b = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
-                let a = stack.last_mut().ok_or_else(|| stack_underflow(ip, op))?;
-                // Fast path for integers
-                if a.is_int() && b.is_int() {
-                    let bv = b.as_i64();
-                    if bv != 0 {
-                        *a = Value::from_i64(a.as_i64() % bv);
-                    } else {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str("Division by zero".into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
-                        }
-                        continue;
-                    }
-                } else {
-                    match a.bin_op(xu_ir::BinaryOp::Mod, b) {
-                        Ok(r) => *a = r,
-                        Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt,
-                                &mut ip,
-                                &mut handlers,
-                                &mut stack,
-                                &mut iters,
-                                &mut pending,
-                                &mut thrown,
-                                err_val,
-                            ) {
-                                return Ok(flow);
-                            }
-                            continue;
-                        }
-                    }
+                if let Some(flow) = math::op_mod(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::StrAppend => {
@@ -416,53 +351,29 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 compare::op_ne(rt, &mut stack)?;
             }
             Op::And => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack
-                    .last_mut()
-                    .ok_or_else(|| "Stack underflow".to_string())?;
-                match a.bin_op(xu_ir::BinaryOp::And, b) {
-                    Ok(r) => *a = r,
-                    Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
-                        }
-                        continue;
-                    }
+                if let Some(flow) = math::op_and(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Or => {
-                let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-                let a = stack
-                    .last_mut()
-                    .ok_or_else(|| "Stack underflow".to_string())?;
-                match a.bin_op(xu_ir::BinaryOp::Or, b) {
-                    Ok(r) => *a = r,
-                    Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt,
-                            &mut ip,
-                            &mut handlers,
-                            &mut stack,
-                            &mut iters,
-                            &mut pending,
-                            &mut thrown,
-                            err_val,
-                        ) {
-                            return Ok(flow);
-                        }
-                        continue;
-                    }
+                if let Some(flow) = math::op_or(
+                    rt,
+                    &mut stack,
+                    &mut ip,
+                    &mut handlers,
+                    &mut iters,
+                    &mut pending,
+                    &mut thrown,
+                )? {
+                    return Ok(flow);
                 }
             }
             Op::Gt => {
