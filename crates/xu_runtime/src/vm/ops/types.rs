@@ -17,6 +17,50 @@ use crate::vm::exception::throw_value;
 use crate::vm::stack::{Handler, IterState, Pending};
 use crate::{Flow, Runtime};
 
+/// Create a struct instance and push to stack
+#[inline(always)]
+fn create_struct_instance(
+    rt: &mut Runtime,
+    stack: &mut Vec<Value>,
+    ty: &str,
+    layout: &std::rc::Rc<[String]>,
+    values: Vec<Value>,
+) {
+    let id = rt
+        .heap
+        .alloc(ManagedObject::Struct(Box::new(crate::core::value::StructInstance {
+            ty: ty.to_string(),
+            ty_hash: xu_ir::stable_hash64(ty),
+            fields: values.into_boxed_slice(),
+            field_names: layout.clone(),
+        })));
+    stack.push(Value::struct_obj(id));
+}
+
+/// Throw unknown struct error
+#[inline(always)]
+fn throw_unknown_struct(
+    rt: &mut Runtime,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    ty: &str,
+) -> Result<Option<Flow>, String> {
+    let err_val = Value::str(
+        rt.heap.alloc(ManagedObject::Str(
+            rt.error(xu_syntax::DiagnosticKind::UnknownStruct(ty.to_string()))
+                .into(),
+        )),
+    );
+    if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+        return Ok(Some(flow));
+    }
+    Ok(None)
+}
+
 /// Execute Op::DefineStruct - define a struct type
 #[inline(always)]
 pub(crate) fn op_define_struct(rt: &mut Runtime, bc: &Bytecode, idx: u32) {
@@ -56,18 +100,7 @@ pub(crate) fn op_struct_init(
     let layout = if let Some(l) = rt.struct_layouts.get(&ty).cloned() {
         l
     } else {
-        let err_val = Value::str(
-            rt.heap.alloc(ManagedObject::Str(
-                rt.error(xu_syntax::DiagnosticKind::UnknownStruct(ty.clone()))
-                    .into(),
-            )),
-        );
-        if let Some(flow) = throw_value(
-            rt, ip, handlers, stack, iters, pending, thrown, err_val,
-        ) {
-            return Ok(Some(flow));
-        }
-        return Ok(None);
+        return throw_unknown_struct(rt, stack, ip, handlers, iters, pending, thrown, &ty);
     };
 
     let mut values = vec![Value::VOID; layout.len()];
@@ -102,15 +135,7 @@ pub(crate) fn op_struct_init(
         }
     }
 
-    let id = rt
-        .heap
-        .alloc(ManagedObject::Struct(Box::new(crate::core::value::StructInstance {
-            ty: ty.clone(),
-            ty_hash: xu_ir::stable_hash64(&ty),
-            fields: values.into_boxed_slice(),
-            field_names: layout.clone(),
-        })));
-    stack.push(Value::struct_obj(id));
+    create_struct_instance(rt, stack, &ty, &layout, values);
     Ok(None)
 }
 
@@ -134,18 +159,7 @@ pub(crate) fn op_struct_init_spread(
     let layout = if let Some(l) = rt.struct_layouts.get(&ty).cloned() {
         l
     } else {
-        let err_val = Value::str(
-            rt.heap.alloc(ManagedObject::Str(
-                rt.error(xu_syntax::DiagnosticKind::UnknownStruct(ty.clone()))
-                    .into(),
-            )),
-        );
-        if let Some(flow) = throw_value(
-            rt, ip, handlers, stack, iters, pending, thrown, err_val,
-        ) {
-            return Ok(Some(flow));
-        }
-        return Ok(None);
+        return throw_unknown_struct(rt, stack, ip, handlers, iters, pending, thrown, &ty);
     };
 
     let mut values = vec![Value::VOID; layout.len()];
@@ -219,15 +233,7 @@ pub(crate) fn op_struct_init_spread(
         }
     }
 
-    let id = rt
-        .heap
-        .alloc(ManagedObject::Struct(Box::new(crate::core::value::StructInstance {
-            ty: ty.clone(),
-            ty_hash: xu_ir::stable_hash64(&ty),
-            fields: values.into_boxed_slice(),
-            field_names: layout.clone(),
-        })));
-    stack.push(Value::struct_obj(id));
+    create_struct_instance(rt, stack, &ty, &layout, values);
     Ok(None)
 }
 

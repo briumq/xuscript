@@ -13,6 +13,53 @@ use crate::vm::exception::throw_value;
 use crate::vm::stack::{Handler, IterState, Pending};
 use crate::{Flow, Runtime};
 
+/// Throw undefined identifier error
+#[inline(always)]
+fn throw_undefined(
+    rt: &mut Runtime,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    name: &str,
+) -> Result<Option<Flow>, String> {
+    let err_val = Value::str(
+        rt.heap.alloc(ManagedObject::Str(
+            rt.error(xu_syntax::DiagnosticKind::UndefinedIdentifier(name.to_string()))
+                .into(),
+        )),
+    );
+    if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+        return Ok(Some(flow));
+    }
+    Ok(None)
+}
+
+/// Perform add-assign operation and handle errors
+#[inline(always)]
+fn do_add_assign(
+    rt: &mut Runtime,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    cur: &mut Value,
+    rhs: Value,
+) -> Result<Option<Flow>, String> {
+    if let Err(e) = cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
+        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+        if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+            return Ok(Some(flow));
+        }
+        return Ok(None);
+    }
+    Ok(None)
+}
+
 /// Execute Op::AddAssignName - add-assign to a named variable
 #[inline(always)]
 pub(crate) fn op_add_assign_name(
@@ -31,84 +78,40 @@ pub(crate) fn op_add_assign_name(
     let mut handled = false;
 
     if rt.locals.is_active() {
-        if let Some(func_name) = &rt.current_func {
-            if let Some(idxmap) = rt.compiled_locals_idx.get(func_name) {
-                if let Some(idx) = idxmap.get(name) {
-                    let Some(cur) = rt.get_local_by_index(*idx) else {
-                        let err_val = Value::str(
-                            rt.heap.alloc(ManagedObject::Str(
-                                rt.error(xu_syntax::DiagnosticKind::UndefinedIdentifier(
-                                    name.to_string(),
-                                ))
-                                .into(),
-                            )),
-                        );
-                        if let Some(flow) = throw_value(
-                            rt, ip, handlers, stack, iters, pending, thrown, err_val,
-                        ) {
-                            return Ok(Some(flow));
-                        }
-                        return Ok(None);
-                    };
-                    let mut cur = cur;
-                    if let Err(e) = cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt, ip, handlers, stack, iters, pending, thrown, err_val,
-                        ) {
-                            return Ok(Some(flow));
-                        }
-                        return Ok(None);
-                    }
-                    rt.set_local_by_index(*idx, cur);
-                    handled = true;
-                }
+        // Try compiled locals first
+        let local_idx = rt.current_func.as_ref().and_then(|func_name| {
+            rt.compiled_locals_idx.get(func_name).and_then(|idxmap| idxmap.get(name).copied())
+        });
+
+        if let Some(local_idx) = local_idx {
+            let Some(cur) = rt.get_local_by_index(local_idx) else {
+                return throw_undefined(rt, stack, ip, handlers, iters, pending, thrown, name);
+            };
+            let mut cur = cur;
+            if let Some(flow) = do_add_assign(rt, stack, ip, handlers, iters, pending, thrown, &mut cur, rhs)? {
+                return Ok(Some(flow));
             }
+            rt.set_local_by_index(local_idx, cur);
+            handled = true;
         }
+
         if !handled {
             if let Some(cur) = rt.get_local(name) {
                 let mut cur = cur;
-                if let Err(e) = cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
-                    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                    if let Some(flow) = throw_value(
-                        rt, ip, handlers, stack, iters, pending, thrown, err_val,
-                    ) {
-                        return Ok(Some(flow));
-                    }
-                    return Ok(None);
+                if let Some(flow) = do_add_assign(rt, stack, ip, handlers, iters, pending, thrown, &mut cur, rhs)? {
+                    return Ok(Some(flow));
                 }
                 let _ = rt.set_local(name, cur);
                 handled = true;
             }
         }
-        if handled {
-            // Fall through
-        } else {
+        if !handled {
             let Some(cur) = rt.env.get_cached(name) else {
-                let err_val = Value::str(
-                    rt.heap.alloc(ManagedObject::Str(
-                        rt.error(xu_syntax::DiagnosticKind::UndefinedIdentifier(
-                            name.to_string(),
-                        ))
-                        .into(),
-                    )),
-                );
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
-                ) {
-                    return Ok(Some(flow));
-                }
-                return Ok(None);
+                return throw_undefined(rt, stack, ip, handlers, iters, pending, thrown, name);
             };
             let mut cur = cur;
-            if let Err(e) = cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
-                ) {
-                    return Ok(Some(flow));
-                }
-                return Ok(None);
+            if let Some(flow) = do_add_assign(rt, stack, ip, handlers, iters, pending, thrown, &mut cur, rhs)? {
+                return Ok(Some(flow));
             }
             let assigned = rt.env.assign(name, cur);
             if !assigned {
@@ -117,30 +120,11 @@ pub(crate) fn op_add_assign_name(
         }
     } else {
         let Some(cur) = rt.env.get_cached(name) else {
-            let err_val = Value::str(
-                rt.heap.alloc(ManagedObject::Str(
-                    rt.error(xu_syntax::DiagnosticKind::UndefinedIdentifier(
-                        name.to_string(),
-                    ))
-                    .into(),
-                )),
-            );
-            if let Some(flow) = throw_value(
-                rt, ip, handlers, stack, iters, pending, thrown, err_val,
-            ) {
-                return Ok(Some(flow));
-            }
-            return Ok(None);
+            return throw_undefined(rt, stack, ip, handlers, iters, pending, thrown, name);
         };
         let mut cur = cur;
-        if let Err(e) = cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(
-                rt, ip, handlers, stack, iters, pending, thrown, err_val,
-            ) {
-                return Ok(Some(flow));
-            }
-            return Ok(None);
+        if let Some(flow) = do_add_assign(rt, stack, ip, handlers, iters, pending, thrown, &mut cur, rhs)? {
+            return Ok(Some(flow));
         }
         let assigned = rt.env.assign(name, cur);
         if !assigned {
@@ -169,14 +153,8 @@ pub(crate) fn op_add_assign_local(
     if cur.is_int() && rhs.is_int() {
         cur = Value::from_i64(cur.as_i64().wrapping_add(rhs.as_i64()));
     } else {
-        if let Err(e) = cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(
-                rt, ip, handlers, stack, iters, pending, thrown, err_val,
-            ) {
-                return Ok(Some(flow));
-            }
-            return Ok(None);
+        if let Some(flow) = do_add_assign(rt, stack, ip, handlers, iters, pending, thrown, &mut cur, rhs)? {
+            return Ok(Some(flow));
         }
     }
     rt.set_local_by_index(idx, cur);
@@ -202,14 +180,8 @@ pub(crate) fn op_inc_local(
         rt.set_local_by_index(idx, Value::from_i64(cur.as_i64().wrapping_add(1)));
     } else {
         let mut cur = cur;
-        if let Err(e) = cur.bin_op_assign(xu_ir::BinaryOp::Add, Value::from_i64(1), &mut rt.heap) {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(
-                rt, ip, handlers, stack, iters, pending, thrown, err_val,
-            ) {
-                return Ok(Some(flow));
-            }
-            return Ok(None);
+        if let Some(flow) = do_add_assign(rt, stack, ip, handlers, iters, pending, thrown, &mut cur, Value::from_i64(1))? {
+            return Ok(Some(flow));
         }
         rt.set_local_by_index(idx, cur);
     }
