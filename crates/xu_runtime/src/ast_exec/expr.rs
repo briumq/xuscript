@@ -17,11 +17,25 @@ impl Runtime {
             Expr::Ident(s, slot) => {
                 if self.locals.is_active() {
                     if let Some((depth, idx)) = slot.get() {
-                        if let Some(v) =
-                            self.get_local_by_depth_index(depth as usize, idx as usize)
-                        {
-                            return Ok(v);
+                        // Calculate the maximum valid depth for slot lookup within current function
+                        // func_entry_frame_depth is the frame count after the function's frame was pushed
+                        // current_frames - func_entry_frame_depth gives the number of nested frames
+                        // within the function (e.g., from match/if/while statements)
+                        // Adding 1 accounts for the function's own frame
+                        let current_frames = self.locals.maps.len();
+                        let nested_frames = current_frames.saturating_sub(self.func_entry_frame_depth);
+                        // max_valid_depth includes the function's frame (depth=0) plus any nested frames
+                        let max_valid_depth = nested_frames + 1;
+
+                        if (depth as usize) < max_valid_depth {
+                            if let Some(v) =
+                                self.get_local_by_depth_index(depth as usize, idx as usize)
+                            {
+                                return Ok(v);
+                            }
                         }
+                        // depth >= max_valid_depth means the variable is outside current function
+                        // Fall through to env lookup
                     } else if let Some(func_name) = self.current_func.as_deref() {
                         if let Some(idxmap) = self.compiled_locals_idx.get(func_name) {
                             if let Some(&idx) = idxmap.get(s) {

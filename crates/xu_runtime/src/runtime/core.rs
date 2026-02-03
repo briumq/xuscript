@@ -51,6 +51,9 @@ pub struct Runtime {
     pub(crate) compiled_locals: HashMap<String, Vec<String>>,
     pub(crate) compiled_locals_idx: HashMap<String, HashMap<String, usize>>,
     pub(crate) current_func: Option<String>,
+    /// The locals frame depth when the current function was entered.
+    /// Used to determine if a slot lookup should use locals or env.
+    pub(crate) func_entry_frame_depth: usize,
     pub(crate) current_param_bindings: Option<Vec<(String, usize)>>,
     pub(crate) method_cache: HashMap<(String, String), Value>,
     pub(crate) dict_cache: HashMap<(usize, u64), (u64, Text, Value)>,
@@ -117,6 +120,7 @@ impl Runtime {
             compiled_locals: fast_map_new(),
             compiled_locals_idx: fast_map_new(),
             current_func: None,
+            func_entry_frame_depth: 0,
             current_param_bindings: None,
             method_cache: fast_map_new(),
             dict_cache: fast_map_new(),
@@ -876,7 +880,9 @@ impl Runtime {
                     .raw_entry_mut()
                     .from_hash(hash, |(t, m)| t == ty && m == method)
                 {
-                    RawEntryMut::Occupied(o) => Ok(o.get().clone()),
+                    RawEntryMut::Occupied(o) => {
+                        Ok(o.get().clone())
+                    }
                     RawEntryMut::Vacant(vac) => {
                         let name = format!("__method__{}__{}", ty, method);
                         if let Some(v) = self.env.get_cached(&name) {

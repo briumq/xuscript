@@ -130,11 +130,14 @@ impl Runtime {
         let mut saved_env = Some(saved_env);
         let saved_func = self.current_func.take();
         let mut saved_param_bindings = self.current_param_bindings.take();
+        let saved_frame_depth = self.func_entry_frame_depth;
 
         if fun.needs_env_frame {
             self.env.push();
         }
         self.push_locals();
+        // Record the frame depth after pushing the function's frame
+        self.func_entry_frame_depth = self.locals.maps.len();
         self.current_func = Some(fun.def.name.clone());
         if fun.needs_env_frame {
             if let Some(idxmap) = self.compiled_locals_idx.get(&fun.def.name) {
@@ -257,6 +260,7 @@ impl Runtime {
                 self.env_pool.push(call_env);
                 self.current_func = saved_func;
                 self.current_param_bindings = saved_param_bindings.take();
+                self.func_entry_frame_depth = saved_frame_depth;
                 return Err(e);
             }
         };
@@ -265,6 +269,7 @@ impl Runtime {
         self.env_pool.push(call_env);
         self.current_func = saved_func;
         self.current_param_bindings = saved_param_bindings.take();
+        self.func_entry_frame_depth = saved_frame_depth;
 
         match flow {
             Flow::Return(v) => {
@@ -311,11 +316,14 @@ impl Runtime {
         let mut saved_env = Some(saved_env);
         let saved_func = self.current_func.take();
         let mut saved_param_bindings = self.current_param_bindings.take();
+        let saved_frame_depth = self.func_entry_frame_depth;
 
         if fun.needs_env_frame {
             self.env.push();
         }
         self.push_locals();
+        // Record the frame depth after pushing the function's frame
+        self.func_entry_frame_depth = self.locals.maps.len();
         self.current_func = Some(fun.def.name.clone());
         if !fun.skip_local_map {
             if let Some(idxmap) = self.compiled_locals_idx.get(&fun.def.name) {
@@ -432,6 +440,7 @@ impl Runtime {
         self.env_pool.push(call_env);
         self.current_func = saved_func;
         self.current_param_bindings = saved_param_bindings.take();
+        self.func_entry_frame_depth = saved_frame_depth;
 
         match flow {
             Flow::Return(v) => {
