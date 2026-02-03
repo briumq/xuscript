@@ -52,9 +52,8 @@ pub(crate) struct Handler {
 }
 
 /// Pending operations for exception handling.
-#[allow(dead_code)]
 pub(crate) enum Pending {
-    Throw(Value),
+    Throw(#[allow(dead_code)] Value),
 }
 
 /// Add two values, handling string concatenation with heap allocation.

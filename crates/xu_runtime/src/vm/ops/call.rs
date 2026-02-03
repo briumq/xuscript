@@ -6,8 +6,6 @@
 //! - MakeFunction: Creating function values
 //! - Return: Returning from functions
 
-#![allow(dead_code)]
-
 use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
 

@@ -73,6 +73,8 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
     let ops_len = ops.len();
 
     while ip < ops_len {
+        // SAFETY: ip is always < ops_len due to the loop condition above,
+        // so this index is always in bounds.
         let op = unsafe { ops.get_unchecked(ip) };
         rt.stmt_count = rt.stmt_count.wrapping_add(1);
         if rt.stmt_count & 127 == 0 {

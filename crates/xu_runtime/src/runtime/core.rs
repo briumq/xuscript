@@ -294,7 +294,6 @@ impl Runtime {
         Ok(Value::enum_obj(id))
     }
 
-    #[allow(dead_code)]
     pub(crate) fn enum_parts_cloned(
         &self,
         v: Value,

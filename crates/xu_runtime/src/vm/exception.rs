@@ -1,28 +1,6 @@
-#![allow(dead_code)]
 use crate::Value;
 use crate::{Flow, Runtime};
 use super::{Handler, IterState, Pending};
-
-pub(crate) fn unwind_to_finally(
-    rt: &mut Runtime,
-    handlers: &mut Vec<Handler>,
-    stack: &mut Vec<Value>,
-) -> Option<usize> {
-    while let Some(h) = handlers.last() {
-        if let Some(fin) = h.finally_ip {
-            restore_to_handler(rt, h, stack);
-            return Some(fin);
-        }
-        restore_to_handler(rt, h, stack);
-        let _ = handlers.pop();
-    }
-    None
-}
-
-fn restore_to_handler(rt: &mut Runtime, h: &Handler, stack: &mut Vec<Value>) {
-    stack.truncate(h.stack_len);
-    rt.env.pop_to(h.env_depth);
-}
 
 pub(crate) fn dispatch_throw(
     rt: &mut Runtime,

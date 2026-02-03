@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::errors::messages::{NOT_A_DICT, NOT_A_LIST, NOT_A_STRING};
 use crate::Runtime;
 use crate::Value;
@@ -13,17 +11,6 @@ pub fn validate_arity(
             expected_min: min,
             expected_max: max,
             actual: args_len,
-        }));
-    }
-    Ok(())
-}
-
-/// 验证值的类型标签是否符合预期
-pub fn expect_tag(rt: &Runtime, v: &Value, tag: u64, expected: &str) -> Result<(), String> {
-    if v.get_tag() != tag {
-        return Err(rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
-            expected: expected.to_string(),
-            actual: v.type_name().to_string(),
         }));
     }
     Ok(())
@@ -55,7 +42,7 @@ pub fn expect_list_mut(rt: &mut Runtime, value: Value) -> Result<&mut Vec<Value>
             return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())));
         }
     }
-    
+
     // 然后获取可变引用
     let id = value.as_obj_id();
     let obj = rt.heap.get_mut(id);
@@ -87,7 +74,7 @@ pub fn expect_dict_mut(rt: &mut Runtime, value: Value) -> Result<&mut crate::cor
             return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
         }
     }
-    
+
     // 然后获取可变引用
     let id = value.as_obj_id();
     let obj = rt.heap.get_mut(id);
@@ -118,36 +105,6 @@ pub fn expect_option_some(rt: &Runtime, value: Value) -> Result<Value, String> {
     } else {
         Err(rt.error(xu_syntax::DiagnosticKind::Raw("Invalid OptionSome".into())))
     }
-}
-
-/// 验证索引是否有效
-pub fn validate_index(rt: &Runtime, index: i64, length: usize) -> Result<usize, String> {
-    if index < 0 || (index as usize) >= length {
-        return Err(rt.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
-    }
-    Ok(index as usize)
-}
-
-/// 验证插入索引是否有效（允许等于长度）
-pub fn validate_insert_index(rt: &Runtime, index: i64, length: usize) -> Result<usize, String> {
-    if index < 0 || (index as usize) > length {
-        return Err(rt.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
-    }
-    Ok(index as usize)
-}
-
-/// 验证索引是否有效（接受可变Runtime引用）
-pub fn validate_index_mut(rt: &mut Runtime, index: i64, length: usize) -> Result<usize, String> {
-    // 创建一个不可变引用的副本用于错误处理
-    let rt_ref: &Runtime = &*rt;
-    validate_index(rt_ref, index, length)
-}
-
-/// 验证插入索引是否有效（接受可变Runtime引用）
-pub fn validate_insert_index_mut(rt: &mut Runtime, index: i64, length: usize) -> Result<usize, String> {
-    // 创建一个不可变引用的副本用于错误处理
-    let rt_ref: &Runtime = &*rt;
-    validate_insert_index(rt_ref, index, length)
 }
 
 /// 从Value中获取字符串的辅助函数
@@ -216,30 +173,5 @@ pub fn safe_get_from_list(_rt: &Runtime, list: &Vec<Value>, index: i64) -> Optio
         None
     } else {
         Some(list[index as usize])
-    }
-}
-
-/// 安全地从字符串中获取字符
-pub fn safe_get_from_str(rt: &mut Runtime, s: &crate::Text, index: i64) -> Option<Value> {
-    if index < 0 {
-        return None;
-    }
-    let idx = index as usize;
-    let str_ref = s.as_str();
-
-    if s.is_ascii() {
-        if idx >= str_ref.len() {
-            return None;
-        }
-        let ch = &str_ref[idx..idx + 1];
-        Some(create_str_value(rt, ch))
-    } else {
-        let total = str_ref.chars().count();
-        if idx >= total {
-            None
-        } else {
-            let ch: String = str_ref.chars().skip(idx).take(1).collect();
-            Some(create_str_value(rt, &ch))
-        }
     }
 }
