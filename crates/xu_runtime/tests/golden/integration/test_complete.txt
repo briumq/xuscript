@@ -1,0 +1,18 @@
+=== Complete Test ===
+Created library: University Library
+Created author: Zhang San
+Created book: Test Book
+Created user: Xiao Ming
+=== Initial State ===
+Library 'University Library' books:
+Book: Test Book, status: Status#available
+Library 'University Library' users:
+User: Xiao Ming, borrowed books: 0
+=== Testing Borrow ===
+Borrow successful: true
+=== After Borrowing ===
+Library 'University Library' books:
+Book: Test Book, status: Status#borrowed
+Library 'University Library' users:
+User: Xiao Ming, borrowed books: 1
+=== Test Complete ===

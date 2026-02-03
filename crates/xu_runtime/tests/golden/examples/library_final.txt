@@ -1,0 +1,54 @@
+=== 图书管理系统 ===
+创建图书馆: 大学图书馆
+图书馆 '大学图书馆' 的作者列表：
+ID: 1, 姓名: 张三, 邮箱: zhangsan@example.com
+ID: 2, 姓名: 李四, 邮箱: lisi@example.com
+ID: 3, 姓名: 王五, 邮箱: wangwu@example.com
+图书馆 '大学图书馆' 的图书列表：
+ID: 4, 标题: 计算机科学导论, 作者: 张三, ISBN: 978-7-111-60000-1, 状态: BookStatus#available
+ID: 5, 标题: Python编程基础, 作者: 张三, ISBN: 978-7-111-60000-2, 状态: BookStatus#available
+ID: 6, 标题: 中国文学史, 作者: 李四, ISBN: 978-7-111-60000-3, 状态: BookStatus#available
+ID: 7, 标题: 现代小说选, 作者: 李四, ISBN: 978-7-111-60000-4, 状态: BookStatus#available
+ID: 8, 标题: 中国古代史, 作者: 王五, ISBN: 978-7-111-60000-5, 状态: BookStatus#available
+ID: 9, 标题: 世界通史, 作者: 王五, ISBN: 978-7-111-60000-6, 状态: BookStatus#available
+图书馆 '大学图书馆' 的用户列表：
+ID: u001, 姓名: 小明, 类型: UserType#student, 已借图书: 0
+ID: u002, 姓名: 小红, 类型: UserType#teacher, 已借图书: 0
+ID: u003, 姓名: 小刚, 类型: UserType#staff, 已借图书: 0
+=== 测试借书功能 ===
+借书成功: true
+=== 借书后的状态 ===
+图书馆 '大学图书馆' 的图书列表：
+ID: 4, 标题: 计算机科学导论, 作者: 张三, ISBN: 978-7-111-60000-1, 状态: BookStatus#borrowed
+ID: 5, 标题: Python编程基础, 作者: 张三, ISBN: 978-7-111-60000-2, 状态: BookStatus#available
+ID: 6, 标题: 中国文学史, 作者: 李四, ISBN: 978-7-111-60000-3, 状态: BookStatus#available
+ID: 7, 标题: 现代小说选, 作者: 李四, ISBN: 978-7-111-60000-4, 状态: BookStatus#available
+ID: 8, 标题: 中国古代史, 作者: 王五, ISBN: 978-7-111-60000-5, 状态: BookStatus#available
+ID: 9, 标题: 世界通史, 作者: 王五, ISBN: 978-7-111-60000-6, 状态: BookStatus#available
+图书馆 '大学图书馆' 的用户列表：
+ID: u001, 姓名: 小明, 类型: UserType#student, 已借图书: 1
+ID: u002, 姓名: 小红, 类型: UserType#teacher, 已借图书: 0
+ID: u003, 姓名: 小刚, 类型: UserType#staff, 已借图书: 0
+=== 测试还书功能 ===
+还书成功: true
+=== 还书后的状态 ===
+图书馆 '大学图书馆' 的图书列表：
+ID: 4, 标题: 计算机科学导论, 作者: 张三, ISBN: 978-7-111-60000-1, 状态: BookStatus#available
+ID: 5, 标题: Python编程基础, 作者: 张三, ISBN: 978-7-111-60000-2, 状态: BookStatus#available
+ID: 6, 标题: 中国文学史, 作者: 李四, ISBN: 978-7-111-60000-3, 状态: BookStatus#available
+ID: 7, 标题: 现代小说选, 作者: 李四, ISBN: 978-7-111-60000-4, 状态: BookStatus#available
+ID: 8, 标题: 中国古代史, 作者: 王五, ISBN: 978-7-111-60000-5, 状态: BookStatus#available
+ID: 9, 标题: 世界通史, 作者: 王五, ISBN: 978-7-111-60000-6, 状态: BookStatus#available
+图书馆 '大学图书馆' 的用户列表：
+ID: u001, 姓名: 小明, 类型: UserType#student, 已借图书: 0
+ID: u002, 姓名: 小红, 类型: UserType#teacher, 已借图书: 0
+ID: u003, 姓名: 小刚, 类型: UserType#staff, 已借图书: 0
+=== 测试获取可借图书 ===
+可借图书数量: 6
+ID: 4, 标题: 计算机科学导论, 作者: 张三
+ID: 5, 标题: Python编程基础, 作者: 张三
+ID: 6, 标题: 中国文学史, 作者: 李四
+ID: 7, 标题: 现代小说选, 作者: 李四
+ID: 8, 标题: 中国古代史, 作者: 王五
+ID: 9, 标题: 世界通史, 作者: 王五
+=== 图书管理系统演示完成 ===

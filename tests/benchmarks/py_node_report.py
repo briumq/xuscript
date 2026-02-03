@@ -79,7 +79,7 @@ def bench_once(scale):
     try:
         out = run(["bash", "scripts/run_cross_lang_bench.sh", str(scale)], timeout=SINGLE_RUN_TIMEOUT)
     except RuntimeError as e:
-        print(f"[Guard] bench_once failed: {e}", file=sys.stderr)
+        print(f"[Guard] bench_once failed: {e}", file=sys.stderr, flush=True)
         return ({}, {}, {}, {}, {}, {})  # 返回空结果，继续下一轮
     py = {}
     nd = {}
@@ -134,7 +134,7 @@ def bench_once(scale):
                     obj = json.loads(line)
                     xu[obj["case"]] = float(obj["duration_ms"])
         except subprocess.TimeoutExpired:
-            print(f"[Guard] Xu fallback timed out", file=sys.stderr)
+            print(f"[Guard] Xu fallback timed out", file=sys.stderr, flush=True)
     return (py, nd, xu, pym, ndm, xum)
 
 
@@ -235,13 +235,15 @@ def _run_benchmarks(args):
 
     hist = {"scales": scales, "runs": args.runs, "generated": int(time.time()), "results": []}
     for scale in scales:
+        print(f"[Progress] Starting scale {scale}...", file=sys.stderr, flush=True)
         agg_py = {}
         agg_nd = {}
         agg_xu = {}
         agg_pym = {}
         agg_ndm = {}
         agg_xum = {}
-        for _ in range(args.runs):
+        for run_idx in range(args.runs):
+            print(f"[Progress] Scale {scale}, run {run_idx + 1}/{args.runs}...", file=sys.stderr, flush=True)
             py, nd, xu, pym, ndm, xum = bench_once(scale)
             for k, v in py.items():
                 agg_py.setdefault(k, []).append(v)
@@ -256,6 +258,7 @@ def _run_benchmarks(args):
             for k, v in xum.items():
                 agg_xum.setdefault(k, []).append(v)
 
+        print(f"[Progress] Generating report for scale {scale}...", file=sys.stderr, flush=True)
         md.append(f"## Scale {scale}")
         md.append("")
         md.append("| case | Python median (ms) | Node.js median (ms) | Xu median (ms) | Python p95 | Node p95 | Xu p95 | Python op/s | Node op/s | Xu op/s | jitter | Py mem (MB) | Node mem (MB) | Xu mem (MB) | winner |")
@@ -299,6 +302,7 @@ def _run_benchmarks(args):
         )
         md.append("")
 
+    print(f"[Progress] Writing report to {args.out}...", file=sys.stderr, flush=True)
     out_path = args.out
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
@@ -306,8 +310,10 @@ def _run_benchmarks(args):
     hist_dir = "tests/benchmarks/history"
     os.makedirs(hist_dir, exist_ok=True)
     stamp = hist["generated"]
-    with open(os.path.join(hist_dir, f"bench_{stamp}.json"), "w", encoding="utf-8") as f:
+    hist_path = os.path.join(hist_dir, f"bench_{stamp}.json")
+    with open(hist_path, "w", encoding="utf-8") as f:
         json.dump(hist, f)
+    print(f"[Progress] Done! Report saved to {args.out}", file=sys.stderr, flush=True)
 
 
 if __name__ == "__main__":

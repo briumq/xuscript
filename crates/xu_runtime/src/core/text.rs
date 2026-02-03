@@ -138,6 +138,89 @@ impl Text {
         }
     }
 
+    /// Check if this Text can be modified in-place (has unique ownership).
+    /// Returns true for Inline variants (always owned) or Heap variants with Rc::strong_count == 1.
+    #[inline]
+    pub fn is_unique(&self) -> bool {
+        match self {
+            Text::Inline { .. } => true,
+            Text::Heap { data, .. } => Rc::strong_count(data) == 1,
+        }
+    }
+
+    /// Try to append a string in-place. Returns true if successful, false if a clone is needed.
+    /// This is an optimization for string concatenation when the Text is uniquely owned.
+    #[inline]
+    pub fn try_push_str_in_place(&mut self, s: &str) -> bool {
+        if s.is_empty() {
+            return true;
+        }
+        match self {
+            Text::Inline { len, buf } => {
+                let cur = *len as usize;
+                let new_len = cur + s.len();
+                if new_len <= INLINE_CAP {
+                    buf[cur..new_len].copy_from_slice(s.as_bytes());
+                    *len = new_len as u8;
+                    return true;
+                }
+                // Need to promote to heap - do it in place
+                let mut out = String::with_capacity(new_len);
+                out.push_str(unsafe { str::from_utf8_unchecked(&buf[..cur]) });
+                out.push_str(s);
+                *self = Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) };
+                true
+            }
+            Text::Heap { data, char_count } => {
+                if Rc::strong_count(data) == 1 {
+                    // Safe to modify in place
+                    let hm = Rc::make_mut(data);
+                    hm.reserve(s.len());
+                    hm.push_str(s);
+                    char_count.set(CHAR_COUNT_UNKNOWN);
+                    true
+                } else {
+                    // Need to clone - caller should handle this
+                    false
+                }
+            }
+        }
+    }
+
+    /// Try to append an i64 in-place. Returns true if successful.
+    #[inline]
+    pub fn try_push_i64_in_place(&mut self, i: i64) -> bool {
+        let mut buf = [0u8; 32];
+        let digits = write_i64_to_buf(i, &mut buf);
+        let s = unsafe { str::from_utf8_unchecked(digits) };
+        self.try_push_str_in_place(s)
+    }
+
+    /// Try to append a bool in-place. Returns true if successful.
+    #[inline]
+    pub fn try_push_bool_in_place(&mut self, b: bool) -> bool {
+        let s = if b { "true" } else { "false" };
+        self.try_push_str_in_place(s)
+    }
+
+    /// Try to append "()" in-place. Returns true if successful.
+    #[inline]
+    pub fn try_push_null_in_place(&mut self) -> bool {
+        self.try_push_str_in_place("()")
+    }
+
+    /// Try to append an f64 in-place. Returns true if successful.
+    #[inline]
+    pub fn try_push_f64_in_place(&mut self, f: f64) -> bool {
+        if f.fract() == 0.0 {
+            self.try_push_i64_in_place(f as i64)
+        } else {
+            let mut buf = ryu::Buffer::new();
+            let s = buf.format(f);
+            self.try_push_str_in_place(s)
+        }
+    }
+
     pub fn push_i64(&mut self, i: i64) {
         let mut buf = [0u8; 32];
         let digits = write_i64_to_buf(i, &mut buf);

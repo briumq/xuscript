@@ -1,0 +1,28 @@
+=== Task Management System ===
+Hello, Admin User!
+Hello, Alice Smith!
+Hello, Bob Johnson!
+
+=== All Tasks ===
+[TASK-1] Implement user authentication - TaskStatus#pending (Priority#high)
+  Create login and registration functionality
+  Unassigned
+  No due date
+---
+[TASK-2] Design dashboard UI - TaskStatus#pending (Priority#medium)
+  Create responsive dashboard design
+  Unassigned
+  No due date
+---
+[TASK-3] Fix database bug - TaskStatus#pending (Priority#urgent)
+  Resolve issue with data persistence
+  Unassigned
+  No due date
+---
+[TASK-4] Write documentation - TaskStatus#pending (Priority#low)
+  Create user guide and API documentation
+  Unassigned
+  No due date
+
+=== System Ready ===
+Task management system is ready for use!

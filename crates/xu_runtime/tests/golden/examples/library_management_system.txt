@@ -1,0 +1,18 @@
+=== 初始状态 ===
+图书馆 '大学图书馆' 的作者列表：
+Author()
+Author()
+Author()
+图书馆 '大学图书馆' 的图书列表：
+Book()
+Book()
+Book()
+Book()
+Book()
+Book()
+图书馆 '大学图书馆' 的用户列表：
+User()
+User()
+User()
+=== 测试借书功能 ===
+RuntimeError: Type mismatch for return: expected Option but got unknown

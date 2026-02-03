@@ -1,0 +1,46 @@
+=== Library Management System ===
+Created library: University Library
+Library 'University Library' authors:
+Author: Zhang San, id: 1, email: zhangsan@example.com
+Author: Li Si, id: 2, email: lisi@example.com
+Author: Wang Wu, id: 3, email: wangwu@example.com
+Library 'University Library' books:
+Book: Introduction to Computer Science by Zhang San, status: BookStatus#available
+Book: Python Programming Basics by Zhang San, status: BookStatus#available
+Book: Chinese Literature History by Li Si, status: BookStatus#available
+Book: Modern Novel Selection by Li Si, status: BookStatus#available
+Book: Chinese Ancient History by Wang Wu, status: BookStatus#available
+Book: World History by Wang Wu, status: BookStatus#available
+Library 'University Library' users:
+User: Xiao Ming, id: u001, type: UserType#student
+User: Xiao Hong, id: u002, type: UserType#teacher
+User: Xiao Gang, id: u003, type: UserType#staff
+=== Testing Borrow Function ===
+Borrow book successfully: true
+=== After Borrowing ===
+Library 'University Library' books:
+Book: Introduction to Computer Science by Zhang San, status: BookStatus#borrowed
+Book: Python Programming Basics by Zhang San, status: BookStatus#available
+Book: Chinese Literature History by Li Si, status: BookStatus#available
+Book: Modern Novel Selection by Li Si, status: BookStatus#available
+Book: Chinese Ancient History by Wang Wu, status: BookStatus#available
+Book: World History by Wang Wu, status: BookStatus#available
+=== Testing Return Function ===
+Return book successfully: true
+=== After Returning ===
+Library 'University Library' books:
+Book: Introduction to Computer Science by Zhang San, status: BookStatus#available
+Book: Python Programming Basics by Zhang San, status: BookStatus#available
+Book: Chinese Literature History by Li Si, status: BookStatus#available
+Book: Modern Novel Selection by Li Si, status: BookStatus#available
+Book: Chinese Ancient History by Wang Wu, status: BookStatus#available
+Book: World History by Wang Wu, status: BookStatus#available
+=== Testing Available Books ===
+Available books count: 6
+Book: Introduction to Computer Science by Zhang San
+Book: Python Programming Basics by Zhang San
+Book: Chinese Literature History by Li Si
+Book: Modern Novel Selection by Li Si
+Book: Chinese Ancient History by Wang Wu
+Book: World History by Wang Wu
+=== Library Management System Demo Complete ===

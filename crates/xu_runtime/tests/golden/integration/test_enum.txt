@@ -1,0 +1,11 @@
+=== Testing Enum ===
+Created library: Test Library
+Created author: Zhang San, id: 1
+Created book: Test Book, status: Status#available
+Can borrow: true
+Adding book to library...
+Book added successfully
+Printing books...
+Library 'Test Library' books:
+Book: Test Book, status: Status#available
+=== Test Complete ===

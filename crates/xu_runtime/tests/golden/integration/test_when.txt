@@ -1,0 +1,10 @@
+=== Testing When ===
+Created library: Test Library
+Created author: Zhang San, id: 1
+Created book: Test Book, id: 2
+Book added to library
+Testing when condition...
+Found book: Test Book by Zhang San
+Testing Result type...
+Result: Success
+=== Test Complete ===

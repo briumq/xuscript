@@ -1,0 +1,11 @@
+=== Task Management System ===
+Hello, Admin User!
+Hello, Alice Smith!
+Hello, Bob Johnson!
+
+=== Tasks Created ===
+Task 1: Implement user authentication (Priority#high)
+Task 2: Design dashboard UI (Priority#medium)
+
+=== System Ready ===
+Task management system is ready for use!

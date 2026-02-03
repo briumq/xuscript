@@ -1,0 +1,31 @@
+Testing complex functionality:
+Library created: Test Library
+Authors created: John Doe, Jane Smith
+Books created: Book 1, Book 2, Book 3
+Books added to library
+Library 'Test Library' books:
+Book: Book 1 by John Doe, status: Status#available
+Book: Book 2 by Jane Smith, status: Status#available
+Book: Book 3 by John Doe, status: Status#available
+
+Borrowing Book 1:
+Book 1 borrowed successfully
+Library 'Test Library' books:
+Book: Book 1 by John Doe, status: Status#borrowed
+Book: Book 2 by Jane Smith, status: Status#available
+Book: Book 3 by John Doe, status: Status#available
+
+Returning Book 1:
+Book 1 returned successfully
+Library 'Test Library' books:
+Book: Book 1 by John Doe, status: Status#available
+Book: Book 2 by Jane Smith, status: Status#available
+Book: Book 3 by John Doe, status: Status#available
+
+Available books:
+Number of available books: 3
+Book: Book 1 by John Doe
+Book: Book 2 by Jane Smith
+Book: Book 3 by John Doe
+
+All tests completed successfully!

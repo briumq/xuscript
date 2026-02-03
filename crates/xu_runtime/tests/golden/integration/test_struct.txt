@@ -1,0 +1,5 @@
+Testing structs and enums:
+User created: Alice, age: 20
+Hello, Alice!
+Alice is an adult
+Status: 已通过

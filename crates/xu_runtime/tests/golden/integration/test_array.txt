@@ -1,0 +1,16 @@
+=== Test Array ===
+Initial counter: 0
+Testing Library struct...
+Created library: Test Library
+Creating authors...
+Created 3 authors
+Author: Zhang San, id: 1
+Author: Li Si, id: 2
+Author: Wang Wu, id: 3
+Adding authors to library...
+Added 3 authors to library
+Printing library authors...
+Author: Zhang San, id: 1
+Author: Li Si, id: 2
+Author: Wang Wu, id: 3
+=== Test Complete ===

@@ -1,0 +1,10 @@
+=== Testing Books ===
+Created library: Test Library
+Created author: Zhang San, id: 1
+Created book: Test Book by Zhang San
+Adding book to library...
+Book added successfully
+Printing books...
+Library 'Test Library' books:
+Book: Test Book by Zhang San
+=== Test Complete ===

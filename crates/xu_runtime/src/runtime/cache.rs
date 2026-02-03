@@ -35,7 +35,6 @@ pub struct MethodICSlot {
 #[derive(Clone)]
 pub(crate) struct DictCacheLast {
     pub(crate) id: usize,
-    pub(crate) key_hash: u64,
     pub(crate) ver: u64,
     pub(crate) key: Text,
     pub(crate) value: Value,

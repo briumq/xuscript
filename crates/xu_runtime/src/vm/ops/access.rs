@@ -176,7 +176,6 @@ pub(crate) fn op_get_index(
                             val = Some(v);
                             rt.dict_cache_last = Some(DictCacheLast {
                                 id: id.0,
-                                key_hash,
                                 ver: cur_ver,
                                 key: key_text.clone(),
                                 value: v,

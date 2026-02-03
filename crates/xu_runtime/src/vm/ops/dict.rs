@@ -2,13 +2,10 @@ use std::hash::{BuildHasher, Hash, Hasher};
 
 use crate::core::Value;
 use crate::core::heap::ManagedObject;
-use crate::core::value::{DictKey, TAG_DICT, TAG_STR, TAG_VOID};
+use crate::core::value::{DictKey, TAG_DICT, TAG_STR, TAG_VOID, ELEMENTS_MAX};
 use crate::errors::messages::{NOT_A_DICT, NOT_A_STRING};
 
 use crate::Runtime;
-
-/// Maximum integer key to store in elements array (0-1023)
-const ELEMENTS_MAX: i64 = 1024;
 
 pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), String> {
     let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;

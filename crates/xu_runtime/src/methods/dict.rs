@@ -103,60 +103,88 @@ pub(super) fn dispatch(
         MethodKind::DictGet => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             validate_str_param(rt, &args[0], "key")?;
-            
-            let key = expect_str(rt, args[0])?.clone();
-            let id = recv.as_obj_id().0;
-            
-            let (v, cur_ver, key_hash) = {
-                let me = expect_dict(rt, recv)?;
-                let cur_ver = me.ver;
-                let key_hash = Runtime::hash_bytes(me.map.hasher(), key.as_bytes());
-                let v = Runtime::dict_get_by_str_with_hash(me, &key, key_hash);
-                (v, cur_ver, key_hash)
-            };
-            
-            rt.dict_version_last = Some((id, cur_ver));
 
+            let id = recv.as_obj_id().0;
+
+            // Get key string reference without cloning
+            let key_str = expect_str(rt, args[0])?.as_str();
+
+            // Check cache first (before computing hash)
             if let Some(c) = rt.dict_cache_last.as_ref() {
-                if c.id == id && c.ver == cur_ver && c.key_hash == key_hash && c.key == key {
-                    return Ok(rt.option_some(c.value.clone()));
+                if c.id == id {
+                    let me = expect_dict(rt, recv)?;
+                    if c.ver == me.ver && c.key.as_str() == key_str {
+                        return Ok(rt.option_some(c.value.clone()));
+                    }
                 }
             }
+
+            let (v, cur_ver) = {
+                let me = expect_dict(rt, recv)?;
+                let cur_ver = me.ver;
+                let key_hash = Runtime::hash_bytes(me.map.hasher(), key_str.as_bytes());
+                let v = Runtime::dict_get_by_str_with_hash(me, key_str, key_hash);
+                (v, cur_ver)
+            };
+
+            rt.dict_version_last = Some((id, cur_ver));
 
             let Some(v) = v else {
                 return Ok(rt.option_none());
             };
 
+            // Only clone the key when we need to cache it
+            let key_text = expect_str(rt, args[0])?.clone();
             rt.dict_cache_last = Some(DictCacheLast {
                 id,
-                key_hash,
                 ver: cur_ver,
-                key,
+                key: key_text,
                 value: v.clone(),
             });
             Ok(rt.option_some(v))
         }
         MethodKind::DictGetInt => {
             validate_arity(rt, method, args.len(), 1, 1)?;
-            
+
             let i = to_i64(&args[0])?;
             let id = recv.as_obj_id().0;
-            
+
+            // Check cache first
+            if let Some(c) = rt.dict_cache_int_last.as_ref() {
+                if c.id == id && c.key == i {
+                    let me = expect_dict(rt, recv)?;
+                    if c.ver == me.ver {
+                        return Ok(rt.option_some(c.value.clone()));
+                    }
+                }
+            }
+
+            // Fast path for small integer keys - use elements array
             let (v, cur_ver) = {
                 let me = expect_dict(rt, recv)?;
                 let cur_ver = me.ver;
-                let v = me.map.get(&DictKey::Int(i)).cloned();
+                let v = if i >= 0 && i < crate::core::value::ELEMENTS_MAX {
+                    let idx = i as usize;
+                    if idx < me.elements.len() {
+                        let elem = me.elements[idx];
+                        if elem.get_tag() != crate::core::value::TAG_VOID {
+                            Some(elem)
+                        } else {
+                            None
+                        }
+                    } else {
+                        // Fall back to map lookup
+                        me.map.get(&DictKey::Int(i)).cloned()
+                    }
+                } else {
+                    // Large integer key - use map
+                    me.map.get(&DictKey::Int(i)).cloned()
+                };
                 (v, cur_ver)
             };
-            
+
             rt.dict_version_last = Some((id, cur_ver));
 
-            if let Some(c) = rt.dict_cache_int_last.as_ref() {
-                if c.id == id && c.ver == cur_ver && c.key == i {
-                    return Ok(rt.option_some(c.value.clone()));
-                }
-            }
-            
             let Some(v) = v else {
                 return Ok(rt.option_none());
             };
@@ -172,13 +200,13 @@ pub(super) fn dispatch(
         MethodKind::OptHas => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             validate_str_param(rt, &args[0], "key")?;
-            
-            let key = expect_str(rt, args[0])?.clone();
+
+            let key_str = expect_str(rt, args[0])?.as_str();
             let me = expect_dict(rt, recv)?;
-            
+
             if let Some(sid) = me.shape {
                 if let crate::core::heap::ManagedObject::Shape(shape) = rt.heap.get(sid) {
-                    if let Some(&off) = shape.prop_map.get(key.as_str()) {
+                    if let Some(&off) = shape.prop_map.get(key_str) {
                         let ok = me
                             .prop_values
                             .get(off)
@@ -187,10 +215,20 @@ pub(super) fn dispatch(
                     }
                 }
             }
-            
-            Ok(Value::from_bool(
-                me.map.contains_key(&DictKey::from_text(&key)),
-            ))
+
+            // Use raw_entry to avoid creating DictKey
+            let hash = {
+                let mut h = me.map.hasher().build_hasher();
+                h.write_u8(0);
+                key_str.as_bytes().hash(&mut h);
+                h.finish()
+            };
+            let found = me
+                .map
+                .raw_entry()
+                .from_hash(hash, |k| k.is_str() && k.as_str() == key_str)
+                .is_some();
+            Ok(Value::from_bool(found))
         }
         MethodKind::Contains => {
             validate_arity(rt, method, args.len(), 1, 1)?;

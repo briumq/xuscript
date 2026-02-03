@@ -1,0 +1,10 @@
+=== Testing Option ===
+Created library: Test Library
+Created author: Zhang San, id: 1
+Created book: Test Book, borrowed by: Option#none
+Adding book to library...
+Book added successfully
+Printing books...
+Library 'Test Library' books:
+Book: Test Book, borrowed by: Option#none
+=== Test Complete ===

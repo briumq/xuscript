@@ -1,0 +1,80 @@
+=== Available Products ===
+Products:
+[ProductCategory#electronics] Laptop Pro - ¥9999.99 (Stock: 30)
+[ProductCategory#books] Book: Rust Programming - ¥89.99 (Stock: 20)
+[ProductCategory#food] Coffee Beans - ¥49.99 (Stock: 60)
+[ProductCategory#electronics] Smartphone X - ¥5999.99 (Stock: 50)
+[ProductCategory#clothing] T-Shirt - ¥99.99 (Stock: 100)
+[ProductCategory#clothing] Jeans - ¥199.99 (Stock: 80)
+
+=== Electronics Products ===
+Products:
+[ProductCategory#electronics] Laptop Pro - ¥9999.99 (Stock: 30)
+[ProductCategory#electronics] Smartphone X - ¥5999.99 (Stock: 50)
+
+=== Shopping Cart Operations ===
+Added Smartphone X to cart
+Added Laptop Pro to cart
+Added 2 T-Shirts to cart
+
+=== Shopping Cart ===
+Shopping Cart:
+- Smartphone X x 1 (5999.99)
+- Laptop Pro x 1 (9999.99)
+- T-Shirt x 2 (199.98)
+Total: ¥16199.96
+Total items: 4
+
+=== Updating Cart ===
+Updated T-Shirt quantity to 3
+Removed Laptop Pro from cart
+
+=== Updated Shopping Cart ===
+Shopping Cart:
+- Smartphone X x 1 (5999.99)
+- T-Shirt x 3 (299.96999999999997)
+Total: ¥6299.96
+Total items: 4
+
+=== Creating Order ===
+Order #ORD-20260203-12345
+Status: Pending
+Payment: Unpaid
+Created: 2026-02-03
+Items:
+- Smartphone X x 1 (5999.99)
+- T-Shirt x 3 (299.96999999999997)
+Total: ¥6299.96
+
+=== Processing Order ===
+Payment processed successfully
+Order shipped
+Order delivered
+
+=== Final Order Status ===
+Order #ORD-20260203-12345
+Status: Delivered
+Payment: Paid
+Created: 2026-02-03
+Items:
+- Smartphone X x 1 (5999.99)
+- T-Shirt x 3 (299.96999999999997)
+Total: ¥6299.96
+
+=== Testing Order Cancellation ===
+Error cancelling order: Delivered orders cannot be cancelled
+
+=== Order After Cancellation ===
+Order #ORD-20260203-12345
+Status: Delivered
+Payment: Paid
+Created: 2026-02-03
+Items:
+- Smartphone X x 1 (5999.99)
+- T-Shirt x 3 (299.96999999999997)
+Total: ¥6299.96
+
+=== Testing Empty Cart ===
+Shopping cart is empty
+
+=== E-Commerce System Demo Complete ===

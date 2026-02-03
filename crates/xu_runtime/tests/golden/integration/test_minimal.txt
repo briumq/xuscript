@@ -1,0 +1,9 @@
+=== Minimal Reproduction ===
+Created library: Test Library
+Created author: Zhang San, id: 1
+Adding author to library...
+Author added successfully
+Printing authors...
+Library 'Test Library' authors:
+Author: Zhang San, id: 1
+=== Test Complete ===
