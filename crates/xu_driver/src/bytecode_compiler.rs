@@ -271,6 +271,15 @@ impl Compiler {
     }
 
     fn compile_func_def(&mut self, def: &xu_ir::FuncDef) -> Option<()> {
+        let f_idx = self.compile_func_body(def)?;
+        self.bc.ops.push(Op::MakeFunction(f_idx));
+        let n_idx = self.add_constant(xu_ir::Constant::Str(def.name.clone()));
+        self.bc.ops.push(Op::StoreName(n_idx));
+        Some(())
+    }
+
+    /// Compile function body and return constant index
+    fn compile_func_body(&mut self, def: &xu_ir::FuncDef) -> Option<u32> {
         let mut inner = Compiler::new();
         inner.push_scope();
         for p in &def.params {
@@ -287,11 +296,7 @@ impl Compiler {
             bytecode: Box::new(inner.bc),
             locals_count,
         };
-        let f_idx = self.add_constant(xu_ir::Constant::Func(fun));
-        self.bc.ops.push(Op::MakeFunction(f_idx));
-        let n_idx = self.add_constant(xu_ir::Constant::Str(def.name.clone()));
-        self.bc.ops.push(Op::StoreName(n_idx));
-        Some(())
+        Some(self.add_constant(xu_ir::Constant::Func(fun)))
     }
 
     fn compile_if(&mut self, stmt: &IfStmt) -> Option<()> {
@@ -883,23 +888,7 @@ impl Compiler {
                 Some(())
             }
             Expr::FuncLit(def) => {
-                let mut inner = Compiler::new();
-                inner.push_scope();
-                for p in &def.params {
-                    inner.define_local(&p.name);
-                }
-                for s in &def.body {
-                    inner.compile_stmt(s)?;
-                }
-                inner.bc.ops.push(Op::ConstNull);
-                inner.bc.ops.push(Op::Return);
-                let locals_count = inner.scopes.iter().map(|s| s.locals.len()).sum();
-                let fun = BytecodeFunction {
-                    def: (**def).clone(),
-                    bytecode: Box::new(inner.bc),
-                    locals_count,
-                };
-                let f_idx = self.add_constant(xu_ir::Constant::Func(fun));
+                let f_idx = self.compile_func_body(def)?;
                 self.bc.ops.push(Op::MakeFunction(f_idx));
                 Some(())
             }

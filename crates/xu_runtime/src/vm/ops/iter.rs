@@ -15,6 +15,20 @@ use crate::errors::messages::{NOT_A_DICT, NOT_A_LIST};
 use crate::vm::stack::IterState;
 use crate::Runtime;
 
+/// Set loop variable value
+#[inline(always)]
+fn set_loop_var(rt: &mut Runtime, var: &str, var_idx: Option<usize>, val: Value) {
+    if let Some(v_idx) = var_idx {
+        rt.set_local_by_index(v_idx, val);
+    } else if rt.locals.is_active() {
+        if !rt.set_local(var, val) {
+            rt.define_local(var.to_string(), val);
+        }
+    } else {
+        rt.env.define(var.to_string(), val);
+    }
+}
+
 /// Execute Op::ForEachInit - initialize a foreach loop
 #[inline(always)]
 pub(crate) fn op_foreach_init(
@@ -163,15 +177,7 @@ pub(crate) fn op_foreach_init(
         }));
     };
 
-    if let Some(v_idx) = var_idx {
-        rt.set_local_by_index(v_idx, first_val);
-    } else if rt.locals.is_active() {
-        if !rt.set_local(var, first_val) {
-            rt.define_local(var.to_string(), first_val);
-        }
-    } else {
-        rt.env.define(var.to_string(), first_val);
-    }
+    set_loop_var(rt, var, var_idx, first_val);
     Ok(false) // Normal continuation
 }
 
@@ -259,15 +265,7 @@ pub(crate) fn op_foreach_next(
     };
 
     if let Some(val) = next_val {
-        if let Some(v_idx) = var_idx {
-            rt.set_local_by_index(v_idx, val);
-        } else if rt.locals.is_active() {
-            if !rt.set_local(var, val) {
-                rt.define_local(var.to_string(), val);
-            }
-        } else {
-            rt.env.define(var.to_string(), val);
-        }
+        set_loop_var(rt, var, var_idx, val);
         *ip = loop_start;
         Ok(true) // Signal to continue (loop back)
     } else {

@@ -16,22 +16,31 @@ use crate::{Flow, Runtime};
 
 /// Handle fallback path for string operations when fast path doesn't apply.
 /// Uses add_with_heap and handles errors by throwing exceptions.
-macro_rules! handle_str_op_fallback {
-    ($rt:expr, $a:expr, $b:expr, $stack:expr, $ip:expr,
-     $handlers:expr, $iters:expr, $pending:expr, $thrown:expr) => {{
-        match add_with_heap($rt, $a, $b) {
-            Ok(r) => $stack.push(r),
-            Err(e) => {
-                let err_val = Value::str($rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    $rt, $ip, $handlers, $stack, $iters, $pending, $thrown, err_val,
-                ) {
-                    return Ok(Some(flow));
-                }
-                return Ok(None);
-            }
+#[inline(always)]
+fn handle_str_op_fallback(
+    rt: &mut Runtime,
+    a: Value,
+    b: Value,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+) -> Result<Option<Flow>, String> {
+    match add_with_heap(rt, a, b) {
+        Ok(r) => {
+            stack.push(r);
+            Ok(None)
         }
-    }};
+        Err(e) => {
+            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+            if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+                return Ok(Some(flow));
+            }
+            Ok(None)
+        }
+    }
 }
 
 /// Execute Op::StrAppend - append any value to string
@@ -75,7 +84,7 @@ pub(crate) fn op_str_append(
             stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
         }
     } else {
-        handle_str_op_fallback!(rt, a, b, stack, ip, handlers, iters, pending, thrown);
+        return handle_str_op_fallback(rt, a, b, stack, ip, handlers, iters, pending, thrown);
     }
     Ok(None)
 }
@@ -104,7 +113,7 @@ pub(crate) fn op_str_append_null(
         };
         stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
     } else {
-        handle_str_op_fallback!(rt, a, Value::VOID, stack, ip, handlers, iters, pending, thrown);
+        return handle_str_op_fallback(rt, a, Value::VOID, stack, ip, handlers, iters, pending, thrown);
     }
     Ok(None)
 }
@@ -134,7 +143,7 @@ pub(crate) fn op_str_append_bool(
         };
         stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
     } else {
-        handle_str_op_fallback!(rt, a, b, stack, ip, handlers, iters, pending, thrown);
+        return handle_str_op_fallback(rt, a, b, stack, ip, handlers, iters, pending, thrown);
     }
     Ok(None)
 }
@@ -164,7 +173,7 @@ pub(crate) fn op_str_append_int(
         };
         stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
     } else {
-        handle_str_op_fallback!(rt, a, b, stack, ip, handlers, iters, pending, thrown);
+        return handle_str_op_fallback(rt, a, b, stack, ip, handlers, iters, pending, thrown);
     }
     Ok(None)
 }
@@ -194,7 +203,7 @@ pub(crate) fn op_str_append_float(
         };
         stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
     } else {
-        handle_str_op_fallback!(rt, a, b, stack, ip, handlers, iters, pending, thrown);
+        return handle_str_op_fallback(rt, a, b, stack, ip, handlers, iters, pending, thrown);
     }
     Ok(None)
 }
@@ -229,7 +238,7 @@ pub(crate) fn op_str_append_str(
         };
         stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
     } else {
-        handle_str_op_fallback!(rt, a, b, stack, ip, handlers, iters, pending, thrown);
+        return handle_str_op_fallback(rt, a, b, stack, ip, handlers, iters, pending, thrown);
     }
     Ok(None)
 }
