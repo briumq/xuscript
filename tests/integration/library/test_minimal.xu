@@ -1,0 +1,63 @@
+// 最小复现示例
+
+// 结构体定义
+Author has {
+    id: int
+    name: string
+}
+
+// 结构体定义
+Library has {
+    name: string
+    authors: [Author] = []
+    
+    func add_author(author: Author) {
+        self.authors.push(author)
+    }
+    
+    func print_authors() {
+        println("Library '{self.name}' authors:")
+        for author in self.authors {
+            println("Author: {author.name}, id: {author.id}")
+        }
+    }
+}
+
+// 模块级变量
+var counter = 0
+
+// 辅助函数
+func generate_id() -> int {
+    counter += 1
+    return counter
+}
+
+func main() {
+    println("=== Minimal Reproduction ===")
+    
+    // 创建图书馆
+    let library = Library{name: "Test Library"}
+    println("Created library: {library.name}")
+    println()
+    
+    // 创建作者
+    let author = Author{id: generate_id(), name: "Zhang San"}
+    println("Created author: {author.name}, id: {author.id}")
+    println()
+    
+    // 添加作者到图书馆
+    println("Adding author to library...")
+    library.add_author(author)
+    println("Author added successfully")
+    println()
+    
+    // 打印作者列表
+    println("Printing authors...")
+    library.print_authors()
+    println()
+    
+    println("=== Test Complete ===")
+}
+
+// 调用主函数
+main()

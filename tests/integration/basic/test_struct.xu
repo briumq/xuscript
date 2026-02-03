@@ -1,0 +1,50 @@
+// 测试结构体和枚举
+
+// 枚举定义
+Status with [ pending | approved | rejected ]
+
+// 结构体定义
+User has {
+    name: string
+    age: int = 0
+    status: Status = Status#pending
+    
+    func greet() {
+        println("Hello, {self.name}!")
+    }
+    
+    func is_adult() -> bool {
+        return self.age >= 18
+    }
+}
+
+func main() {
+    println("Testing structs and enums:")
+    
+    // 创建用户
+    let user = User{name: "Alice", age: 20}
+    println("User created: {user.name}, age: {user.age}")
+    
+    // 调用方法
+    user.greet()
+    
+    // 测试条件
+    if user.is_adult() {
+        println("{user.name} is an adult")
+    } else {
+        println("{user.name} is a minor")
+    }
+    
+    // 测试枚举
+    let status = Status#approved
+    let status_text = match status {
+        Status#pending { "待处理" }
+        Status#approved { "已通过" }
+        Status#rejected { "已拒绝" }
+        _ { "未知" }
+    }
+    println("Status: {status_text}")
+}
+
+// 调用主函数
+main()

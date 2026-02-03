@@ -1,0 +1,57 @@
+// 测试图书馆打印方法
+
+// 结构体定义
+Author has {
+    id: int
+    name: string
+    email: string
+}
+
+// 结构体定义
+Library has {
+    name: string
+    authors: [Author] = []
+    
+    func add_author(author: Author) {
+        self.authors.push(author)
+    }
+    
+    func print_authors() {
+        println("图书馆 '{self.name}' 的作者列表：")
+        for author in self.authors {
+            println("ID: {author.id}, 姓名: {author.name}, 邮箱: {author.email}")
+        }
+    }
+}
+
+func main() {
+    println("=== 测试图书馆打印方法 ===")
+    
+    // 创建图书馆
+    let library = Library{name: "大学图书馆"}
+    println("创建图书馆: {library.name}")
+    println()
+    
+    // 创建作者
+    let author = Author{id: 1, name: "张三", email: "zhangsan@example.com"}
+    println("创建作者: {author.name}")
+    
+    // 添加作者到图书馆
+    library.add_author(author)
+    println("添加作者到图书馆")
+    println()
+    
+    // 打印作者列表
+    println("打印作者列表:")
+    println("ID: {author.id}, 姓名: {author.name}, 邮箱: {author.email}")
+    println()
+    
+    // 测试打印方法
+    println("=== 测试打印方法 ===")
+    // 这里不调用 library.print_authors()，看看是否会出错
+    
+    println("=== 测试完成 ===")
+}
+
+// 调用主函数
+main()

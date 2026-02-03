@@ -1,0 +1,77 @@
+// 测试默认值
+
+// 枚举定义
+Status with [ available | borrowed ]
+
+// 结构体定义
+Author has {
+    id: int
+    name: string
+    email: string
+    bio: string = ""
+}
+
+// 结构体定义
+Book has {
+    id: int
+    title: string
+    author: Author
+    status: Status = Status#available
+    borrowed_by: Option[string] = Option#none
+}
+
+// 结构体定义
+Library has {
+    name: string
+    books: [Book] = []
+    
+    func add_book(book: Book) {
+        self.books.push(book)
+    }
+}
+
+// 模块级变量
+var counter = 0
+
+// 辅助函数
+func generate_id() -> int {
+    counter += 1
+    return counter
+}
+
+func main() {
+    println("=== Test Default Values ===")
+    
+    // 测试模块级变量
+    println("Initial counter: {counter}")
+    println()
+    
+    // 测试结构体初始化
+    println("Testing Author struct...")
+    let author = Author{id: generate_id(), name: "Zhang San", email: "zhangsan@example.com"}
+    println("Created author: id={author.id}, name={author.name}, bio='{author.bio}'")
+    println()
+    
+    // 测试图书创建
+    println("Testing Book struct...")
+    let book = Book{id: generate_id(), title: "Test Book", author: author}
+    println("Created book: id={book.id}, title={book.title}, status={book.status}, borrowed_by={book.borrowed_by}")
+    println()
+    
+    // 测试图书馆创建
+    println("Testing Library struct...")
+    let library = Library{name: "Test Library"}
+    println("Created library: {library.name}, books count: {library.books.length()}")
+    println()
+    
+    // 测试添加图书
+    println("Testing add_book...")
+    library.add_book(book)
+    println("Book added successfully, books count: {library.books.length()}")
+    println()
+    
+    println("=== Test Complete ===")
+}
+
+// 调用主函数
+main()

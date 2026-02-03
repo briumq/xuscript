@@ -1,0 +1,76 @@
+// 测试 Option 类型
+
+// 结构体定义
+Author has {
+    id: int
+    name: string
+}
+
+// 结构体定义
+Book has {
+    id: int
+    title: string
+    author: Author
+    borrowed_by: Option[string] = Option#none
+}
+
+// 结构体定义
+Library has {
+    name: string
+    books: [Book] = []
+    
+    func add_book(book: Book) {
+        self.books.push(book)
+    }
+    
+    func print_books() {
+        println("Library '{self.name}' books:")
+        for book in self.books {
+            println("Book: {book.title}, borrowed by: {book.borrowed_by}")
+        }
+    }
+}
+
+// 模块级变量
+var counter = 0
+
+// 辅助函数
+func generate_id() -> int {
+    counter += 1
+    return counter
+}
+
+func main() {
+    println("=== Testing Option ===")
+    
+    // 创建图书馆
+    let library = Library{name: "Test Library"}
+    println("Created library: {library.name}")
+    println()
+    
+    // 创建作者
+    let author = Author{id: generate_id(), name: "Zhang San"}
+    println("Created author: {author.name}, id: {author.id}")
+    println()
+    
+    // 创建图书
+    let book = Book{id: generate_id(), title: "Test Book", author: author}
+    println("Created book: {book.title}, borrowed by: {book.borrowed_by}")
+    println()
+    
+    // 添加图书到图书馆
+    println("Adding book to library...")
+    library.add_book(book)
+    println("Book added successfully")
+    println()
+    
+    // 打印图书列表
+    println("Printing books...")
+    library.print_books()
+    println()
+    
+    println("=== Test Complete ===")
+}
+
+// 调用主函数
+main()

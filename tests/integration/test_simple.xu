@@ -1,0 +1,26 @@
+// 简单测试脚本
+
+func main() {
+    println("Hello, world!")
+    
+    // 测试变量
+    let name = "Test"
+    println("Name: {name}")
+    
+    // 测试循环
+    println("Counting:")
+    for i in 0..5 {
+        println("{i}")
+    }
+    
+    // 测试条件
+    let x = 10
+    if x > 5 {
+        println("x is greater than 5")
+    } else {
+        println("x is less than or equal to 5")
+    }
+}
+
+// 调用主函数
+main()

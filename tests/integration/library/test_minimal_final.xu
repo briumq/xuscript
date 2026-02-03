@@ -1,0 +1,86 @@
+Author has {
+    id: int
+    name: string
+}
+
+Book has {
+    id: int
+    author: Author
+}
+
+User has {
+    id: string
+    name: string
+}
+
+Library has {
+    name: string
+    authors: [Author] = []
+    books: [Book] = []
+    users: [User] = []
+    
+    func add_author(author: Author) {
+        self.authors.push(author)
+    }
+    
+    func add_book(book: Book) {
+        self.books.push(book)
+    }
+    
+    func add_user(user: User) {
+        self.users.push(user)
+    }
+    
+    func print_authors() {
+        println("Authors:")
+        for author in self.authors {
+            println("  {author.name}")
+        }
+    }
+    
+    func find_book_by_id(id: int) -> Option[Book] {
+        for book in self.books {
+            if book.id == id {
+                return Option#some(book)
+            }
+        }
+        return Option#none
+    }
+    
+    func borrow_book(book_id: int) -> Result[bool, string] {
+        when book = self.find_book_by_id(book_id) {
+            return Result#ok(true)
+        } else {
+            return Result#err("Not found")
+        }
+    }
+}
+
+func main() {
+    let library = Library{name: "Test"}
+    
+    let authors = [Author{id: 1, name: "张三"}]
+    for author in authors {
+        library.add_author(author)
+    }
+    
+    let books = [Book{id: 2, author: authors[0]}]
+    for book in books {
+        library.add_book(book)
+    }
+    
+    let users = [User{id: "u1", name: "小明"}]
+    for user in users {
+        library.add_user(user)
+    }
+    
+    println("=== Start ===")
+    library.print_authors()
+    
+    println("=== Borrow ===")
+    let result = library.borrow_book(books[0].id)
+    
+    println("=== Done ===")
+}
+
+main()

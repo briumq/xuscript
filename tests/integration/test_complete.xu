@@ -1,0 +1,166 @@
+// 完整测试示例
+
+// 枚举定义
+Status with [ available | borrowed ]
+
+// 结构体定义
+Author has {
+    id: int
+    name: string
+}
+
+// 结构体定义
+Book has {
+    id: int
+    title: string
+    author: Author
+    status: Status = Status#available
+    
+    func can_borrow() -> bool {
+        return self.status == Status#available
+    }
+    
+    func borrow() {
+        self.status = Status#borrowed
+    }
+}
+
+// 结构体定义
+User has {
+    id: string
+    name: string
+    borrowed_books: [int] = []
+    
+    func borrow_book(book_id: int) {
+        self.borrowed_books.push(book_id)
+    }
+}
+
+// 结构体定义
+Library has {
+    name: string
+    books: [Book] = []
+    users: [User] = []
+    authors: [Author] = []
+    
+    func add_book(book: Book) {
+        self.books.push(book)
+    }
+    
+    func add_user(user: User) {
+        self.users.push(user)
+    }
+    
+    func add_author(author: Author) {
+        self.authors.push(author)
+    }
+    
+    func find_book_by_id(id: int) -> Option[Book] {
+        for book in self.books {
+            if book.id == id {
+                return Option#some(book)
+            }
+        }
+        return Option#none
+    }
+    
+    func find_user_by_id(id: string) -> Option[User] {
+        for user in self.users {
+            if user.id == id {
+                return Option#some(user)
+            }
+        }
+        return Option#none
+    }
+    
+    func borrow_book(book_id: int, user_id: string) -> Result[bool, string] {
+        when book = self.find_book_by_id(book_id), user = self.find_user_by_id(user_id) {
+            if book.can_borrow() {
+                book.borrow()
+                user.borrow_book(book_id)
+                return Result#ok(true)
+            } else {
+                return Result#err("Book not available")
+            }
+        } else {
+            return Result#err("Book or user not found")
+        }
+    }
+    
+    func print_books() {
+        println("Library '{self.name}' books:")
+        for book in self.books {
+            println("Book: {book.title}, status: {book.status}")
+        }
+    }
+    
+    func print_users() {
+        println("Library '{self.name}' users:")
+        for user in self.users {
+            println("User: {user.name}, borrowed books: {user.borrowed_books.length()}")
+        }
+    }
+}
+
+// 模块级变量
+var counter = 0
+
+// 辅助函数
+func generate_id() -> int {
+    counter += 1
+    return counter
+}
+
+func main() {
+    println("=== Complete Test ===")
+    
+    // 创建图书馆
+    let library = Library{name: "University Library"}
+    println("Created library: {library.name}")
+    println()
+    
+    // 创建作者
+    let author = Author{id: generate_id(), name: "Zhang San"}
+    library.add_author(author)
+    println("Created author: {author.name}")
+    println()
+    
+    // 创建图书
+    let book = Book{id: generate_id(), title: "Test Book", author: author}
+    library.add_book(book)
+    println("Created book: {book.title}")
+    println()
+    
+    // 创建用户
+    let user = User{id: "u001", name: "Xiao Ming"}
+    library.add_user(user)
+    println("Created user: {user.name}")
+    println()
+    
+    // 打印初始状态
+    println("=== Initial State ===")
+    library.print_books()
+    library.print_users()
+    println()
+    
+    // 测试借书功能
+    println("=== Testing Borrow ===")
+    let borrow_result = library.borrow_book(book.id, user.id)
+    match borrow_result {
+        Result#ok(success) { println("Borrow successful: {success}") }
+        Result#err(msg) { println("Borrow failed: {msg}") }
+        _ { println("Unknown result") }
+    }
+    println()
+    
+    // 打印借书后的状态
+    println("=== After Borrowing ===")
+    library.print_books()
+    library.print_users()
+    println()
+    
+    println("=== Test Complete ===")
+}
+
+// 调用主函数
+main()

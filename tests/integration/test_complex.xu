@@ -1,0 +1,128 @@
+// 测试复杂功能
+
+// 枚举定义
+Status with [ available | borrowed | reserved ]
+
+// 结构体定义
+Author has {
+    id: int
+    name: string
+}
+
+// 结构体定义
+Book has {
+    id: int
+    title: string
+    author: Author
+    status: Status = Status#available
+    
+    func can_borrow() -> bool {
+        return self.status == Status#available
+    }
+    
+    func borrow() {
+        self.status = Status#borrowed
+    }
+    
+    func return_book() {
+        self.status = Status#available
+    }
+}
+
+// 结构体定义
+Library has {
+    name: string
+    books: [Book] = []
+    
+    func add_book(book: Book) {
+        self.books.push(book)
+    }
+    
+    func get_available_books() -> [Book] {
+        // 简单实现：遍历列表找到可借图书
+        let result: [Book] = []
+        for book in self.books {
+            if book.can_borrow() {
+                result.push(book)
+            }
+        }
+        return result
+    }
+    
+    func print_books() {
+        println("Library '{self.name}' books:")
+        for book in self.books {
+            println("Book: {book.title} by {book.author.name}, status: {book.status}")
+        }
+    }
+}
+
+// 模块级变量
+var counter = 0
+
+// 辅助函数
+func generate_id() -> int {
+    counter += 1
+    return counter
+}
+
+func main() {
+    println("Testing complex functionality:")
+    
+    // 创建图书馆
+    let library = Library{name: "Test Library"}
+    println("Library created: {library.name}")
+    
+    // 创建作者
+    let author1 = Author{id: generate_id(), name: "John Doe"}
+    let author2 = Author{id: generate_id(), name: "Jane Smith"}
+    println("Authors created: {author1.name}, {author2.name}")
+    
+    // 创建图书
+    let book1 = Book{id: generate_id(), title: "Book 1", author: author1}
+    let book2 = Book{id: generate_id(), title: "Book 2", author: author2}
+    let book3 = Book{id: generate_id(), title: "Book 3", author: author1}
+    println("Books created: {book1.title}, {book2.title}, {book3.title}")
+    
+    // 添加图书到图书馆
+    library.add_book(book1)
+    library.add_book(book2)
+    library.add_book(book3)
+    println("Books added to library")
+    
+    // 打印图书列表
+    library.print_books()
+    
+    // 测试借书功能
+    println("\nBorrowing Book 1:")
+    if book1.can_borrow() {
+        book1.borrow()
+        println("Book 1 borrowed successfully")
+    } else {
+        println("Book 1 cannot be borrowed")
+    }
+    
+    // 打印更新后的图书列表
+    library.print_books()
+    
+    // 测试还书功能
+    println("\nReturning Book 1:")
+    book1.return_book()
+    println("Book 1 returned successfully")
+    
+    // 打印更新后的图书列表
+    library.print_books()
+    
+    // 测试获取可借图书
+    println("\nAvailable books:")
+    let available_books = library.get_available_books()
+    println("Number of available books: {available_books.length()}")
+    for book in available_books {
+        println("Book: {book.title} by {book.author.name}")
+    }
+    
+    println("\nAll tests completed successfully!")
+}
+
+// 调用主函数
+main()

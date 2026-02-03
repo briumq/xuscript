@@ -1,0 +1,90 @@
+// 测试 when 条件绑定
+
+// 结构体定义
+Author has {
+    id: int
+    name: string
+}
+
+// 结构体定义
+Book has {
+    id: int
+    title: string
+    author: Author
+}
+
+// 结构体定义
+Library has {
+    name: string
+    books: [Book] = []
+    
+    func add_book(book: Book) {
+        self.books.push(book)
+    }
+    
+    func find_book_by_id(id: int) -> Option[Book] {
+        for book in self.books {
+            if book.id == id {
+                return Option#some(book)
+            }
+        }
+        return Option#none
+    }
+}
+
+// 模块级变量
+var counter = 0
+
+// 辅助函数
+func generate_id() -> int {
+    counter += 1
+    return counter
+}
+
+func main() {
+    println("=== Testing When ===")
+    
+    // 创建图书馆
+    let library = Library{name: "Test Library"}
+    println("Created library: {library.name}")
+    println()
+    
+    // 创建作者
+    let author = Author{id: generate_id(), name: "Zhang San"}
+    println("Created author: {author.name}, id: {author.id}")
+    println()
+    
+    // 创建图书
+    let book = Book{id: generate_id(), title: "Test Book", author: author}
+    println("Created book: {book.title}, id: {book.id}")
+    println()
+    
+    // 添加图书到图书馆
+    library.add_book(book)
+    println("Book added to library")
+    println()
+    
+    // 测试 when 条件绑定
+    println("Testing when condition...")
+    when found_book = library.find_book_by_id(book.id) {
+        println("Found book: {found_book.title} by {found_book.author.name}")
+    } else {
+        println("Book not found")
+    }
+    println()
+    
+    // 测试 Result 类型
+    println("Testing Result type...")
+    let result = Result#ok("Success")
+    match result {
+        Result#ok(msg) { println("Result: {msg}") }
+        Result#err(msg) { println("Error: {msg}") }
+        _ { println("Unknown result") }
+    }
+    println()
+    
+    println("=== Test Complete ===")
+}
+
+// 调用主函数
+main()

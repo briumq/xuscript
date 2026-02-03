@@ -1,0 +1,74 @@
+// 测试数组
+
+// 结构体定义
+Author has {
+    id: int
+    name: string
+    email: string
+}
+
+// 结构体定义
+Library has {
+    name: string
+    authors: [Author] = []
+    
+    func add_author(author: Author) {
+        self.authors.push(author)
+    }
+}
+
+// 模块级变量
+var counter = 0
+
+// 辅助函数
+func generate_id() -> int {
+    counter += 1
+    return counter
+}
+
+func main() {
+    println("=== Test Array ===")
+    
+    // 测试模块级变量
+    println("Initial counter: {counter}")
+    println()
+    
+    // 测试图书馆创建
+    println("Testing Library struct...")
+    let library = Library{name: "Test Library"}
+    println("Created library: {library.name}")
+    println()
+    
+    // 创建多个作者
+    println("Creating authors...")
+    let authors = [
+        Author{id: generate_id(), name: "Zhang San", email: "zhangsan@example.com"},
+        Author{id: generate_id(), name: "Li Si", email: "lisi@example.com"},
+        Author{id: generate_id(), name: "Wang Wu", email: "wangwu@example.com"}
+    ]
+    println("Created {authors.length()} authors")
+    for author in authors {
+        println("Author: {author.name}, id: {author.id}")
+    }
+    println()
+    
+    // 添加作者到图书馆
+    println("Adding authors to library...")
+    for author in authors {
+        library.add_author(author)
+    }
+    println("Added {library.authors.length()} authors to library")
+    println()
+    
+    // 打印作者列表
+    println("Printing library authors...")
+    for author in library.authors {
+        println("Author: {author.name}, id: {author.id}")
+    }
+    println()
+    
+    println("=== Test Complete ===")
+}
+
+// 调用主函数
+main()

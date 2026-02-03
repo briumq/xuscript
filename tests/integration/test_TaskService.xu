@@ -1,0 +1,92 @@
+// TaskService测试文件
+
+// 枚举定义
+TaskStatus with [ pending | in_progress | completed | cancelled ]
+Priority with [ low | medium | high | urgent ]
+
+// 结构体定义
+User has {
+    id: string
+    name: string
+    email: string
+    role: string = "user"
+
+    func greet() {
+        println("Hello, {self.name}!")
+    }
+
+    static func create(id: string, name: string, email: string, role: string = "user") -> User {
+        return User{ id: id, name: name, email: email, role: role }
+    }
+}
+
+// 任务结构体
+Task has {
+    id: string
+    title: string
+    description: string
+    status: TaskStatus = TaskStatus#pending
+    priority: Priority = Priority#medium
+    assignee: Option[User] = Option#none
+    created_at: string
+    due_at: Option[string] = Option#none
+
+    static func create(id: string, title: string, description: string, priority: Priority = Priority#medium) -> Task {
+        let now = "2024-01-01 12:00:00"
+        return Task{
+            id: id,
+            title: title,
+            description: description,
+            status: TaskStatus#pending,
+            priority: priority,
+            assignee: Option#none,
+            created_at: now,
+            due_at: Option#none
+        }
+    }
+}
+
+// 任务服务
+TaskService has {
+    tasks: {string: Task}
+    users: {string: User}
+    task_counter: int = 1
+    user_counter: int = 1
+
+    func create_task(title: string, description: string, priority: Priority = Priority#medium) -> Task {
+        let task_id = "TASK-" + self.task_counter.to_string()
+        self.task_counter = self.task_counter + 1
+        let task = Task.create(task_id, title, description, priority)
+        self.tasks[task_id] = task
+        return task
+    }
+
+    func create_user(name: string, email: string, role: string = "user") -> User {
+        let user_id = "USER-" + self.user_counter.to_string()
+        self.user_counter = self.user_counter + 1
+        let user = User.create(user_id, name, email, role)
+        self.users[user_id] = user
+        return user
+    }
+}
+
+// 主函数
+func main() {
+    println("=== TaskService Testing ===")
+
+    // 创建任务服务
+    let task_service = TaskService{ tasks: {}, users: {}, task_counter: 1, user_counter: 1 }
+
+    // 创建用户
+    let user = task_service.create_user("Test User", "test@example.com")
+    user.greet()
+
+    // 创建任务
+    let task = task_service.create_task("Test Task", "Test Description")
+    println("Task created: {task.title}")
+
+    println("=== Test Complete ===")
+}
+
+// 调用主函数
+main()
