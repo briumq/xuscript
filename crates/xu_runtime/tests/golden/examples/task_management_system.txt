@@ -1,0 +1,53 @@
+=== Task Management System ===
+Hello, Admin User!
+Hello, Alice Smith!
+Hello, Bob Johnson!
+Task 1 assigned successfully
+
+=== All Tasks ===
+[TASK-2] Design dashboard UI - TaskStatus#pending (Priority#medium)
+  Create responsive dashboard design
+  Assigned to: Bob Johnson
+  No due date
+---
+[TASK-4] Write documentation - TaskStatus#pending (Priority#low)
+  Create user guide and API documentation
+  Unassigned
+  No due date
+---
+[TASK-1] Implement user authentication - TaskStatus#in_progress (Priority#high)
+  Create login and registration functionality
+  Assigned to: Alice Smith
+  No due date
+---
+[TASK-3] Fix database bug - TaskStatus#in_progress (Priority#urgent)
+  Resolve issue with data persistence
+  Assigned to: Alice Smith
+  No due date
+---
+
+=== In Progress Tasks ===
+- Implement user authentication (Priority#high)
+- Fix database bug (Priority#urgent)
+
+=== Search Results for 'database' ===
+- Fix database bug
+
+=== Task Statistics ===
+
+=== String Operations ===
+Original: Hello, Task Management System!
+Length: 30
+Uppercase: HELLO, TASK MANAGEMENT SYSTEM!
+Starts with Hello: true
+
+=== List Operations ===
+Priorities: low, medium, high, urgent
+Has high: true
+
+=== Dict Operations ===
+API URL: https://api.example.com
+Timeout: 30
+
+=== System Ready ===
+Task management system is ready for use!

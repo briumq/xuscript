@@ -151,6 +151,28 @@ impl Runtime {
             } else {
                 Err(self.error(xu_syntax::DiagnosticKind::Raw("Not an enum".into())))
             }
+        } else if tag == crate::core::value::TAG_OPTION && (field == "value" || field == "has" || field == "none" || field == "name" || field == "type_name") {
+            // Option#some has TAG_OPTION, supports .value, .has, .none, .name, .type_name
+            let id = obj.as_obj_id();
+            if let crate::core::heap::ManagedObject::OptionSome(_inner) = self.heap.get(id) {
+                match field {
+                    "value" => {
+                        // Re-fetch to avoid borrow issues
+                        if let crate::core::heap::ManagedObject::OptionSome(inner) = self.heap.get(id) {
+                            Ok(*inner)
+                        } else {
+                            unreachable!()
+                        }
+                    }
+                    "has" => Ok(Value::from_bool(true)),
+                    "none" => Ok(Value::from_bool(false)),
+                    "name" => Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str("some".into())))),
+                    "type_name" => Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str("Option".into())))),
+                    _ => unreachable!(),
+                }
+            } else {
+                Err(self.error(xu_syntax::DiagnosticKind::Raw("Not an Option".into())))
+            }
         } else if tag == crate::core::value::TAG_LIST && field == "first" {
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::List(v) = self.heap.get(id) {

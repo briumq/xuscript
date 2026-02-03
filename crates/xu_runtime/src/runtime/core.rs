@@ -290,6 +290,10 @@ impl Runtime {
                 )));
             }
         }
+        // Optimize Option#some to use TAG_OPTION
+        if ty == "Option" && variant == "some" && payload.len() == 1 {
+            return Ok(self.option_some(payload[0]));
+        }
         let id = self.heap.alloc(crate::core::heap::ManagedObject::Enum(Box::new((
             ty.to_string().into(),
             variant.to_string().into(),

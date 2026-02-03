@@ -170,7 +170,22 @@ pub(crate) fn type_matches(ty: &str, v: &Value, heap: &Heap) -> bool {
         "void" => v.is_void(),
         _ => {
             let tag = v.get_tag();
-            if tag == crate::core::value::TAG_STRUCT {
+            // Option type: Option#none is an enum, Option#some has TAG_OPTION
+            if ty == "Option" || ty.starts_with("Option[") {
+                tag == crate::core::value::TAG_OPTION || {
+                    // Option#none is represented as an enum
+                    if tag == crate::core::value::TAG_ENUM {
+                        if let crate::core::heap::ManagedObject::Enum(e) = heap.get(v.as_obj_id()) {
+                            let (ety, _, _) = e.as_ref();
+                            ety.as_str() == "Option"
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                }
+            } else if tag == crate::core::value::TAG_STRUCT {
                 if let crate::core::heap::ManagedObject::Struct(s) = heap.get(v.as_obj_id()) {
                     s.ty == ty
                 } else {

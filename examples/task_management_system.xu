@@ -195,7 +195,7 @@ TaskService has {
 
         for (_, task) in self.tasks {
             // 按状态统计
-            let status_str = task.status
+            let status_str = task.status.name
             if by_status.contains(status_str) {
                 by_status[status_str] = by_status[status_str] + 1
             } else {
@@ -203,7 +203,7 @@ TaskService has {
             }
 
             // 按优先级统计
-            let priority_str = task.priority
+            let priority_str = task.priority.name
             if by_priority.contains(priority_str) {
                 by_priority[priority_str] = by_priority[priority_str] + 1
             } else {
@@ -280,10 +280,10 @@ func main() {
     let assign_result3 = task_service.assign_task(task3.id, alice.id)
 
     // 打印分配结果
-    if assign_result1 {
-        println("Task 1 assigned successfully")
-    } else {
-        println("Error assigning task 1: {assign_result1}")
+    match assign_result1 {
+        Result#ok(_) { println("Task 1 assigned successfully") }
+        Result#err(msg) { println("Error assigning task 1: {msg}") }
+        _ { println("Unknown result") }
     }
 
     // 更新任务状态
@@ -326,13 +326,16 @@ func main() {
     println("Original: {message}")
     println("Length: {message.length()}")
     println("Uppercase: {message.to_upper()}")
-    println("Starts with 'Hello': {message.starts_with('Hello')}")
+    let starts_hello = message.starts_with("Hello")
+    println("Starts with Hello: {starts_hello}")
 
     // 演示列表操作
     println("\n=== List Operations ===")
     let priorities = ["low", "medium", "high", "urgent"]
-    println("Priorities: {priorities.join(', ')}")
-    println("Has 'high': {priorities.contains('high')}")
+    let joined = priorities.join(", ")
+    println("Priorities: {joined}")
+    let has_high = priorities.contains("high")
+    println("Has high: {has_high}")
 
     // 演示字典操作
     println("\n=== Dict Operations ===")

@@ -241,6 +241,13 @@ fn dispatch_option_some(
                 Ok(rt.option_none())
             }
         }
+        MethodKind::IntToString => {
+            // to_string() for Option#some
+            validate_arity(rt, method, args.len(), 0, 0)?;
+            let inner_str = crate::util::value_to_string(&inner, &rt.heap);
+            let s = format!("Option#some({})", inner_str);
+            Ok(common::create_str_value(rt, &s))
+        }
         _ => Err(err(
             rt,
             xu_syntax::DiagnosticKind::UnsupportedMethod {

@@ -1,0 +1,69 @@
+=== 初始状态 ===
+图书馆 '大学图书馆' 的作者列表：
+Author(id: 1, name: 张三, email: zhangsan@example.com)
+Author(id: 2, name: 李四, email: lisi@example.com)
+Author(id: 3, name: 王五, email: wangwu@example.com)
+图书馆 '大学图书馆' 的图书列表：
+Book(id: 4, title: 计算机科学导论, author: 张三)
+Book(id: 5, title: Python编程基础, author: 张三)
+Book(id: 6, title: 中国文学史, author: 李四)
+Book(id: 7, title: 现代小说选, author: 李四)
+Book(id: 8, title: 中国古代史, author: 王五)
+Book(id: 9, title: 世界通史, author: 王五)
+图书馆 '大学图书馆' 的用户列表：
+User(id: u001, name: 小明)
+User(id: u002, name: 小红)
+User(id: u003, name: 小刚)
+=== 测试借书功能 ===
+借书成功：true
+再次借书失败：图书不可借，当前状态：已借出
+=== 借书后的状态 ===
+图书馆 '大学图书馆' 的图书列表：
+Book(id: 4, title: 计算机科学导论, author: 张三)
+Book(id: 5, title: Python编程基础, author: 张三)
+Book(id: 6, title: 中国文学史, author: 李四)
+Book(id: 7, title: 现代小说选, author: 李四)
+Book(id: 8, title: 中国古代史, author: 王五)
+Book(id: 9, title: 世界通史, author: 王五)
+图书馆 '大学图书馆' 的用户列表：
+User(id: u001, name: 小明)
+User(id: u002, name: 小红)
+User(id: u003, name: 小刚)
+=== 测试还书功能 ===
+还书成功：true
+=== 还书后的状态 ===
+图书馆 '大学图书馆' 的图书列表：
+Book(id: 4, title: 计算机科学导论, author: 张三)
+Book(id: 5, title: Python编程基础, author: 张三)
+Book(id: 6, title: 中国文学史, author: 李四)
+Book(id: 7, title: 现代小说选, author: 李四)
+Book(id: 8, title: 中国古代史, author: 王五)
+Book(id: 9, title: 世界通史, author: 王五)
+图书馆 '大学图书馆' 的用户列表：
+User(id: u001, name: 小明)
+User(id: u002, name: 小红)
+User(id: u003, name: 小刚)
+=== 测试搜索功能 ===
+搜索包含'计算机'的图书：
+Book(id: 4, title: 计算机科学导论, author: 张三, status: 可借)
+Book(id: 5, title: Python编程基础, author: 张三, status: 可借)
+Book(id: 6, title: 中国文学史, author: 李四, status: 可借)
+Book(id: 7, title: 现代小说选, author: 李四, status: 可借)
+Book(id: 8, title: 中国古代史, author: 王五, status: 可借)
+Book(id: 9, title: 世界通史, author: 王五, status: 可借)
+搜索作者为'李四'的图书：
+Book(id: 4, title: 计算机科学导论, author: 张三, status: 可借)
+Book(id: 5, title: Python编程基础, author: 张三, status: 可借)
+Book(id: 6, title: 中国文学史, author: 李四, status: 可借)
+Book(id: 7, title: 现代小说选, author: 李四, status: 可借)
+Book(id: 8, title: 中国古代史, author: 王五, status: 可借)
+Book(id: 9, title: 世界通史, author: 王五, status: 可借)
+=== 测试获取可借图书 ===
+可借图书数量：6
+Book(id: 4, title: 计算机科学导论, author: 张三, status: 可借)
+Book(id: 5, title: Python编程基础, author: 张三, status: 可借)
+Book(id: 6, title: 中国文学史, author: 李四, status: 可借)
+Book(id: 7, title: 现代小说选, author: 李四, status: 可借)
+Book(id: 8, title: 中国古代史, author: 王五, status: 可借)
+Book(id: 9, title: 世界通史, author: 王五, status: 可借)
+示例运行完成！
