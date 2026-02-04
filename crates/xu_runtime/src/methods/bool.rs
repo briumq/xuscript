@@ -4,9 +4,9 @@ use crate::Value;
 
 pub(crate) fn dispatch(rt: &mut Runtime, recv: Value, kind: super::MethodKind, args: &[Value], method: &str) -> Result<Value, String> {
     let b = recv.as_bool();
-    
+
     match kind {
-        super::MethodKind::IntToString => {
+        super::MethodKind::ToString => {
             validate_arity(rt, method, args.len(), 0, 0)?;
             let s = b.to_string();
             Ok(create_str_value(rt, &s))

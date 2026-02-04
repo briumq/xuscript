@@ -4,13 +4,13 @@ use crate::Value;
 
 pub(crate) fn dispatch(rt: &mut Runtime, recv: Value, kind: super::MethodKind, args: &[Value], method: &str) -> Result<Value, String> {
     let i = recv.as_i64();
-    
+
     match kind {
-        super::MethodKind::IntToString => {
+        super::MethodKind::ToString => {
             let s = i.to_string();
             Ok(create_str_value(rt, &s))
         }
-        super::MethodKind::IntAbs => {
+        super::MethodKind::Abs => {
             let abs = i.abs();
             Ok(Value::from_i64(abs))
         }

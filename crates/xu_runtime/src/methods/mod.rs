@@ -10,7 +10,9 @@ mod file;
 mod float;
 mod int;
 mod list;
+mod option;
 mod str;
+mod tuple;
 
 use common::*;
 
@@ -27,11 +29,15 @@ pub(crate) enum MethodKind {
     ListFindIndex,
     ListFindOr,
     ListFirst,
+    ListGet,
+    ListFilter,
+    ListMap,
     DictMerge,
     DictInsert,
     DictInsertInt,
     DictGet,
     DictGetInt,
+    DictHas,
     DictKeys,
     DictValues,
     DictItems,
@@ -45,7 +51,6 @@ pub(crate) enum MethodKind {
     StrTryToInt,
     StrTryToFloat,
     StrReplace,
-    StrReplaceAll,
     StrTrim,
     StrTrimStart,
     StrTrimEnd,
@@ -56,8 +61,9 @@ pub(crate) enum MethodKind {
     StrFind,
     StrSubstr,
     StrMatch,
-    IntToString,
-    IntAbs,
+    StrGet,
+    ToString,
+    Abs,
     IntToBase,
     IntIsEven,
     IntIsOdd,
@@ -72,6 +78,7 @@ pub(crate) enum MethodKind {
     OptEach,
     OptFilter,
     OptHas,
+    OptGet,
     ResMapErr,
     EnumName,
     EnumTypeName,
@@ -103,12 +110,10 @@ impl MethodKind {
             "find_or" => Self::ListFindOr,
             "first" => Self::ListFirst,
             "length" => Self::Len,
-            "len" => Self::Len,
             "contains" => Self::Contains,
             "clear" => Self::Clear,
             "remove" => Self::Remove,
             "merge" => Self::DictMerge,
-            "dict_insert" => Self::DictInsert,
             "insert_int" => Self::DictInsertInt,
             "get" => Self::DictGet,
             "get_int" => Self::DictGetInt,
@@ -125,7 +130,6 @@ impl MethodKind {
             "try_to_int" => Self::StrTryToInt,
             "try_to_float" => Self::StrTryToFloat,
             "replace" => Self::StrReplace,
-            "replace_all" => Self::StrReplaceAll,
             "trim" => Self::StrTrim,
             "trim_start" => Self::StrTrimStart,
             "trim_end" => Self::StrTrimEnd,
@@ -133,11 +137,10 @@ impl MethodKind {
             "to_lower" => Self::StrToLower,
             "starts_with" => Self::StrStartsWith,
             "ends_with" => Self::StrEndsWith,
-            "str_find" => Self::StrFind,
             "substr" => Self::StrSubstr,
             "match" => Self::StrMatch,
-            "to_string" => Self::IntToString, // 也用于 float 和 bool
-            "abs" => Self::IntAbs,            // 也用于 float
+            "to_string" => Self::ToString,
+            "abs" => Self::Abs,
             "to_base" => Self::IntToBase,
             "is_even" => Self::IntIsEven,
             "is_odd" => Self::IntIsOdd,
@@ -165,15 +168,42 @@ pub(super) fn dispatch_builtin_method(
 ) -> Result<Value, String> {
     let tag = recv.get_tag();
 
-    // 根据接收者类型分发到不同的处理函数
     match tag {
-        crate::core::value::TAG_LIST => list::dispatch(rt, recv, kind, args, method),
-        crate::core::value::TAG_DICT => dict::dispatch(rt, recv, kind, args, method),
+        crate::core::value::TAG_LIST => {
+            let kind = match kind {
+                MethodKind::DictGet | MethodKind::DictGetInt => MethodKind::ListGet,
+                MethodKind::OptFilter => MethodKind::ListFilter,
+                MethodKind::OptMap => MethodKind::ListMap,
+                _ => kind,
+            };
+            list::dispatch(rt, recv, kind, args, method)
+        }
+        crate::core::value::TAG_DICT => {
+            let kind = match kind {
+                MethodKind::ListInsert => MethodKind::DictInsert,
+                MethodKind::OptHas => MethodKind::DictHas,
+                _ => kind,
+            };
+            dict::dispatch(rt, recv, kind, args, method)
+        }
         crate::core::value::TAG_FILE => file::dispatch(rt, recv, kind, args, method),
-        crate::core::value::TAG_STR => str::dispatch(rt, recv, kind, args, method),
-        crate::core::value::TAG_ENUM => enum_::dispatch(rt, recv, kind, args, method),
-        crate::core::value::TAG_OPTION => dispatch_option_some(rt, recv, kind, args, method),
-        crate::core::value::TAG_TUPLE => dispatch_tuple(rt, recv, kind, args, method),
+        crate::core::value::TAG_STR => {
+            let kind = match kind {
+                MethodKind::ListFind => MethodKind::StrFind,
+                MethodKind::DictGet | MethodKind::DictGetInt => MethodKind::StrGet,
+                _ => kind,
+            };
+            str::dispatch(rt, recv, kind, args, method)
+        }
+        crate::core::value::TAG_ENUM => {
+            let kind = if kind == MethodKind::DictGet { MethodKind::OptGet } else { kind };
+            enum_::dispatch(rt, recv, kind, args, method)
+        }
+        crate::core::value::TAG_OPTION => {
+            let kind = if kind == MethodKind::DictGet { MethodKind::OptGet } else { kind };
+            option::dispatch(rt, recv, kind, args, method)
+        }
+        crate::core::value::TAG_TUPLE => tuple::dispatch(rt, recv, kind, args, method),
         _ => dispatch_primitive_methods(rt, recv, kind, args, method),
     }
 }
@@ -181,113 +211,17 @@ pub(super) fn dispatch_builtin_method(
 fn dispatch_primitive_methods(
     rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
 ) -> Result<Value, String> {
-    // 处理整数方法
     if recv.is_int() {
         return int::dispatch(rt, recv, kind, args, method);
     }
-    
-    // 处理浮点数方法
     if recv.is_f64() {
         return float::dispatch(rt, recv, kind, args, method);
     }
-    
-    // 处理布尔值方法
     if recv.is_bool() {
         return bool::dispatch(rt, recv, kind, args, method);
     }
-    
     Err(err(
         rt,
         xu_syntax::DiagnosticKind::UnsupportedReceiver(recv.type_name().to_string()),
     ))
-}
-
-fn dispatch_tuple(
-    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
-) -> Result<Value, String> {
-    let id = recv.as_obj_id();
-    let tuple = if let crate::core::heap::ManagedObject::Tuple(t) = rt.heap.get(id) {
-        t
-    } else {
-        return Err(err(rt, xu_syntax::DiagnosticKind::Raw("Not a tuple".into())));
-    };
-
-    match kind {
-        MethodKind::Len => {
-            validate_arity(rt, method, args.len(), 0, 0)?;
-            Ok(Value::from_i64(tuple.len() as i64))
-        }
-        _ => Err(err(
-            rt,
-            xu_syntax::DiagnosticKind::UnsupportedMethod {
-                method: method.to_string(),
-                ty: "tuple".to_string(),
-            },
-        )),
-    }
-}
-
-fn dispatch_option_some(
-    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
-) -> Result<Value, String> {
-    let inner = expect_option_some(rt, recv)?;
-
-    match kind {
-        MethodKind::OptHas => Ok(Value::from_bool(true)),
-        MethodKind::OptOr => {
-            validate_arity(rt, method, args.len(), 1, 1)?;
-            Ok(inner)
-        }
-        MethodKind::OptOrElse => {
-            validate_arity(rt, method, args.len(), 1, 1)?;
-            Ok(inner)
-        }
-        MethodKind::OptMap => {
-            validate_arity(rt, method, args.len(), 1, 1)?;
-            let f = args[0];
-            let mapped = rt.call_function(f, &[inner])?;
-            Ok(rt.option_some(mapped))
-        }
-        MethodKind::OptThen => {
-            validate_arity(rt, method, args.len(), 1, 1)?;
-            let f = args[0];
-            rt.call_function(f, &[inner])
-        }
-        MethodKind::OptEach => {
-            validate_arity(rt, method, args.len(), 1, 1)?;
-            let f = args[0];
-            let _ = rt.call_function(f, &[inner])?;
-            Ok(Value::UNIT)
-        }
-        MethodKind::OptFilter => {
-            validate_arity(rt, method, args.len(), 1, 1)?;
-            let pred = args[0];
-            let keep = rt.call_function(pred, &[inner])?;
-            if keep.is_bool() && keep.as_bool() {
-                Ok(recv)
-            } else {
-                Ok(rt.option_none())
-            }
-        }
-        MethodKind::DictGet => {
-            // get() for Option#some - return the inner value
-            // DictGet is mapped from "get" method name, which is also used for Option.get()
-            validate_arity(rt, method, args.len(), 0, 0)?;
-            Ok(inner)
-        }
-        MethodKind::IntToString => {
-            // to_string() for Option#some
-            validate_arity(rt, method, args.len(), 0, 0)?;
-            let inner_str = crate::util::value_to_string(&inner, &rt.heap);
-            let s = format!("Option#some({})", inner_str);
-            Ok(common::create_str_value(rt, &s))
-        }
-        _ => Err(err(
-            rt,
-            xu_syntax::DiagnosticKind::UnsupportedMethod {
-                method: method.to_string(),
-                ty: "Option".to_string(),
-            },
-        )),
-    }
 }

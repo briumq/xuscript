@@ -10,7 +10,8 @@ let s2 = "Hello, World!";
 assert(s2.find("Hello").has());
 assert(s2.substr(0, 5) == "Hello");
 
+// replace 只替换第一个匹配
 let s3 = "Hello, Hello";
-assert(s3.replace_all("Hello", "Hi") == "Hi, Hi");
+assert(s3.replace("Hello", "Hi") == "Hi, Hello");
 
 print("All string method tests passed!");

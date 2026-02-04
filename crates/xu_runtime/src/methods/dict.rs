@@ -51,7 +51,7 @@ pub(super) fn dispatch(
             }
             Ok(Value::UNIT)
         }
-        MethodKind::DictInsert | MethodKind::ListInsert => {
+        MethodKind::DictInsert => {
             validate_arity(rt, method, args.len(), 2, 2)?;
 
             let value = args[1].clone();
@@ -274,7 +274,7 @@ pub(super) fn dispatch(
             });
             Ok(rt.option_some(v))
         }
-        MethodKind::OptHas => {
+        MethodKind::DictHas => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             validate_str_param(rt, &args[0], "key")?;
 

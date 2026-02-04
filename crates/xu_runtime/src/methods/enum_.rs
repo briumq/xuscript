@@ -48,7 +48,7 @@ pub(super) fn dispatch(
             }
             return Ok(Value::str(rt.heap.alloc(ManagedObject::Str(ty))));
         }
-        MethodKind::IntToString => {
+        MethodKind::ToString => {
             if !args.is_empty() {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
                     expected_min: 0,
@@ -360,8 +360,8 @@ pub(super) fn dispatch(
                 ty: ty.as_str().to_string(),
             }))
         }
-        MethodKind::DictGet => {
-            // get() for Option - DictGet is mapped from "get" method name
+        MethodKind::OptGet => {
+            // get() for Option - OptGet is mapped from "get" method name
             if !is_option {
                 return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
                     method: method.to_string(),

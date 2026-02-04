@@ -9,14 +9,14 @@ pub(super) fn dispatch(
     rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
 ) -> Result<Value, String> {
     match kind {
-        MethodKind::DictGet | MethodKind::DictGetInt => {
+        MethodKind::StrGet => {
             // str.get(i) - safe access returning Option
             validate_arity(rt, method, args.len(), 1, 1)?;
-            
+
             let i = to_i64(&args[0])?;
             let result = {
                 let s = expect_str(rt, recv)?;
-                
+
                 if i < 0 {
                     None
                 } else {
@@ -39,7 +39,7 @@ pub(super) fn dispatch(
                     }
                 }
             };
-            
+
             match result {
                 Some(ch) => {
                     let char_val = create_str_value(rt, &ch);
@@ -179,22 +179,11 @@ pub(super) fn dispatch(
             validate_arity(rt, method, args.len(), 2, 2)?;
             validate_str_param(rt, &args[0], "from")?;
             validate_str_param(rt, &args[1], "to")?;
-            
+
             let from = get_str_from_value(rt, &args[0])?;
             let to = get_str_from_value(rt, &args[1])?;
             let s = expect_str(rt, recv)?;
-            let result = s.as_str().replace(&from, &to);
-            Ok(create_str_value(rt, &result))
-        }
-        MethodKind::StrReplaceAll => {
-            validate_arity(rt, method, args.len(), 2, 2)?;
-            validate_str_param(rt, &args[0], "from")?;
-            validate_str_param(rt, &args[1], "to")?;
-            
-            let from = get_str_from_value(rt, &args[0])?;
-            let to = get_str_from_value(rt, &args[1])?;
-            let s = expect_str(rt, recv)?;
-            let result = s.as_str().replace(&from, &to);
+            let result = s.as_str().replacen(&from, &to, 1);  // 只替换第一个
             Ok(create_str_value(rt, &result))
         }
         MethodKind::StrTrimStart => {
@@ -209,13 +198,13 @@ pub(super) fn dispatch(
             let result = s.as_str().trim_end().to_string();
             Ok(create_str_value(rt, &result))
         }
-        MethodKind::StrFind | MethodKind::ListFind => {
+        MethodKind::StrFind => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             validate_str_param(rt, &args[0], "substring")?;
-            
+
             let sub = get_str_from_value(rt, &args[0])?;
             let s = expect_str(rt, recv)?;
-            
+
             match s.as_str().find(&sub) {
                 Some(idx) => Ok(rt.option_some(Value::from_i64(idx as i64))),
                 None => Ok(rt.option_none()),

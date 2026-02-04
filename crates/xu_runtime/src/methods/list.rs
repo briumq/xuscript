@@ -8,13 +8,13 @@ pub(super) fn dispatch(
     rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
 ) -> Result<Value, String> {
     match kind {
-        MethodKind::DictGet | MethodKind::DictGetInt => {
+        MethodKind::ListGet => {
             // list.get(i) - safe access returning Option
             validate_arity(rt, method, args.len(), 1, 1)?;
-            
+
             let i = to_i64(&args[0])?;
             let list = expect_list(rt, recv)?;
-            
+
             match safe_get_from_list(rt, list, i) {
                 Some(value) => Ok(rt.option_some(value)),
                 None => Ok(rt.option_none()),
@@ -93,13 +93,13 @@ pub(super) fn dispatch(
             let list = expect_list(rt, recv)?;
             Ok(Value::from_i64(list.len() as i64))
         }
-        MethodKind::OptFilter => {
+        MethodKind::ListFilter => {
             validate_arity(rt, method, args.len(), 1, 1)?;
-            
+
             let f = args[0];
             let list = expect_list(rt, recv)?;
             let items = list.to_vec();
-            
+
             let mut out: Vec<Value> = Vec::with_capacity(items.len());
             for item in items {
                 let keep = rt.call_function(f, &[item])?;
@@ -112,21 +112,21 @@ pub(super) fn dispatch(
                     out.push(item);
                 }
             }
-            
+
             Ok(create_list_value(rt, out))
         }
-        MethodKind::OptMap => {
+        MethodKind::ListMap => {
             validate_arity(rt, method, args.len(), 1, 1)?;
-            
+
             let f = args[0];
             let list = expect_list(rt, recv)?;
             let items = list.to_vec();
-            
+
             let mut out: Vec<Value> = Vec::with_capacity(items.len());
             for item in items {
                 out.push(rt.call_function(f, &[item])?);
             }
-            
+
             Ok(create_list_value(rt, out))
         }
         MethodKind::ListInsert => {
