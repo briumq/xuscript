@@ -421,7 +421,7 @@ pub(crate) fn run_bytecode_fast_params_only(
                 };
                 sp += 1;
             }
-            Op::Gt | Op::Lt | Op::Ge | Op::Le | Op::Eq | Op::Ne => {
+            Op::Gt | Op::Lt | Op::Ge | Op::Le => {
                 if sp < 2 {
                     return Some(Err("Stack underflow".into()));
                 }
@@ -433,14 +433,32 @@ pub(crate) fn run_bytecode_fast_params_only(
                     Op::Lt => xu_ir::BinaryOp::Lt,
                     Op::Ge => xu_ir::BinaryOp::Ge,
                     Op::Le => xu_ir::BinaryOp::Le,
-                    Op::Eq => xu_ir::BinaryOp::Eq,
-                    Op::Ne => xu_ir::BinaryOp::Ne,
                     _ => unreachable!(),
                 };
                 stack[sp] = match a.bin_op(bop, b) {
                     Ok(v) => v,
                     Err(e) => return Some(Err(e)),
                 };
+                sp += 1;
+            }
+            Op::Eq => {
+                if sp < 2 {
+                    return Some(Err("Stack underflow".into()));
+                }
+                let b = stack[sp - 1];
+                let a = stack[sp - 2];
+                sp -= 2;
+                stack[sp] = Value::from_bool(rt.values_equal(&a, &b));
+                sp += 1;
+            }
+            Op::Ne => {
+                if sp < 2 {
+                    return Some(Err("Stack underflow".into()));
+                }
+                let b = stack[sp - 1];
+                let a = stack[sp - 2];
+                sp -= 2;
+                stack[sp] = Value::from_bool(!rt.values_equal(&a, &b));
                 sp += 1;
             }
             Op::GetMember(idx, slot) => {
