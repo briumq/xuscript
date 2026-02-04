@@ -51,7 +51,7 @@ pub(super) fn dispatch(
             }
             Ok(Value::UNIT)
         }
-        MethodKind::DictInsert | MethodKind::ListInsert => {
+        MethodKind::Insert => {
             validate_arity(rt, method, args.len(), 2, 2)?;
 
             let value = args[1].clone();
@@ -177,7 +177,7 @@ pub(super) fn dispatch(
             }
             Ok(Value::UNIT)
         }
-        MethodKind::DictGet => {
+        MethodKind::Get => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             validate_str_param(rt, &args[0], "key")?;
 
@@ -220,7 +220,7 @@ pub(super) fn dispatch(
             });
             Ok(rt.option_some(v))
         }
-        MethodKind::DictGetInt => {
+        MethodKind::GetInt => {
             validate_arity(rt, method, args.len(), 1, 1)?;
 
             let i = to_i64(&args[0])?;
@@ -274,7 +274,7 @@ pub(super) fn dispatch(
             });
             Ok(rt.option_some(v))
         }
-        MethodKind::DictHas | MethodKind::OptHas => {
+        MethodKind::Has => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             validate_str_param(rt, &args[0], "key")?;
 

@@ -72,7 +72,7 @@ pub(super) fn dispatch(
     }
 
     match kind {
-        MethodKind::OptHas => {
+        MethodKind::Has => {
             if !is_option || !args.is_empty() {
                 return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
                     method: method.to_string(),
@@ -81,7 +81,7 @@ pub(super) fn dispatch(
             }
             Ok(Value::from_bool(variant.as_str() == "some"))
         }
-        MethodKind::OptOr => {
+        MethodKind::Or => {
             if args.len() != 1 {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
                     expected_min: 1,
@@ -121,7 +121,7 @@ pub(super) fn dispatch(
                 }
             }
         }
-        MethodKind::OptOrElse => {
+        MethodKind::OrElse => {
             if args.len() != 1 {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
                     expected_min: 1,
@@ -162,7 +162,7 @@ pub(super) fn dispatch(
                 }))
             }
         }
-        MethodKind::OptMap => {
+        MethodKind::Map => {
             if args.len() != 1 {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
                     expected_min: 1,
@@ -207,7 +207,7 @@ pub(super) fn dispatch(
                 }))
             }
         }
-        MethodKind::ResMapErr => {
+        MethodKind::MapErr => {
             if !is_result {
                 return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
                     method: method.to_string(),
@@ -239,7 +239,7 @@ pub(super) fn dispatch(
                 ty: ty.as_str().to_string(),
             }))
         }
-        MethodKind::OptThen => {
+        MethodKind::Then => {
             if args.len() != 1 {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
                     expected_min: 1,
@@ -282,7 +282,7 @@ pub(super) fn dispatch(
                 }))
             }
         }
-        MethodKind::OptEach => {
+        MethodKind::Each => {
             if args.len() != 1 {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
                     expected_min: 1,
@@ -325,7 +325,7 @@ pub(super) fn dispatch(
                 }
             }
         }
-        MethodKind::OptFilter => {
+        MethodKind::Filter => {
             if !is_option {
                 return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
                     method: method.to_string(),
@@ -360,8 +360,8 @@ pub(super) fn dispatch(
                 ty: ty.as_str().to_string(),
             }))
         }
-        MethodKind::OptGet | MethodKind::DictGet => {
-            // get() for Option - OptGet is mapped from "get" method name
+        MethodKind::Get => {
+            // get() for Option
             if !is_option {
                 return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
                     method: method.to_string(),

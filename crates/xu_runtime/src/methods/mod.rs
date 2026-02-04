@@ -16,35 +16,47 @@ mod tuple;
 
 use common::*;
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MethodKind {
+    // 通用方法（多个类型共享同一方法名）
+    Get,      // list.get(i), dict.get(k), str.get(i), option.get()
+    GetInt,   // list.get(i), dict.get_int(i), str.get(i)
+    Insert,   // list.insert(i, v), dict.insert(k, v)
+    Find,     // list.find(pred), str.find(substr)
+    Filter,   // list.filter(pred), option.filter(pred)
+    Map,      // list.map(f), option.map(f)
+    Has,      // dict.has(k), option.has()
+    Contains, // list.contains(v), str.contains(s)
+    Len,      // list.length(), str.length(), dict.length(), tuple.length()
+    Clear,    // list.clear(), dict.clear()
+    Remove,   // list.remove(i), dict.remove(k)
+    ToString, // int.to_string(), float.to_string(), bool.to_string(), option.to_string()
+    Abs,      // int.abs(), float.abs()
+
+    // List 专用方法
     ListPush,
     ListPop,
     ListReverse,
     ListJoin,
-    ListInsert,
     ListSort,
     ListReduce,
-    ListFind,
     ListFindIndex,
     ListFindOr,
     ListFirst,
-    ListGet,
-    ListFilter,
-    ListMap,
+
+    // Dict 专用方法
     DictMerge,
-    DictInsert,
     DictInsertInt,
-    DictGet,
-    DictGetInt,
-    DictHas,
     DictKeys,
     DictValues,
     DictItems,
     GetOrDefault,
+
+    // File 专用方法
     FileRead,
     FileClose,
+
+    // String 专用方法
     StrFormat,
     StrSplit,
     StrToInt,
@@ -59,34 +71,33 @@ pub(crate) enum MethodKind {
     StrToLower,
     StrStartsWith,
     StrEndsWith,
-    StrFind,
     StrSubstr,
     StrMatch,
-    StrGet,
-    ToString,
-    Abs,
+
+    // Int 专用方法
     IntToBase,
     IntIsEven,
     IntIsOdd,
+
+    // Float 专用方法
     FloatRound,
     FloatFloor,
     FloatCeil,
+
+    // Bool 专用方法
     BoolNot,
-    OptOr,
-    OptOrElse,
-    OptMap,
-    OptThen,
-    OptEach,
-    OptFilter,
-    OptHas,
-    OptGet,
-    ResMapErr,
+
+    // Option/Result 专用方法
+    Or,
+    OrElse,
+    Then,
+    Each,
+    MapErr,
+
+    // Enum 专用方法
     EnumName,
     EnumTypeName,
-    Len,
-    Contains,
-    Clear,
-    Remove,
+
     Unknown,
 }
 
@@ -99,31 +110,45 @@ impl Default for MethodKind {
 impl MethodKind {
     pub(crate) fn from_str(s: &str) -> Self {
         match s {
+            // 通用方法
+            "get" => Self::Get,
+            "get_int" => Self::GetInt,
+            "insert" => Self::Insert,
+            "find" => Self::Find,
+            "filter" => Self::Filter,
+            "map" => Self::Map,
+            "has" => Self::Has,
+            "contains" => Self::Contains,
+            "length" => Self::Len,
+            "clear" => Self::Clear,
+            "remove" => Self::Remove,
+            "to_string" => Self::ToString,
+            "abs" => Self::Abs,
+
+            // List 专用
             "push" => Self::ListPush,
             "pop" => Self::ListPop,
             "reverse" => Self::ListReverse,
             "join" => Self::ListJoin,
-            "insert" => Self::ListInsert,
             "sort" => Self::ListSort,
             "reduce" => Self::ListReduce,
-            "find" => Self::ListFind,
             "find_index" => Self::ListFindIndex,
             "find_or" => Self::ListFindOr,
             "first" => Self::ListFirst,
-            "length" => Self::Len,
-            "contains" => Self::Contains,
-            "clear" => Self::Clear,
-            "remove" => Self::Remove,
+
+            // Dict 专用
             "merge" => Self::DictMerge,
             "insert_int" => Self::DictInsertInt,
-            "get" => Self::DictGet,
-            "get_int" => Self::DictGetInt,
-            "get_or_default" => Self::GetOrDefault,
             "keys" => Self::DictKeys,
             "values" => Self::DictValues,
             "items" => Self::DictItems,
+            "get_or_default" => Self::GetOrDefault,
+
+            // File 专用
             "read" => Self::FileRead,
             "close" => Self::FileClose,
+
+            // String 专用
             "format" => Self::StrFormat,
             "split" => Self::StrSplit,
             "to_int" => Self::StrToInt,
@@ -140,25 +165,31 @@ impl MethodKind {
             "ends_with" => Self::StrEndsWith,
             "substr" => Self::StrSubstr,
             "match" => Self::StrMatch,
-            "to_string" => Self::ToString,
-            "abs" => Self::Abs,
+
+            // Int 专用
             "to_base" => Self::IntToBase,
             "is_even" => Self::IntIsEven,
             "is_odd" => Self::IntIsOdd,
+
+            // Float 专用
             "round" => Self::FloatRound,
             "floor" => Self::FloatFloor,
             "ceil" => Self::FloatCeil,
+
+            // Bool 专用
             "not" => Self::BoolNot,
-            "or" => Self::OptOr,
-            "or_else" => Self::OptOrElse,
-            "map" => Self::OptMap,
-            "then" => Self::OptThen,
-            "each" => Self::OptEach,
-            "filter" => Self::OptFilter,
-            "has" => Self::OptHas,
-            "map_err" => Self::ResMapErr,
+
+            // Option/Result 专用
+            "or" => Self::Or,
+            "or_else" => Self::OrElse,
+            "then" => Self::Then,
+            "each" => Self::Each,
+            "map_err" => Self::MapErr,
+
+            // Enum 专用
             "name" => Self::EnumName,
             "type_name" => Self::EnumTypeName,
+
             _ => Self::Unknown,
         }
     }

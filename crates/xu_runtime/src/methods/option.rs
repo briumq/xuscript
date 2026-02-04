@@ -10,33 +10,33 @@ pub(super) fn dispatch(
     let inner = expect_option_some(rt, recv)?;
 
     match kind {
-        MethodKind::OptHas => Ok(Value::from_bool(true)),
-        MethodKind::OptOr => {
+        MethodKind::Has => Ok(Value::from_bool(true)),
+        MethodKind::Or => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             Ok(inner)
         }
-        MethodKind::OptOrElse => {
+        MethodKind::OrElse => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             Ok(inner)
         }
-        MethodKind::OptMap => {
+        MethodKind::Map => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             let f = args[0];
             let mapped = rt.call_function(f, &[inner])?;
             Ok(rt.option_some(mapped))
         }
-        MethodKind::OptThen => {
+        MethodKind::Then => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             let f = args[0];
             rt.call_function(f, &[inner])
         }
-        MethodKind::OptEach => {
+        MethodKind::Each => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             let f = args[0];
             let _ = rt.call_function(f, &[inner])?;
             Ok(Value::UNIT)
         }
-        MethodKind::OptFilter => {
+        MethodKind::Filter => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             let pred = args[0];
             let keep = rt.call_function(pred, &[inner])?;
@@ -46,7 +46,7 @@ pub(super) fn dispatch(
                 Ok(rt.option_none())
             }
         }
-        MethodKind::OptGet | MethodKind::DictGet => {
+        MethodKind::Get => {
             validate_arity(rt, method, args.len(), 0, 0)?;
             Ok(inner)
         }

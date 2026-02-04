@@ -9,7 +9,7 @@ pub(super) fn dispatch(
     rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
 ) -> Result<Value, String> {
     match kind {
-        MethodKind::StrGet | MethodKind::DictGet | MethodKind::DictGetInt => {
+        MethodKind::Get | MethodKind::GetInt => {
             // str.get(i) - safe access returning Option
             validate_arity(rt, method, args.len(), 1, 1)?;
 
@@ -198,7 +198,7 @@ pub(super) fn dispatch(
             let result = s.as_str().trim_end().to_string();
             Ok(create_str_value(rt, &result))
         }
-        MethodKind::StrFind | MethodKind::ListFind => {
+        MethodKind::Find => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             validate_str_param(rt, &args[0], "substring")?;
 

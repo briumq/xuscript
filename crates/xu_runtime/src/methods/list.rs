@@ -8,7 +8,7 @@ pub(super) fn dispatch(
     rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
 ) -> Result<Value, String> {
     match kind {
-        MethodKind::ListGet | MethodKind::DictGet | MethodKind::DictGetInt => {
+        MethodKind::Get | MethodKind::GetInt => {
             // list.get(i) - safe access returning Option
             validate_arity(rt, method, args.len(), 1, 1)?;
 
@@ -93,7 +93,7 @@ pub(super) fn dispatch(
             let list = expect_list(rt, recv)?;
             Ok(Value::from_i64(list.len() as i64))
         }
-        MethodKind::ListFilter | MethodKind::OptFilter => {
+        MethodKind::Filter => {
             validate_arity(rt, method, args.len(), 1, 1)?;
 
             let f = args[0];
@@ -115,7 +115,7 @@ pub(super) fn dispatch(
 
             Ok(create_list_value(rt, out))
         }
-        MethodKind::ListMap | MethodKind::OptMap => {
+        MethodKind::Map => {
             validate_arity(rt, method, args.len(), 1, 1)?;
 
             let f = args[0];
@@ -129,7 +129,7 @@ pub(super) fn dispatch(
 
             Ok(create_list_value(rt, out))
         }
-        MethodKind::ListInsert => {
+        MethodKind::Insert => {
             validate_arity(rt, method, args.len(), 2, 2)?;
             
             let i = to_i64(&args[0])?;
@@ -173,7 +173,7 @@ pub(super) fn dispatch(
             }
             Ok(acc)
         }
-        MethodKind::ListFind => {
+        MethodKind::Find => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             
             let f = args[0];
