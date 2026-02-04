@@ -1,0 +1,63 @@
+// 测试冒号后多语句（分号分隔）
+
+// if 单语句（原有功能）
+let x = 5
+if x > 0: print("single")
+
+// if 多语句
+var a = 0
+var b = 0
+if x > 3: a = 1; b = 2; print("a={a}, b={b}")
+
+// for 多语句
+var sum = 0
+var count = 0
+for i in [1, 2, 3]: sum += i; count += 1
+print("sum={sum}, count={count}")
+
+// while 多语句
+var n = 3
+var result = 0
+while n > 0: result += n; n -= 1
+print("result={result}")
+
+// match 多语句
+let val = 2
+match val {
+    1: print("one"); print("uno")
+    2: print("two"); print("dos")
+    _: print("other")
+}
+
+// else 分支多语句
+if x < 0: print("negative")
+else: print("non-negative"); print("!")
+
+// 嵌套 if（内层单语句）
+let p = 10
+let q = 20
+if p > 5: if q > 15: print("nested single")
+
+// 嵌套 if（内层多语句）- 分号后的语句属于最内层
+a = 0
+b = 0
+if true: if true: a = 1; b = 2
+print("nested multi: a={a}, b={b}")
+
+// 分号后换行继续
+a = 0
+b = 0
+var c = 0
+if true: a = 1;
+    b = 2;
+    c = 3
+print("multiline: a={a}, b={b}, c={c}")
+
+// 换行后的语句是顶层语句，不属于 if
+a = 0
+b = 0
+if false: a = 1
+    b = 2
+print("newline scope: a={a}, b={b}")
+
+print("done")

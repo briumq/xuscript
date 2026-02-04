@@ -45,6 +45,7 @@ pub struct Parser<'a, 'b> {
     pub pending_stmts: Vec<Stmt>,
     pub tmp_counter: u32,
     pub allow_comma_terminator: bool,
+    pub inline_stmt_mode: bool, // 内联多语句模式：分号不被 expect_stmt_terminator 消费
     pub struct_init_allowed: bool,
     pub bump: &'b bumpalo::Bump,
 }
@@ -73,6 +74,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             pending_stmts: Vec::new(),
             tmp_counter: 0,
             allow_comma_terminator: false,
+            inline_stmt_mode: false,
             struct_init_allowed: true,
             bump,
         }
@@ -145,14 +147,38 @@ impl<'a, 'b> Parser<'a, 'b> {
         if self.at(TokenKind::LBrace) {
             return self.parse_block();
         }
-        let prev = self.allow_comma_terminator;
+
+        // 内联模式：解析多个语句，用分号分隔，换行/逗号/}结束
+        let prev_comma = self.allow_comma_terminator;
+        let prev_inline = self.inline_stmt_mode;
         self.allow_comma_terminator = allow_comma_terminator;
-        let stmt = match self.parse_stmt() {
-            Some(s) => s,
-            None => self.recover_stmt(),
-        };
-        self.allow_comma_terminator = prev;
-        Some(vec![stmt].into_boxed_slice())
+        self.inline_stmt_mode = true;
+
+        let mut stmts = Vec::new();
+        loop {
+            let stmt = match self.parse_stmt() {
+                Some(s) => s,
+                None => self.recover_stmt(),
+            };
+            stmts.push(stmt);
+
+            // inline_stmt_mode 下，分号不会被 expect_stmt_terminator 消费
+            // 检查当前 token
+            let next = self.peek_kind();
+
+            // 如果是分号，说明同一行还有更多语句
+            if next == TokenKind::StmtEnd {
+                self.bump(); // 消费分号
+                // 继续解析下一个语句
+            } else {
+                // 换行、EOF、} 或逗号，结束内联块
+                break;
+            }
+        }
+
+        self.allow_comma_terminator = prev_comma;
+        self.inline_stmt_mode = prev_inline;
+        Some(stmts.into_boxed_slice())
     }
 
     pub fn recover_stmt(&mut self) -> Stmt {
@@ -230,7 +256,8 @@ impl<'a, 'b> Parser<'a, 'b> {
             || self.at(TokenKind::RBrace)
             || (self.allow_comma_terminator && self.at(TokenKind::Comma))
         {
-            if self.at(TokenKind::StmtEnd) {
+            // 内联多语句模式下，不消费分号，让外层循环处理
+            if self.at(TokenKind::StmtEnd) && !self.inline_stmt_mode {
                 self.bump();
             }
             return Some(());
