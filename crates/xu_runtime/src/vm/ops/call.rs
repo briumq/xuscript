@@ -143,7 +143,7 @@ pub(crate) fn op_call_method(
             // dict.insert with string key
             if try_dict_insert_fast(rt, stack, args_start, recv, method_hash, &slot_idx) {
                 stack.truncate(args_start - 1);
-                stack.push(Value::VOID);
+                stack.push(Value::UNIT);
                 return Ok(None);
             }
         }
@@ -420,7 +420,7 @@ fn try_dict_insert_fast(
                     // We don't need short key for insert as we rely on object identity
                     key_len: 0,
                     ver: 0, // Not used for hash caching
-                    value: Value::VOID,
+                    value: Value::UNIT,
                     ..Default::default()
                 };
             }
@@ -475,15 +475,15 @@ fn try_dict_insert_int_fast(
         let idx = key_int as usize;
         if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
             if me.elements.len() <= idx {
-                me.elements.resize(idx + 1, Value::VOID);
+                me.elements.resize(idx + 1, Value::UNIT);
             }
-            let was_void = me.elements[idx].get_tag() == crate::core::value::TAG_VOID;
+            let was_unit = me.elements[idx].get_tag() == crate::core::value::TAG_UNIT;
             me.elements[idx] = value;
-            if was_void {
+            if was_unit {
                 me.ver += 1;
             }
         }
-        return Some(Value::VOID);
+        return Some(Value::UNIT);
     }
 
     // Slow path for large integers
@@ -502,7 +502,7 @@ fn try_dict_insert_int_fast(
             }
         }
     }
-    Some(Value::VOID)
+    Some(Value::UNIT)
 }
 
 /// Execute Op::MakeFunction - create a function value

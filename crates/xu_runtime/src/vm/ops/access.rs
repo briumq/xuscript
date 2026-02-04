@@ -121,7 +121,7 @@ pub(crate) fn op_get_index(
                     let ui = key as usize;
                     if ui < me.elements.len() {
                         let v = me.elements[ui];
-                        if v.get_tag() != crate::core::value::TAG_VOID {
+                        if v.get_tag() != crate::core::value::TAG_UNIT {
                             val = Some(v);
                         }
                     }

@@ -8,7 +8,7 @@ pub fn builtin_print(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> 
     for a in args {
         rt.write_output(&value_to_string(a, &rt.heap));
     }
-    Ok(Value::VOID)
+    Ok(Value::UNIT)
 }
 
 pub fn builtin_gen_id(rt: &mut Runtime, _args: &[Value]) -> Result<Value, String> {
@@ -26,7 +26,7 @@ pub fn builtin_gc(rt: &mut Runtime, _args: &[Value]) -> Result<Value, String> {
     }
     // Force a thread yield to allow OS to reclaim memory
     std::thread::sleep(std::time::Duration::from_millis(10));
-    Ok(Value::VOID)
+    Ok(Value::UNIT)
 }
 
 pub fn builtin_open(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {

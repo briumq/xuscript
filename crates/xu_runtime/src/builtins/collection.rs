@@ -101,7 +101,7 @@ pub fn builtin_set_from_list(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
         } else {
             return Err("Set items must be int or string".into());
         };
-        dict.map.insert(key, Value::VOID);
+        dict.map.insert(key, Value::UNIT);
     }
 
     Ok(Value::dict(rt.heap.alloc(crate::core::heap::ManagedObject::Dict(dict))))

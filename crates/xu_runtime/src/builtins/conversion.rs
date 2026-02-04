@@ -74,7 +74,7 @@ pub fn builtin_to_text(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
         } else {
             "text".into()
         }
-    } else if v.is_void() {
+    } else if v.is_unit() {
         "()".into()
     } else if v.is_bool() {
         if v.as_bool() {

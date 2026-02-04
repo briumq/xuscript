@@ -88,7 +88,7 @@ impl Env {
                     if let Some(val) = self.stack.get(frame.base + i) {
                         scope.values.push(*val);
                     } else {
-                        scope.values.push(Value::VOID);
+                        scope.values.push(Value::UNIT);
                     }
                 }
                 // Mark as detached - now both original and closure use scope.values
@@ -370,15 +370,15 @@ impl Env {
             if let Some(&idx) = scope.names.get(name) {
                 let val = if frame.attached {
                     if let Some(slot) = self.stack.get_mut(frame.base + idx) {
-                        std::mem::replace(slot, Value::VOID)
+                        std::mem::replace(slot, Value::UNIT)
                     } else {
-                        Value::VOID
+                        Value::UNIT
                     }
                 } else {
                     if idx < scope.values.len() {
-                        std::mem::replace(&mut scope.values[idx], Value::VOID)
+                        std::mem::replace(&mut scope.values[idx], Value::UNIT)
                     } else {
-                        Value::VOID
+                        Value::UNIT
                     }
                 };
                 self.name_cache

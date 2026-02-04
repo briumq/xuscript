@@ -10,7 +10,7 @@ pub(crate) fn value_to_string(v: &Value, heap: &Heap) -> String {
 }
 
 fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) -> String {
-    if v.is_void() {
+    if v.is_unit() {
         "()".to_string()
     } else if v.is_bool() {
         if v.as_bool() {
@@ -167,7 +167,7 @@ pub(crate) fn type_matches(ty: &str, v: &Value, heap: &Heap) -> bool {
         "module" => v.get_tag() == crate::core::value::TAG_MODULE,
         "range" => v.get_tag() == crate::core::value::TAG_RANGE,
         "file" => v.get_tag() == crate::core::value::TAG_FILE,
-        "void" => v.is_void(),
+        "unit" => v.is_unit(),
         _ => {
             let tag = v.get_tag();
             // Option type: Option#none is an enum, Option#some has TAG_OPTION

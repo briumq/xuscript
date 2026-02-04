@@ -41,7 +41,7 @@ impl Appendable for String {
             self.append_f64(v.as_f64());
         } else if v.is_bool() {
             self.append_bool(v.as_bool());
-        } else if v.is_void() {
+        } else if v.is_unit() {
             self.append_null();
         } else if v.get_tag() == crate::core::value::TAG_STR {
             if let crate::core::heap::ManagedObject::Str(s) = heap.get(v.as_obj_id()) {
@@ -81,7 +81,7 @@ impl Appendable for Text {
             self.append_f64(v.as_f64());
         } else if v.is_bool() {
             self.append_bool(v.as_bool());
-        } else if v.is_void() {
+        } else if v.is_unit() {
             self.append_null();
         } else if v.get_tag() == crate::core::value::TAG_STR {
             if let crate::core::heap::ManagedObject::Str(s) = heap.get(v.as_obj_id()) {

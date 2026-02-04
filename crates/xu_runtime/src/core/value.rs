@@ -302,7 +302,7 @@ pub const PAYLOAD_MASK: u64 = 0x0000ffffffffffff;
 
 pub const TAG_INT: u64 = 0x0001;
 pub const TAG_BOOL: u64 = 0x0002;
-pub const TAG_VOID: u64 = 0x0003;
+pub const TAG_UNIT: u64 = 0x0003;
 
 pub const TAG_LIST: u64 = 0x0004;
 pub const TAG_DICT: u64 = 0x0005;
@@ -322,15 +322,15 @@ pub struct Value(u64);
 
 impl Default for Value {
     fn default() -> Self {
-        Self::VOID
+        Self::UNIT
     }
 }
 
 impl Value {
-    pub const VOID: Value = Value(TAG_BASE | (TAG_VOID << 48));
+    pub const UNIT: Value = Value(TAG_BASE | (TAG_UNIT << 48));
 
     pub fn none() -> Self {
-        Self::VOID
+        Self::UNIT
     }
 
     pub fn some(id: ObjectId) -> Self {
@@ -413,12 +413,12 @@ impl Value {
         !self.is_f64() && self.get_tag() == TAG_BOOL
     }
     #[inline(always)]
-    pub fn is_void(&self) -> bool {
-        !self.is_f64() && self.get_tag() == TAG_VOID
+    pub fn is_unit(&self) -> bool {
+        !self.is_f64() && self.get_tag() == TAG_UNIT
     }
     #[inline(always)]
     pub fn is_obj(&self) -> bool {
-        !self.is_f64() && self.get_tag() > TAG_VOID
+        !self.is_f64() && self.get_tag() > TAG_UNIT
     }
 
     #[inline(always)]
@@ -462,8 +462,8 @@ impl Value {
             "int"
         } else if self.is_bool() {
             "bool"
-        } else if self.is_void() {
-            "void"
+        } else if self.is_unit() {
+            "unit"
         } else {
             let tag = self.get_tag();
             match tag {
@@ -492,7 +492,7 @@ impl fmt::Debug for Value {
             write!(f, "Int({})", self.as_i64())
         } else if self.is_bool() {
             write!(f, "Bool({})", self.as_bool())
-        } else if self.is_void() {
+        } else if self.is_unit() {
             write!(f, "Unit")
         } else {
             let tag = self.get_tag();
@@ -662,7 +662,7 @@ impl ValueExt for Value {
     }
 
     fn to_string_lossy(&self, heap: &Heap) -> String {
-        if self.is_void() {
+        if self.is_unit() {
             "()".to_string()
         } else if self.is_bool() {
             if self.as_bool() {

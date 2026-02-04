@@ -586,10 +586,10 @@ pub fn infer_type(
                         }
                     }
                     // Return None instead of Null if return type is not explicit?
-                    // v1.1 prefers explicit Options, but here we might just map implicit void to...
-                    // For now, if no return, it's essentially Unit/Void.
+                    // v1.1 prefers explicit Options, but here we might just map implicit unit to...
+                    // For now, if no return, it's essentially Unit.
                     // The old code returned Null. Let's return None or a Unit type.
-                    // If return type is None, it means Void/Unit.
+                    // If return type is None, it means Unit.
                     return *ret;
                 }
                 if let Some(ret_name) = xu_syntax::builtin_return_type(name) {
@@ -621,7 +621,7 @@ pub fn infer_type(
 
             match (ot.map(|id| interner.get(id)), m.method.as_str()) {
                 (Some(Type::List(_)), "contains") => Some(interner.intern(Type::Bool)),
-                (Some(Type::List(_)), "add") => None, // Unit/Void
+                (Some(Type::List(_)), "add") => None, // Unit
                 (Some(Type::Dict(_, _)), "contains") => Some(interner.intern(Type::Bool)),
                 (Some(Type::Dict(_, _)), "get") => {
                     // dict.get() returns Option[V], but we simplify to Option (struct type)
@@ -629,7 +629,7 @@ pub fn infer_type(
                     Some(interner.intern(Type::Struct("Option".to_string())))
                 }
                 (Some(Type::Struct(s)), "read") if s == "file" => Some(interner.intern(Type::Text)),
-                (Some(Type::Struct(s)), "close") if s == "file" => None, // Unit/Void
+                (Some(Type::Struct(s)), "close") if s == "file" => None, // Unit
                 (Some(Type::Text), "split") => {
                     let text = interner.intern(Type::Text);
                     Some(interner.list(text))

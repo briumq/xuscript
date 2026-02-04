@@ -58,7 +58,7 @@ pub(crate) fn op_foreach_init(
             return Ok(true); // Signal to continue (skip loop)
         }
         let first = match rt.heap.get(id) {
-            ManagedObject::List(v) => v.get(0).cloned().unwrap_or(Value::VOID),
+            ManagedObject::List(v) => v.get(0).cloned().unwrap_or(Value::UNIT),
             _ => {
                 return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())));
             }
@@ -114,7 +114,7 @@ pub(crate) fn op_foreach_init(
                     }
                     // Handle elements array
                     for (i, v) in d.elements.iter().enumerate() {
-                        if v.get_tag() != crate::core::value::TAG_VOID {
+                        if v.get_tag() != crate::core::value::TAG_UNIT {
                             result.push((DictKey::Int(i as i64), *v));
                         }
                     }
@@ -209,7 +209,7 @@ pub(crate) fn op_foreach_next(
                 None
             } else {
                 let item = match rt.heap.get(*id) {
-                    ManagedObject::List(v) => v.get(*list_idx).cloned().unwrap_or(Value::VOID),
+                    ManagedObject::List(v) => v.get(*list_idx).cloned().unwrap_or(Value::UNIT),
                     _ => {
                         return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())));
                     }

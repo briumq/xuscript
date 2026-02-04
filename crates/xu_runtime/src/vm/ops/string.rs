@@ -158,7 +158,7 @@ pub(crate) fn op_builder_append(
         if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
             s.push_str(piece);
         }
-    } else if v.is_void() {
+    } else if v.is_unit() {
         if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
             s.push_str("()");
         }

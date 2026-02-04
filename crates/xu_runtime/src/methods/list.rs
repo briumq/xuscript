@@ -25,7 +25,7 @@ pub(super) fn dispatch(
             
             let list = expect_list_mut(rt, recv)?;
             list.push(args[0].clone());
-            Ok(Value::VOID)
+            Ok(Value::UNIT)
         }
         MethodKind::Remove => {
             validate_arity(rt, method, args.len(), 1, 1)?;
@@ -57,21 +57,21 @@ pub(super) fn dispatch(
             validate_arity(rt, method, args.len(), 0, 0)?;
             
             let list = expect_list_mut(rt, recv)?;
-            Ok(list.pop().unwrap_or(Value::VOID))
+            Ok(list.pop().unwrap_or(Value::UNIT))
         }
         MethodKind::Clear => {
             validate_arity(rt, method, args.len(), 0, 0)?;
             
             let list = expect_list_mut(rt, recv)?;
             list.clear();
-            Ok(Value::VOID)
+            Ok(Value::UNIT)
         }
         MethodKind::ListReverse => {
             validate_arity(rt, method, args.len(), 0, 0)?;
             
             let list = expect_list_mut(rt, recv)?;
             list.reverse();
-            Ok(Value::VOID)
+            Ok(Value::UNIT)
         }
         MethodKind::ListJoin => {
             validate_arity(rt, method, args.len(), 1, 1)?;
@@ -141,7 +141,7 @@ pub(super) fn dispatch(
             }
             let index = i as usize;
             list.insert(index, value);
-            Ok(Value::VOID)
+            Ok(Value::UNIT)
         }
         MethodKind::ListSort => {
             validate_arity(rt, method, args.len(), 0, 0)?;
@@ -158,7 +158,7 @@ pub(super) fn dispatch(
                     std::cmp::Ordering::Equal
                 }
             });
-            Ok(Value::VOID)
+            Ok(Value::UNIT)
         }
         MethodKind::ListReduce => {
             validate_arity(rt, method, args.len(), 2, 2)?;

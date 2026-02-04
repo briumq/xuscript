@@ -19,7 +19,7 @@ pub enum DiagnosticKind {
 
     // Analyzer - Errors
     UnreachableCode,
-    VoidAssignment,
+    UnitAssignment,
 
     // Analyzer - Warnings
     Shadowing(String),
@@ -122,7 +122,7 @@ impl DiagnosticsFormatter {
             DiagnosticKind::UnclosedDelimiter(c) => format!("Unclosed '{}'", c),
 
             DiagnosticKind::UnreachableCode => "Unreachable code".into(),
-            DiagnosticKind::VoidAssignment => "Cannot assign void to a variable".into(),
+            DiagnosticKind::UnitAssignment => "Cannot assign unit to a variable".into(),
             DiagnosticKind::Shadowing(name) => format!("Variable '{}' shadows an existing binding", name),
             DiagnosticKind::DidYouMean(s) => format!("Did you mean '{}'?", s),
 

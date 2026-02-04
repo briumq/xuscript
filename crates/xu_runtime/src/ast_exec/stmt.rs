@@ -228,7 +228,7 @@ impl Runtime {
                                 // Ensure the slot exists
                                 if let Some(values) = self.locals.values.last_mut() {
                                     if values.len() <= idx {
-                                        values.resize(idx + 1, Value::VOID);
+                                        values.resize(idx + 1, Value::UNIT);
                                     }
                                 }
                                 if let Some(map) = self.locals.maps.last_mut() {
@@ -240,12 +240,12 @@ impl Runtime {
                     // Fallback to define_local if not found in compiled_locals_idx
                     if local_idx.is_none() {
                         if self.get_local(&s.var).is_none() {
-                            self.define_local(s.var.clone(), Value::VOID);
+                            self.define_local(s.var.clone(), Value::UNIT);
                         }
                         local_idx = self.get_local_index(&s.var);
                     }
                 } else {
-                    self.env.define(s.var.clone(), Value::VOID);
+                    self.env.define(s.var.clone(), Value::UNIT);
                 }
 
                 let tag = iter.get_tag();
@@ -322,10 +322,10 @@ impl Runtime {
                                 if use_local {
                                     // 为键和值创建局部变量
                                     if self.get_local(key_var).is_none() {
-                                        self.define_local(key_var.to_string(), Value::VOID);
+                                        self.define_local(key_var.to_string(), Value::UNIT);
                                     }
                                     if self.get_local(value_var).is_none() {
-                                        self.define_local(value_var.to_string(), Value::VOID);
+                                        self.define_local(value_var.to_string(), Value::UNIT);
                                     }
                                     let _ = self.set_local(key_var, key_val);
                                     let _ = self.set_local(value_var, value_val);
@@ -371,7 +371,7 @@ impl Runtime {
                             }
                             // 处理 elements 数组中的值
                             for (i, v) in dict.elements.iter().enumerate() {
-                                if v.get_tag() != crate::core::value::TAG_VOID {
+                                if v.get_tag() != crate::core::value::TAG_UNIT {
                                     key_value_pairs.push((DictKey::Int(i as i64), *v));
                                 }
                             }
@@ -495,7 +495,7 @@ impl Runtime {
                 Flow::None
             }
             Stmt::Return(v) => match v {
-                None => Flow::Return(Value::VOID),
+                None => Flow::Return(Value::UNIT),
                 Some(e) => match self.eval_expr(e) {
                     Ok(v) => Flow::Return(v),
                     Err(e) => {
@@ -559,7 +559,7 @@ impl Runtime {
                         if self.locals.is_active() {
                             if let Some(idx) = self.locals.get_index(name) {
                                 let mut val =
-                                    self.locals.take_local_by_index(idx).unwrap_or(Value::VOID);
+                                    self.locals.take_local_by_index(idx).unwrap_or(Value::UNIT);
                                 val.bin_op_assign(BinaryOp::Add, rhs, &mut self.heap)?;
                                 self.locals.set_by_index(idx, val);
                                 return Ok(());

@@ -81,7 +81,7 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::ConstBool(b) => stack.push(Value::from_bool(*b)),
-            Op::ConstNull => stack.push(Value::VOID),
+            Op::ConstNull => stack.push(Value::UNIT),
             Op::Pop => {
                 let _ = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
             }
@@ -99,7 +99,7 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 let val = stack.pop().ok_or_else(|| stack_underflow(ip, op))?;
                 if !rt.set_local_by_index(*idx, val) {
                     while rt.get_local_by_index(*idx).is_none() {
-                        rt.define_local(format!("_tmp_{}", idx), Value::VOID);
+                        rt.define_local(format!("_tmp_{}", idx), Value::UNIT);
                     }
                     rt.set_local_by_index(*idx, val);
                 }

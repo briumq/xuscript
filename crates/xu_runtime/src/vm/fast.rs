@@ -87,7 +87,7 @@ pub(crate) fn run_bytecode_fast(
         }
     }
 
-    let mut stack: [Value; 8] = [Value::VOID; 8];
+    let mut stack: [Value; 8] = [Value::UNIT; 8];
     let mut sp: usize = 0;
     for op in bc.ops.iter() {
         match op {
@@ -117,7 +117,7 @@ pub(crate) fn run_bytecode_fast(
                 sp += 1;
             }
             Op::ConstNull => {
-                stack[sp] = Value::VOID;
+                stack[sp] = Value::UNIT;
                 sp += 1;
             }
             Op::Pop => {
@@ -157,7 +157,7 @@ pub(crate) fn run_bytecode_fast(
                 let val = stack[sp];
                 if !rt.set_local_by_index(*idx, val) {
                     while rt.get_local_by_index(*idx).is_none() {
-                        rt.define_local(format!("_tmp_{}", idx), Value::VOID);
+                        rt.define_local(format!("_tmp_{}", idx), Value::UNIT);
                     }
                     rt.set_local_by_index(*idx, val);
                 }
@@ -255,7 +255,7 @@ pub(crate) fn run_bytecode_fast(
                 sp += 1;
             }
             Op::Return => {
-                let v = if sp == 0 { Value::VOID } else { stack[sp - 1] };
+                let v = if sp == 0 { Value::UNIT } else { stack[sp - 1] };
                 return Some(Ok(Flow::Return(v)));
             }
             _ => return None,
@@ -311,7 +311,7 @@ pub(crate) fn run_bytecode_fast_params_only(
         }
     }
 
-    let mut stack: [Value; 16] = [Value::VOID; 16];
+    let mut stack: [Value; 16] = [Value::UNIT; 16];
     let mut sp: usize = 0;
     for op in bc.ops.iter() {
         match op {
@@ -341,7 +341,7 @@ pub(crate) fn run_bytecode_fast_params_only(
                 sp += 1;
             }
             Op::ConstNull => {
-                stack[sp] = Value::VOID;
+                stack[sp] = Value::UNIT;
                 sp += 1;
             }
             Op::Pop => {
@@ -477,12 +477,12 @@ pub(crate) fn run_bytecode_fast_params_only(
             }
             Op::Return => {
                 if sp == 0 {
-                    return Some(Ok(Value::VOID));
+                    return Some(Ok(Value::UNIT));
                 }
                 return Some(Ok(stack[sp - 1]));
             }
             _ => return None,
         }
     }
-    Some(Ok(Value::VOID))
+    Some(Ok(Value::UNIT))
 }

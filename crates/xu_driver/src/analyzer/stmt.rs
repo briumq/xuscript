@@ -274,10 +274,10 @@ impl<'a, 'b> AnalyzeContext<'a, 'b> {
     fn analyze_assign_stmt(&mut self, s: &mut xu_parser::AssignStmt) {
         analyze_expr(&mut s.value, self.funcs, self.scope, self.finder, self.out);
 
-        // 检查 void 赋值
-        if is_void_expr(&s.value) {
+        // 检查 unit 赋值
+        if is_unit_expr(&s.value) {
             self.out.push(Diagnostic::error_kind(
-                DiagnosticKind::VoidAssignment,
+                DiagnosticKind::UnitAssignment,
                 self.finder.next_significant_span(),
             ));
         }
@@ -351,11 +351,11 @@ impl<'a, 'b> AnalyzeContext<'a, 'b> {
     }
 }
 
-/// 检查表达式是否为 void 字面量（空元组）
-fn is_void_expr(expr: &Expr) -> bool {
+/// 检查表达式是否为 unit 字面量（空元组）
+fn is_unit_expr(expr: &Expr) -> bool {
     match expr {
         Expr::Tuple(items) if items.is_empty() => true,
-        Expr::Group(inner) => is_void_expr(inner),
+        Expr::Group(inner) => is_unit_expr(inner),
         _ => false,
     }
 }

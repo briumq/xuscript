@@ -97,7 +97,7 @@
 |------|------|------|
 | W0001 | UNREACHABLE_CODE | 不可达代码 |
 | W0002 | SHADOWING | 变量遮蔽 |
-| W0003 | VOID_ASSIGNMENT | void 赋值 |
+| W0003 | UNIT_ASSIGNMENT | unit 赋值 |
 
 ---
 

@@ -49,7 +49,7 @@ pub(super) fn dispatch(
                 me.ver += 1;
                 rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
             }
-            Ok(Value::VOID)
+            Ok(Value::UNIT)
         }
         MethodKind::DictInsert | MethodKind::ListInsert => {
             validate_arity(rt, method, args.len(), 2, 2)?;
@@ -64,16 +64,16 @@ pub(super) fn dispatch(
                     let me = expect_dict_mut(rt, recv)?;
                     // Ensure elements array is large enough
                     if me.elements.len() <= idx {
-                        me.elements.resize(idx + 1, crate::Value::VOID);
+                        me.elements.resize(idx + 1, crate::Value::UNIT);
                     }
                     // Check if this is a new key (was VOID before)
-                    let was_void = me.elements[idx].get_tag() == crate::core::value::TAG_VOID;
+                    let was_unit = me.elements[idx].get_tag() == crate::core::value::TAG_UNIT;
                     me.elements[idx] = value;
-                    if was_void {
+                    if was_unit {
                         me.ver += 1;
                         rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                     }
-                    return Ok(Value::VOID);
+                    return Ok(Value::UNIT);
                 }
             }
 
@@ -109,7 +109,7 @@ pub(super) fn dispatch(
                         rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                     }
                 }
-                return Ok(Value::VOID);
+                return Ok(Value::UNIT);
             }
 
             // Slow path for large integer keys
@@ -132,7 +132,7 @@ pub(super) fn dispatch(
                     rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                 }
             }
-            Ok(Value::VOID)
+            Ok(Value::UNIT)
         }
         MethodKind::DictInsertInt => {
             validate_arity(rt, method, args.len(), 2, 2)?;
@@ -146,16 +146,16 @@ pub(super) fn dispatch(
                 let me = expect_dict_mut(rt, recv)?;
                 // Ensure elements array is large enough
                 if me.elements.len() <= idx {
-                    me.elements.resize(idx + 1, crate::Value::VOID);
+                    me.elements.resize(idx + 1, crate::Value::UNIT);
                 }
                 // Check if this is a new key (was VOID before)
-                let was_void = me.elements[idx].get_tag() == crate::core::value::TAG_VOID;
+                let was_unit = me.elements[idx].get_tag() == crate::core::value::TAG_UNIT;
                 me.elements[idx] = value;
-                if was_void {
+                if was_unit {
                     me.ver += 1;
                     rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                 }
-                return Ok(Value::VOID);
+                return Ok(Value::UNIT);
             }
 
             // Slow path for large integer keys
@@ -175,7 +175,7 @@ pub(super) fn dispatch(
                     rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                 }
             }
-            Ok(Value::VOID)
+            Ok(Value::UNIT)
         }
         MethodKind::DictGet => {
             validate_arity(rt, method, args.len(), 1, 1)?;
@@ -244,7 +244,7 @@ pub(super) fn dispatch(
                     let idx = i as usize;
                     if idx < me.elements.len() {
                         let elem = me.elements[idx];
-                        if elem.get_tag() != crate::core::value::TAG_VOID {
+                        if elem.get_tag() != crate::core::value::TAG_UNIT {
                             Some(elem)
                         } else {
                             None
@@ -287,7 +287,7 @@ pub(super) fn dispatch(
                         let ok = me
                             .prop_values
                             .get(off)
-                            .is_some_and(|v| v.get_tag() != crate::core::value::TAG_VOID);
+                            .is_some_and(|v| v.get_tag() != crate::core::value::TAG_UNIT);
                         return Ok(Value::from_bool(ok));
                     }
                 }
@@ -365,7 +365,7 @@ pub(super) fn dispatch(
             me.ver += 1;
             rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
 
-            Ok(Value::VOID)
+            Ok(Value::UNIT)
         }
         MethodKind::DictKeys => {
             validate_arity(rt, method, args.len(), 0, 0)?;
@@ -382,7 +382,7 @@ pub(super) fn dispatch(
 
                 // Include keys from elements array
                 for (i, ev) in me.elements.iter().enumerate() {
-                    if ev.get_tag() != crate::core::value::TAG_VOID {
+                    if ev.get_tag() != crate::core::value::TAG_UNIT {
                         keys.push(KeyData::Int(i as i64));
                     }
                 }
@@ -417,7 +417,7 @@ pub(super) fn dispatch(
 
             // Include values from elements array
             for ev in &me.elements {
-                if ev.get_tag() != crate::core::value::TAG_VOID {
+                if ev.get_tag() != crate::core::value::TAG_UNIT {
                     values.push(*ev);
                 }
             }
@@ -450,7 +450,7 @@ pub(super) fn dispatch(
 
                 // Include items from elements array
                 for (i, ev) in me.elements.iter().enumerate() {
-                    if ev.get_tag() != crate::core::value::TAG_VOID {
+                    if ev.get_tag() != crate::core::value::TAG_UNIT {
                         items_data.push((ItemKey::Int(i as i64), *ev));
                     }
                 }
@@ -486,7 +486,7 @@ pub(super) fn dispatch(
             let mut n = me.map.len();
             n += me.prop_values.len();
             for ev in &me.elements {
-                if ev.get_tag() != crate::core::value::TAG_VOID {
+                if ev.get_tag() != crate::core::value::TAG_UNIT {
                     n += 1;
                 }
             }

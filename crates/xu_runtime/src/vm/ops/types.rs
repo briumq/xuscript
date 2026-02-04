@@ -103,7 +103,7 @@ pub(crate) fn op_struct_init(
         return throw_unknown_struct(rt, stack, ip, handlers, iters, pending, thrown, &ty);
     };
 
-    let mut values = vec![Value::VOID; layout.len()];
+    let mut values = vec![Value::UNIT; layout.len()];
 
     // Apply default values from struct definition
     if let Some(def) = rt.types.structs.get(&ty).cloned() {
@@ -162,7 +162,7 @@ pub(crate) fn op_struct_init_spread(
         return throw_unknown_struct(rt, stack, ip, handlers, iters, pending, thrown, &ty);
     };
 
-    let mut values = vec![Value::VOID; layout.len()];
+    let mut values = vec![Value::UNIT; layout.len()];
 
     // Pop explicit field values first (they're on top of stack)
     let mut explicit_values: Vec<Value> = Vec::with_capacity(explicit_fields.len());

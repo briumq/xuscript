@@ -180,7 +180,7 @@ impl Runtime {
                 let mut n = v.map.len();
                 n += v.prop_values.len();
                 for ev in &v.elements {
-                    if ev.get_tag() != crate::core::value::TAG_VOID {
+                    if ev.get_tag() != crate::core::value::TAG_UNIT {
                         n += 1;
                     }
                 }

@@ -134,7 +134,7 @@ pub fn builtin_heap_stats(rt: &mut Runtime, _args: &[Value]) -> Result<Value, St
         std::mem::size_of::<Value>(),
         std::mem::size_of::<crate::core::heap::ManagedObject>()
     ));
-    Ok(Value::VOID)
+    Ok(Value::UNIT)
 }
 
 pub fn builtin_assert(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
@@ -153,7 +153,7 @@ pub fn builtin_assert(rt: &mut Runtime, args: &[Value]) -> Result<Value, String>
         };
         return Err(msg);
     }
-    Ok(Value::VOID)
+    Ok(Value::UNIT)
 }
 
 pub fn builtin_assert_eq(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
@@ -172,7 +172,7 @@ pub fn builtin_assert_eq(rt: &mut Runtime, args: &[Value]) -> Result<Value, Stri
         };
         return Err(msg);
     }
-    Ok(Value::VOID)
+    Ok(Value::UNIT)
 }
 
 pub fn builtin_builder_new(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
@@ -218,7 +218,7 @@ pub fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<Value, S
     };
 
     let v = &args[1];
-    if v.is_void() {
+    if v.is_unit() {
         if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
             sb.push_str("()");
         }
@@ -277,7 +277,7 @@ pub fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<Value, S
         }
     }
 
-    Ok(Value::VOID)
+    Ok(Value::UNIT)
 }
 
 pub fn builtin_builder_finalize(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {

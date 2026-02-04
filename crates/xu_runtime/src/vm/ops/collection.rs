@@ -38,7 +38,7 @@ pub(crate) fn op_list_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) ->
 #[inline(always)]
 pub(crate) fn op_tuple_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -> Result<bool, String> {
     if n == 0 {
-        stack.push(Value::VOID);
+        stack.push(Value::UNIT);
         return Ok(true); // Signal to continue (skip ip increment)
     }
     // Try to get a pooled list for small tuples (≤8 elements)

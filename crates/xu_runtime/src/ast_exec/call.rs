@@ -137,7 +137,7 @@ impl Runtime {
         if fun.locals_count > 0 {
             if let Some(values) = self.locals.values.last_mut() {
                 if values.len() < fun.locals_count {
-                    values.resize(fun.locals_count, Value::VOID);
+                    values.resize(fun.locals_count, Value::UNIT);
                 }
             }
         }
@@ -189,7 +189,7 @@ impl Runtime {
                     }
                 }
             } else {
-                Value::VOID
+                Value::UNIT
             };
             if !skip_type_checks {
                 if let Some(ty) = &p.ty {
@@ -261,7 +261,7 @@ impl Runtime {
                 }
                 Ok(v)
             }
-            Flow::None => Ok(Value::VOID),
+            Flow::None => Ok(Value::UNIT),
             Flow::Throw(v) => Err(self.format_throw(&v)),
             Flow::Break | Flow::Continue => Err(self.error(
                 xu_syntax::DiagnosticKind::UnexpectedControlFlowInFunction("break or continue"),
@@ -335,7 +335,7 @@ impl Runtime {
         if let Some(size) = fun.fast_locals_size {
             if let Some(values) = self.locals.values.last_mut() {
                 if values.len() < size {
-                    values.resize(size, Value::VOID);
+                    values.resize(size, Value::UNIT);
                 }
             }
         }
@@ -364,7 +364,7 @@ impl Runtime {
                     }
                 }
             } else {
-                Value::VOID
+                Value::UNIT
             };
             if !skip_type_checks {
                 if let Some(ty) = &p.ty {
@@ -419,7 +419,7 @@ impl Runtime {
                 }
                 Ok(v)
             }
-            Flow::None => Ok(Value::VOID),
+            Flow::None => Ok(Value::UNIT),
             Flow::Throw(v) => Err(self.format_throw(&v)),
             Flow::Break | Flow::Continue => Err(self.error(
                 xu_syntax::DiagnosticKind::UnexpectedControlFlowInFunction("break or continue"),

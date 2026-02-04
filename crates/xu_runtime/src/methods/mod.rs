@@ -257,7 +257,7 @@ fn dispatch_option_some(
             validate_arity(rt, method, args.len(), 1, 1)?;
             let f = args[0];
             let _ = rt.call_function(f, &[inner])?;
-            Ok(Value::VOID)
+            Ok(Value::UNIT)
         }
         MethodKind::OptFilter => {
             validate_arity(rt, method, args.len(), 1, 1)?;

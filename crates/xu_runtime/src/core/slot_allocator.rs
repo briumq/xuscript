@@ -121,7 +121,7 @@ impl LocalSlots {
         if idx >= values.len() {
             return None;
         }
-        Some(std::mem::replace(&mut values[idx], Value::VOID))
+        Some(std::mem::replace(&mut values[idx], Value::UNIT))
     }
 
     pub fn define(&mut self, name: String, value: Value) -> Option<usize> {
@@ -179,7 +179,7 @@ impl LocalSlots {
             if let Some(values) = self.values.last_mut() {
                 if let Some(max) = idxmap.values().copied().max() {
                     if values.len() <= max {
-                        values.resize(max + 1, Value::VOID);
+                        values.resize(max + 1, Value::UNIT);
                     }
                 }
                 for (name, idx) in idxmap {

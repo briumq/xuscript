@@ -8,7 +8,7 @@
    - 验证：创建测试用例验证内联match表达式赋值
 
 2. **Result.map返回结构体失败**
-   - 问题：`result.map(|x| -> Struct { Struct{...} })` 报错 `RuntimeError: Unsupported member access: field on type void`
+   - 问题：`result.map(|x| -> Struct { Struct{...} })` 报错 `RuntimeError: Unsupported member access: field on type unit`
    - 解决方案：修复Result.map方法处理结构体返回值的逻辑，确保正确传递结构体
    - 验证：创建测试用例验证Result.map返回结构体
 
