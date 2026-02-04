@@ -79,8 +79,8 @@ pub(super) fn dispatch(
 
             // Fast path for string keys - avoid creating DictKey for existing keys
             if args[0].get_tag() == crate::core::value::TAG_STR {
-                // Get key string and compute hash first
-                let (key_owned, hash) = {
+                // Get key string pointer and compute hash first (avoid cloning)
+                let (key_ptr, key_len, hash) = {
                     let key_str = expect_str(rt, args[0])?;
                     let me = expect_dict(rt, recv)?;
                     let hash = {
@@ -89,18 +89,21 @@ pub(super) fn dispatch(
                         key_str.as_bytes().hash(&mut h);
                         h.finish()
                     };
-                    (key_str.as_str().to_string(), hash)
+                    (key_str.as_str().as_ptr(), key_str.len(), hash)
                 };
 
                 let me = expect_dict_mut(rt, recv)?;
-                match me.map.raw_entry_mut().from_hash(hash, |k| k.is_str() && k.as_str() == key_owned) {
+                // SAFETY: key_ptr/key_len are valid, we haven't modified the heap
+                let key_str = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(key_ptr, key_len)) };
+
+                match me.map.raw_entry_mut().from_hash(hash, |k| k.is_str() && k.as_str() == key_str) {
                     RawEntryMut::Occupied(mut o) => {
                         // 值更新 - 不增加版本号
                         *o.get_mut() = value;
                     }
                     RawEntryMut::Vacant(vac) => {
                         // 新 key - 需要创建 DictKey
-                        let key = DictKey::from_str(&key_owned);
+                        let key = DictKey::from_str(key_str);
                         vac.insert(key, value);
                         me.ver += 1;
                         rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
