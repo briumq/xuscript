@@ -2,8 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::Value;
-use super::heap::{Heap, ObjectId};
-use super::value::{FastHashMap, fast_map_new, ValueExt};
+use super::value::{FastHashMap, fast_map_new};
 
 #[derive(Clone, Debug)]
 pub struct Scope {
@@ -383,24 +382,6 @@ impl Env {
             }
         }
         None
-    }
-    #[allow(unused)]
-    pub(crate) fn mark_into(&self, heap: &mut Heap, pending: &mut Vec<ObjectId>) {
-        // Mark stack
-        for v in &self.stack {
-            v.mark_into(heap, pending);
-        }
-        // Mark detached scopes
-        for frame in &self.frames {
-            // Even attached scopes might have names or metadata, but values are in stack.
-            // Detached scopes have values.
-            if !frame.attached {
-                let scope = frame.scope.borrow();
-                for v in &scope.values {
-                    v.mark_into(heap, pending);
-                }
-            }
-        }
     }
 
     // Helper to access global frame directly (compatibility)

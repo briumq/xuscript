@@ -7,9 +7,6 @@ use crate::vm::{IterState, Handler};
 
 /// 小列表池的最大容量
 const SMALL_LIST_CAP: usize = 8;
-/// 小列表池的最大数量
-#[allow(dead_code)]
-const SMALL_LIST_POOL_MAX: usize = 64;
 
 /// 对象池管理器
 /// 包含所有对象池相关的字段：
@@ -45,20 +42,6 @@ impl ObjectPools {
             builder_pool: Vec::new(),
             small_list_pool: Vec::new(),
         }
-    }
-
-    /// 从环境池获取或创建新环境
-    #[inline]
-    #[allow(dead_code)]
-    pub fn get_env(&mut self) -> Env {
-        self.env_pool.pop().unwrap_or_else(Env::new)
-    }
-
-    /// 将环境返回到池中
-    #[inline]
-    #[allow(dead_code)]
-    pub fn return_env(&mut self, env: Env) {
-        self.env_pool.push(env);
     }
 
     /// 从栈池获取或创建新栈
@@ -136,17 +119,6 @@ impl ObjectPools {
             })
         } else {
             None
-        }
-    }
-
-    /// 将小列表返回到池中
-    #[inline]
-    #[allow(dead_code)]
-    pub fn return_small_list(&mut self, list: Vec<Value>) {
-        if list.capacity() <= SMALL_LIST_CAP
-            && self.small_list_pool.len() < SMALL_LIST_POOL_MAX
-        {
-            self.small_list_pool.push(list);
         }
     }
 }

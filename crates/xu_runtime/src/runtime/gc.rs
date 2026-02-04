@@ -2,7 +2,6 @@
 //!
 //! This module contains:
 //! - gc: Full garbage collection
-//! - maybe_gc: Conditional garbage collection
 //! - maybe_gc_with_roots: Conditional GC with extra roots
 
 use crate::core::Value;
@@ -82,16 +81,7 @@ impl Runtime {
         self.heap.sweep();
     }
 
-    /// Perform garbage collection if the heap has grown enough.
-    #[allow(dead_code)]
-    pub(crate) fn maybe_gc(&mut self) {
-        if self.heap.should_gc() {
-            self.gc(&[]);
-        }
-    }
-
     /// Perform garbage collection if the heap has grown enough, with extra roots.
-    #[allow(dead_code)]
     pub(crate) fn maybe_gc_with_roots(&mut self, roots: &[Value]) {
         if self.heap.should_gc() {
             self.gc(roots);
