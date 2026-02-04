@@ -92,7 +92,7 @@ impl Default for MethodKind {
 impl MethodKind {
     pub(crate) fn from_str(s: &str) -> Self {
         match s {
-            "push" | "add" => Self::ListPush,
+            "push" => Self::ListPush,
             "pop" => Self::ListPop,
             "reverse" => Self::ListReverse,
             "join" => Self::ListJoin,

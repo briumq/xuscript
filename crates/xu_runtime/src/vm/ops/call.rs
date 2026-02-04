@@ -617,8 +617,15 @@ pub(crate) fn op_call_static_or_method(
         return Ok(None);
     }
 
-    // Static method not found - try as instance method on a global variable
-    if let Some(recv) = rt.env.get(type_name) {
+    // Static method not found - try as instance method
+    // First check locals, then env
+    let recv = if rt.locals.is_active() {
+        rt.get_local(type_name).or_else(|| rt.env.get(type_name))
+    } else {
+        rt.env.get(type_name)
+    };
+
+    if let Some(recv) = recv {
         if stack.len() < n {
             return Err(format!("Stack underflow in CallStaticOrMethod"));
         }
@@ -645,7 +652,7 @@ pub(crate) fn op_call_static_or_method(
         return Ok(None);
     }
 
-    // Neither static method nor global variable found - error
+    // Neither static method nor variable found - error
     let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(
         format!("Undefined identifier: {}", type_name).into(),
     )));

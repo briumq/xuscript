@@ -121,7 +121,7 @@ name = "Bob"         // ❌ 不可重新赋值
 >
 > ```xu
 > let list = [1, 2]
-> list.add(3)          // ✅ 修改列表内容
+> list.push(3)         // ✅ 修改列表内容
 > ```
 
 ### 4.2 赋值规则
@@ -208,6 +208,16 @@ User has {
     }
 }
 ```
+
+**静态成员访问**：
+
+静态方法和静态字段统一使用 `.` 访问：
+
+```xu
+let user = User.create("Tom")    // 静态方法调用
+```
+
+> **注意**：Xu 只支持 `Type.member` 形式访问静态成员，不支持 `Type::member` 等其他语法。
 
 **字面量与展开**：
 
@@ -445,6 +455,13 @@ match fetch_users("/api/users") {
 when user = find_user(id): println(user.name)
 else: println("未找到用户")
 ```
+
+> **注意**：`else` 分支可省略。省略时，若绑定失败（Option 为 none 或 Result 为 err），则不执行任何操作。
+>
+> ```xu
+> // else 可省略
+> when user = find_user(id): println(user.name)
+> ```
 
 ### 8.2 多绑定短路
 
