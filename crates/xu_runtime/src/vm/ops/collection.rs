@@ -5,14 +5,12 @@
 //! - TupleNew: Create a new tuple
 //! - DictNew: Create a new dictionary
 //! - ListAppend: Append items to a list
-//! - DictInsertStrConst: Insert with string constant key
 //! - MakeRange: Create a range
 
 use smallvec::SmallVec;
-use xu_ir::Bytecode;
 
 use crate::core::heap::ManagedObject;
-use crate::core::value::{DictKey, TAG_DICT, TAG_LIST, TAG_STR};
+use crate::core::value::{DictKey, TAG_LIST, TAG_STR};
 use crate::core::Value;
 use crate::errors::messages::NOT_A_STRING;
 use crate::util::to_i64;
@@ -102,110 +100,6 @@ pub(crate) fn op_list_append(
         }
     }
     stack.push(recv);
-    Ok(())
-}
-
-/// Execute Op::DictInsertStrConst - insert with string constant key
-#[inline(always)]
-pub(crate) fn op_dict_insert_str_const(
-    rt: &mut Runtime,
-    bc: &Bytecode,
-    stack: &mut Vec<Value>,
-    idx: u32,
-    _k_hash: u64,
-    slot: Option<usize>,
-) -> Result<(), String> {
-    let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let dict = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    if dict.get_tag() != TAG_DICT {
-        return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
-            method: "insert".to_string(),
-            ty: dict.type_name().to_string(),
-        }));
-    }
-    let id = dict.as_obj_id();
-
-    // Get the key string first (before any mutable borrows)
-    let k = rt.get_const_str(idx, &bc.constants);
-    let k_bytes = k.as_bytes();
-    let k_len = k_bytes.len();
-
-    // Try IC cache first - fast path for short keys (<=16 bytes)
-    let mut cache_hit = false;
-    if let Some(idx_slot) = slot {
-        if idx_slot < rt.ic_slots.len() {
-            let c = &rt.ic_slots[idx_slot];
-            // For short keys, compare directly; for long keys, compare hash
-            let key_match = if k_len <= 16 {
-                c.key_len == k_len as u8 && c.key_short[..k_len] == k_bytes[..]
-            } else {
-                c.key_len == k_len as u8 && c.key_hash != 0
-            };
-            if c.id == id.0 && key_match {
-                let cached_hash = c.key_hash;
-                if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
-                    match d.map.raw_entry_mut().from_hash(cached_hash, |key| {
-                        key.is_str() && key.as_str() == k
-                    }) {
-                        hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
-                            // 值更新 - 不增加版本号
-                            *o.get_mut() = v;
-                            cache_hit = true;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-    }
-
-    if !cache_hit {
-        // Slow path - compute hash and insert
-        if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
-            let internal_hash = Runtime::hash_bytes(d.map.hasher(), k.as_bytes());
-            // Avoid creating DictKey for comparison - use closure with str comparison
-            let mut is_new_key = false;
-            match d.map.raw_entry_mut().from_hash(internal_hash, |key| {
-                key.is_str() && key.as_str() == k
-            }) {
-                hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
-                    // 值更新 - 不增加版本号
-                    *o.get_mut() = v;
-                }
-                hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
-                    // 新 key - 增加版本号
-                    let key = DictKey::from_str(k);
-                    vac.insert(key, v);
-                    is_new_key = true;
-                }
-            }
-            if is_new_key {
-                d.ver += 1;
-                rt.dict_version_last = Some((id.0, d.ver));
-            }
-
-            // Update IC cache with key info for fast comparison
-            if let Some(idx_slot) = slot {
-                while rt.ic_slots.len() <= idx_slot {
-                    rt.ic_slots.push(crate::ICSlot::default());
-                }
-                let mut key_short = [0u8; 16];
-                let key_bytes = k.as_bytes();
-                let copy_len = key_bytes.len().min(16);
-                key_short[..copy_len].copy_from_slice(&key_bytes[..copy_len]);
-                rt.ic_slots[idx_slot] = crate::ICSlot {
-                    id: id.0,
-                    key_hash: internal_hash,
-                    key_short,
-                    key_len: key_bytes.len() as u8,
-                    ver: d.ver,
-                    value: Value::VOID,
-                    ..Default::default()
-                };
-            }
-        }
-    }
-    stack.push(dict);
     Ok(())
 }
 

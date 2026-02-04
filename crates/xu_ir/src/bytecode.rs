@@ -41,11 +41,6 @@ pub enum Op {
     Div,
     Mod,
     StrAppend,
-    StrAppendNull,
-    StrAppendBool,
-    StrAppendInt,
-    StrAppendFloat,
-    StrAppendStr,
     Eq,
     Ne,
     And,
@@ -76,7 +71,6 @@ pub enum Op {
     /// Try static method first, fall back to instance method
     /// (type_name_idx, method_name_idx, method_hash, args_count, slot)
     CallStaticOrMethod(u32, u32, u64, usize, Option<usize>),
-    Inc,
     IncLocal(usize),
     MakeRange(bool),
     GetMember(u32, Option<usize>), // Index to String (Member name), slot
@@ -86,17 +80,11 @@ pub enum Op {
     Break(usize),
     Continue(usize),
     Return,
-    Throw,
-    TryPush(usize, usize, usize, Option<usize>), // catch_ip, finally_ip, end_ip, slot
-    TryPop,
     RunPending,
-    SetThrown,
     // Builder specialized ops
     BuilderNewCap(usize),
     BuilderAppend,
     BuilderFinalize,
-    DictGetStrConst(u32, u64, Option<usize>), // Index to String, hash, slot
-    DictGetIntConst(i64, Option<usize>),
     ForEachInit(u32, Option<usize>, usize), // Index to String, slot, local_idx
     ForEachNext(u32, Option<usize>, usize, usize), // Index to String, slot, local_idx, jump_addr
     IterPop,
@@ -106,7 +94,6 @@ pub enum Op {
     TupleNew(usize),
     DictNew(usize),
     DictInsert,
-    DictInsertStrConst(u32, u64, Option<usize>), // Index to String (key), hash, slot
     DictMerge,
     ListAppend(usize),
     Print,

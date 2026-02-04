@@ -9,7 +9,6 @@
 //! - And: Logical AND
 //! - Or: Logical OR
 //! - Not: Logical NOT
-//! - Inc: Increment
 
 use crate::core::heap::ManagedObject;
 use crate::core::value::ValueExt;
@@ -244,24 +243,5 @@ pub(crate) fn op_not(
         return Ok(Some(flow));
     }
     Ok(None)
-}
-
-/// Execute Op::Inc - increment top of stack
-#[inline(always)]
-pub(crate) fn op_inc(rt: &Runtime, stack: &mut Vec<Value>) -> Result<(), String> {
-    let a = stack.last_mut().ok_or_else(|| "Stack underflow".to_string())?;
-    if a.is_int() {
-        let v = a.as_i64().saturating_add(1);
-        *a = Value::from_i64(v);
-    } else if a.is_f64() {
-        let v = a.as_f64() + 1.0;
-        *a = Value::from_f64(v);
-    } else {
-        return Err(rt.error(xu_syntax::DiagnosticKind::InvalidUnaryOperand {
-            op: '+',
-            expected: "number".to_string(),
-        }));
-    }
-    Ok(())
 }
 

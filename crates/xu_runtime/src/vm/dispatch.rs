@@ -188,7 +188,6 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     return Ok(flow);
                 }
             }
-            Op::Inc => math::op_inc(rt, &mut stack)?,
             // Logical operations
             Op::And => {
                 if let Some(flow) = math::op_and(rt, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown)? {
@@ -231,31 +230,6 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             // String operations
             Op::StrAppend => {
                 if let Some(flow) = string::op_str_append(rt, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown)? {
-                    return Ok(flow);
-                }
-            }
-            Op::StrAppendNull => {
-                if let Some(flow) = string::op_str_append_null(rt, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown)? {
-                    return Ok(flow);
-                }
-            }
-            Op::StrAppendBool => {
-                if let Some(flow) = string::op_str_append_bool(rt, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown)? {
-                    return Ok(flow);
-                }
-            }
-            Op::StrAppendInt => {
-                if let Some(flow) = string::op_str_append_int(rt, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown)? {
-                    return Ok(flow);
-                }
-            }
-            Op::StrAppendFloat => {
-                if let Some(flow) = string::op_str_append_float(rt, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown)? {
-                    return Ok(flow);
-                }
-            }
-            Op::StrAppendStr => {
-                if let Some(flow) = string::op_str_append_str(rt, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown)? {
                     return Ok(flow);
                 }
             }
@@ -328,7 +302,6 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             Op::MakeRange(inclusive) => collection::op_make_range(rt, &mut stack, *inclusive)?,
             Op::ListAppend(n) => collection::op_list_append(rt, &mut stack, *n)?,
             Op::DictInsert => dict_ops::op_dict_insert(rt, &mut stack)?,
-            Op::DictInsertStrConst(idx, k_hash, slot) => collection::op_dict_insert_str_const(rt, bc, &mut stack, *idx, *k_hash, *slot)?,
             Op::DictMerge => dict_ops::op_dict_merge(rt, &mut stack)?,
             // Access operations
             Op::GetMember(idx, slot_idx) => {
@@ -338,16 +311,6 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             }
             Op::GetIndex(slot_cell) => {
                 if let Some(flow) = access::op_get_index(rt, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown, *slot_cell)? {
-                    return Ok(flow);
-                }
-            }
-            Op::DictGetStrConst(idx, k_hash, slot) => {
-                if let Some(flow) = access::op_dict_get_str_const(rt, bc, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown, *idx, *k_hash, *slot)? {
-                    return Ok(flow);
-                }
-            }
-            Op::DictGetIntConst(i, slot) => {
-                if let Some(flow) = access::op_dict_get_int_const(rt, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown, *i, *slot)? {
                     return Ok(flow);
                 }
             }
@@ -440,13 +403,9 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 rt.write_output(&value_to_string(&v, &rt.heap));
             }
             // Unsupported/special
-            Op::Throw => return Err("Op::Throw not supported in v1.1".into()),
             Op::RunPending => {
                 ip += 1;
                 continue;
-            }
-            Op::TryPush(_, _, _, _) | Op::TryPop | Op::SetThrown => {
-                return Err("try/catch not supported".into());
             }
             Op::Halt => return Ok(Flow::None),
         }

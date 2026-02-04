@@ -145,31 +145,18 @@ impl Compiler {
         }
     }
 
-    /// Compile a single part of an interpolated string and emit the appropriate StrAppend* op.
+    /// Compile a single part of an interpolated string and emit the appropriate StrAppend op.
     fn compile_interp_part(&mut self, expr: &Expr) -> Option<()> {
         match expr {
-            Expr::Bool(_) => {
-                self.compile_expr(expr)?;
-                self.bc.ops.push(Op::StrAppendBool);
-            }
-            Expr::Int(_) => {
-                self.compile_expr(expr)?;
-                self.bc.ops.push(Op::StrAppendInt);
-            }
-            Expr::Float(_) => {
-                self.compile_expr(expr)?;
-                self.bc.ops.push(Op::StrAppendFloat);
-            }
             Expr::Str(s) => {
                 let s_idx = self.add_constant(xu_ir::Constant::Str(s.clone()));
                 self.bc.ops.push(Op::Const(s_idx));
-                self.bc.ops.push(Op::StrAppendStr);
             }
             _ => {
                 self.compile_expr(expr)?;
-                self.bc.ops.push(Op::StrAppend);
             }
         }
+        self.bc.ops.push(Op::StrAppend);
         Some(())
     }
 

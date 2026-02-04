@@ -1,11 +1,9 @@
 use crate::core::Value;
 use crate::core::value::ValueExt;
-use crate::core::heap::ManagedObject;
 
 use xu_ir::{Bytecode, Op};
 
 use super::stack::add_with_heap;
-use crate::ICSlot;
 use crate::{Flow, Runtime};
 
 pub(crate) fn run_bytecode_fast(
@@ -28,7 +26,6 @@ pub(crate) fn run_bytecode_fast(
             | Op::Sub
             | Op::Mul
             | Op::Div
-            | Op::Inc
             | Op::IncLocal(_)
             | Op::LoadName(_)
             | Op::LoadLocal(_)
@@ -243,24 +240,6 @@ pub(crate) fn run_bytecode_fast(
                 sp += 1;
             }
             Op::Sub | Op::Mul | Op::Div => return None,
-            Op::Inc => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let a = &mut stack[sp - 1];
-                if a.is_int() {
-                    *a = Value::from_i64(a.as_i64().saturating_add(1));
-                } else if a.is_f64() {
-                    *a = Value::from_f64(a.as_f64() + 1.0);
-                } else {
-                    return Some(Err(rt.error(
-                        xu_syntax::DiagnosticKind::InvalidUnaryOperand {
-                            op: '+',
-                            expected: "number".to_string(),
-                        },
-                    )));
-                }
-            }
             Op::GetMember(idx, slot) => {
                 if sp == 0 {
                     return Some(Err("Stack underflow".into()));
@@ -310,9 +289,7 @@ pub(crate) fn run_bytecode_fast_params_only(
                     return None;
                 }
             }
-            Op::DictGetStrConst(_, _, _)
-            | Op::DictGetIntConst(_, _)
-            | Op::ConstInt(_)
+            Op::ConstInt(_)
             | Op::ConstFloat(_)
             | Op::Const(_)
             | Op::ConstBool(_)
@@ -372,131 +349,6 @@ pub(crate) fn run_bytecode_fast_params_only(
                     return Some(Err("Stack underflow".into()));
                 }
                 sp -= 1;
-            }
-            Op::DictGetStrConst(idx, k_hash, slot) => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let obj = stack[sp - 1];
-                if obj.get_tag() != crate::core::value::TAG_DICT {
-                    return None;
-                }
-                let id = obj.as_obj_id();
-                if let ManagedObject::Dict(me) = rt.heap.get(id) {
-                    let cur_ver = me.ver;
-                    let mut val = None;
-
-                    if let Some(idx_ic) = slot {
-                        if *idx_ic < rt.ic_slots.len() {
-                            let c = &rt.ic_slots[*idx_ic];
-                            if let Some(off) = c.field_offset {
-                                if let Some(sid) = me.shape {
-                                    if c.id == sid.0 {
-                                        val = Some(me.prop_values[off]);
-                                    }
-                                }
-                            } else if c.id == id.0 && c.ver == me.ver && c.key_hash == *k_hash {
-                                val = Some(c.value);
-                            }
-                        }
-                    }
-
-                    if let Some(v) = val {
-                        stack[sp - 1] = v;
-                    } else {
-                        let k = rt.get_const_str(*idx, &bc.constants);
-                        let mut out = None;
-                        if let Some(sid) = me.shape {
-                            if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
-                                if let Some(&off) = shape.prop_map.get(k) {
-                                    out = Some(me.prop_values[off]);
-                                }
-                            }
-                        }
-                        if out.is_none() {
-                            let internal_hash = Runtime::hash_bytes(me.map.hasher(), k.as_bytes());
-                            out = Runtime::dict_get_by_str_with_hash(me, k, internal_hash);
-                        }
-
-                        let Some(out_v) = out else {
-                            return None;
-                        };
-                        if let Some(idx_ic) = slot {
-                            while rt.ic_slots.len() <= *idx_ic {
-                                rt.ic_slots.push(ICSlot::default());
-                            }
-                            let mut shape_info = (id.0, None);
-                            if let Some(sid) = me.shape {
-                                if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
-                                    if let Some(&off) = shape.prop_map.get(k) {
-                                        shape_info = (sid.0, Some(off));
-                                    }
-                                }
-                            }
-
-                            rt.ic_slots[*idx_ic] = ICSlot {
-                                id: shape_info.0,
-                                key_hash: *k_hash,
-                                ver: cur_ver,
-                                value: out_v,
-                                field_offset: shape_info.1,
-                                ..Default::default()
-                            };
-                        }
-                        stack[sp - 1] = out_v;
-                    }
-                }
-            }
-            Op::DictGetIntConst(i, slot) => {
-                if sp == 0 {
-                    return Some(Err("Stack underflow".into()));
-                }
-                let obj = stack[sp - 1];
-                if obj.get_tag() != crate::core::value::TAG_DICT {
-                    return None;
-                }
-                let id = obj.as_obj_id();
-                let (cur_ver, key_hash) = if let ManagedObject::Dict(me) = rt.heap.get(id) {
-                    (me.ver, Runtime::hash_dict_key_int(me.map.hasher(), *i))
-                } else {
-                    return None;
-                };
-
-                let mut val = None;
-                if let Some(idx_ic) = slot {
-                    if *idx_ic < rt.ic_slots.len() {
-                        let c = &rt.ic_slots[*idx_ic];
-                        if c.id == id.0 && c.ver == cur_ver && c.key_hash == key_hash {
-                            val = Some(c.value);
-                        }
-                    }
-                }
-
-                if let Some(v) = val {
-                    stack[sp - 1] = v;
-                } else {
-                    let out = if let ManagedObject::Dict(me) = rt.heap.get(id) {
-                        me.map.get(&crate::core::value::DictKey::Int(*i)).cloned()
-                    } else {
-                        None
-                    };
-                    let Some(out) = out else {
-                        return None;
-                    };
-                    if let Some(idx_ic) = slot {
-                        while rt.ic_slots.len() <= *idx_ic {
-                            rt.ic_slots.push(ICSlot::default());
-                        }
-                        rt.ic_slots[*idx_ic] = ICSlot {
-                            id: id.0,
-                            key_hash,
-                            ver: cur_ver,
-                            value: out,
-                            ..Default::default()
-                        };
-                    }
-                    stack[sp - 1] = out;
-                }
             }
             Op::LoadLocal(idx) => {
                 stack[sp] = args[*idx];
