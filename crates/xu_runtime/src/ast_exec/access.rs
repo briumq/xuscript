@@ -160,21 +160,21 @@ impl Runtime {
             } else {
                 Err(self.error(xu_syntax::DiagnosticKind::Raw("Not an Option".into())))
             }
-        } else if tag == crate::core::value::TAG_LIST && (field == "len" || field == "length") {
+        } else if tag == crate::core::value::TAG_LIST && field == "length" {
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::List(v) = self.heap.get(id) {
                 Ok(Value::from_i64(v.len() as i64))
             } else {
                 Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())))
             }
-        } else if tag == crate::core::value::TAG_STR && (field == "len" || field == "length") {
+        } else if tag == crate::core::value::TAG_STR && field == "length" {
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(id) {
                 Ok(Value::from_i64(s.as_str().chars().count() as i64))
             } else {
                 Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_STRING.into())))
             }
-        } else if tag == crate::core::value::TAG_DICT && (field == "len" || field == "length") {
+        } else if tag == crate::core::value::TAG_DICT && field == "length" {
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::Dict(v) = self.heap.get(id) {
                 let mut n = v.map.len();
