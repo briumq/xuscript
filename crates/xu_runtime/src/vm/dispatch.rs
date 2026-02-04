@@ -324,6 +324,20 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     return Ok(flow);
                 }
             }
+            // Static field operations
+            Op::GetStaticField(type_idx, field_idx) => {
+                if let Some(flow) = access::op_get_static_field(rt, bc, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown, *type_idx, *field_idx)? {
+                    return Ok(flow);
+                }
+            }
+            Op::SetStaticField(type_idx, field_idx) => {
+                if let Some(flow) = access::op_set_static_field(rt, bc, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown, *type_idx, *field_idx)? {
+                    return Ok(flow);
+                }
+            }
+            Op::InitStaticField(type_idx, field_idx) => {
+                access::op_init_static_field(rt, bc, &mut stack, *type_idx, *field_idx)?;
+            }
             // Iterator operations
             Op::ForEachInit(idx, var_idx, end) => {
                 if iter::op_foreach_init(rt, bc, &mut stack, &mut iters, &mut ip, *idx, *var_idx, *end)? {

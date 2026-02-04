@@ -40,6 +40,7 @@ pub struct StructDef {
     pub vis: Visibility,
     pub name: String,
     pub fields: Box<[StructField]>,
+    pub static_fields: Box<[StaticField]>,
     pub methods: Box<[FuncDef]>,
 }
 
@@ -55,6 +56,13 @@ pub struct StructField {
     pub name: String,
     pub ty: TypeRef,
     pub default: Option<Expr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StaticField {
+    pub name: String,
+    pub ty: TypeRef,
+    pub default: Expr,
 }
 
 #[derive(Clone, Debug, PartialEq)]

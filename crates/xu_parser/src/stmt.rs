@@ -3,7 +3,7 @@ use crate::mangling::{method_name, static_name, METHOD_PREFIX};
 use crate::parser::BraceContent;
 use crate::{
     AssignOp, AssignStmt, DeclKind, DoesBlock, EnumDef, Expr, ForEachStmt, FuncDef, IfStmt,
-    MemberExpr, MatchStmt, Param, Pattern, Stmt, StructDef, StructField, TypeRef, UseStmt, Visibility,
+    MemberExpr, MatchStmt, Param, Pattern, StaticField, Stmt, StructDef, StructField, TypeRef, UseStmt, Visibility,
     WhileStmt,
 };
 use xu_syntax::{Diagnostic, DiagnosticKind, TokenKind, unquote};
@@ -224,6 +224,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.expect(TokenKind::LBrace)?;
 
         let mut fields: Vec<StructField> = Vec::with_capacity(4);
+        let mut static_fields: Vec<StaticField> = Vec::with_capacity(2);
         let mut methods: Vec<FuncDef> = Vec::with_capacity(4);
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             self.skip_layout();
@@ -278,17 +279,37 @@ impl<'a, 'b> Parser<'a, 'b> {
             self.expect(TokenKind::Colon)?;
             let field_ty = self.parse_type_ref()?;
             self.skip_layout();
-            let default = if self.at(TokenKind::Eq) {
+
+            if is_static {
+                // Static fields require a default value
+                if !self.at(TokenKind::Eq) {
+                    self.diagnostics.push(Diagnostic::error_kind(
+                        DiagnosticKind::Raw("Static field requires a default value".to_string()),
+                        Some(self.cur_span()),
+                    ));
+                    return None;
+                }
                 self.bump();
-                Some(self.parse_expr(0)?)
+                let default = self.parse_expr(0)?;
+                static_fields.push(StaticField {
+                    name: field_name,
+                    ty: field_ty,
+                    default,
+                });
             } else {
-                None
-            };
-            fields.push(StructField {
-                name: field_name,
-                ty: field_ty,
-                default,
-            });
+                // Instance fields have optional default
+                let default = if self.at(TokenKind::Eq) {
+                    self.bump();
+                    Some(self.parse_expr(0)?)
+                } else {
+                    None
+                };
+                fields.push(StructField {
+                    name: field_name,
+                    ty: field_ty,
+                    default,
+                });
+            }
             self.skip_layout();
             if self.at(TokenKind::Comma) {
                 self.bump();
@@ -301,6 +322,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             vis,
             name,
             fields: fields.into_boxed_slice(),
+            static_fields: static_fields.into_boxed_slice(),
             methods: methods.into_boxed_slice(),
         })
     }

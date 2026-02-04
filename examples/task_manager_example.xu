@@ -1,0 +1,349 @@
+// 任务状态枚举
+TaskStatus with [ todo | in_progress | completed | cancelled ]
+
+// 任务优先级枚举
+Priority with [ low | medium | high | urgent ]
+
+// 任务结构体
+Task has {
+    id: string
+    title: string
+    description: string
+    status: TaskStatus = TaskStatus#todo
+    priority: Priority = Priority#medium
+    created_at: string
+    updated_at: string
+
+    // 静态方法：创建新任务
+    static func create(id: string, title: string, description: string = "") -> Task {
+        let now = "2024-01-01 12:00:00" // 模拟当前时间
+        return Task{
+            id: id,
+            title: title,
+            description: description,
+            created_at: now,
+            updated_at: now
+        }
+    }
+
+    // 更新任务状态
+    func update_status(new_status: TaskStatus) -> Task {
+        var updated = Task{ ...self, status: new_status }
+        updated.updated_at = "2024-01-01 12:00:00" // 模拟当前时间
+        return updated
+    }
+
+    // 更新任务优先级
+    func update_priority(new_priority: Priority) -> Task {
+        var updated = Task{ ...self, priority: new_priority }
+        updated.updated_at = "2024-01-01 12:00:00" // 模拟当前时间
+        return updated
+    }
+}
+
+// 任务扩展方法
+Task does {
+    // 检查任务是否已完成
+    func is_completed() -> bool {
+        return self.status == TaskStatus#completed
+    }
+
+    // 检查任务是否已取消
+    func is_cancelled() -> bool {
+        return self.status == TaskStatus#cancelled
+    }
+
+    // 检查任务是否为活跃状态（待办或进行中）
+    func is_active() -> bool {
+        return self.status == TaskStatus#todo || self.status == TaskStatus#in_progress
+    }
+
+    // 获取任务状态文本
+    func status_text() -> string {
+        return match self.status {
+            TaskStatus#todo: "待办"
+            TaskStatus#in_progress: "进行中"
+            TaskStatus#completed: "已完成"
+            TaskStatus#cancelled: "已取消"
+            _: "未知"
+        }
+    }
+
+    // 获取优先级文本
+    func priority_text() -> string {
+        return match self.priority {
+            Priority#low: "低"
+            Priority#medium: "中"
+            Priority#high: "高"
+            Priority#urgent: "紧急"
+            _: "未知"
+        }
+    }
+
+    // 转换为 JSON 字符串
+    func to_json() -> string {
+        return """{
+            "id": "{self.id}",
+            "title": "{self.title}",
+            "description": "{self.description}",
+            "status": "{self.status}",
+            "priority": "{self.priority}",
+            "created_at": "{self.created_at}",
+            "updated_at": "{self.updated_at}"
+        }"""
+    }
+}
+
+// 任务管理器
+TaskManager has {
+    tasks: {string: Task} = {}
+
+    // 添加任务
+    func add(task: Task) -> Result[string, string] {
+        if self.tasks.get(task.id).has {
+            return Result#err("任务 ID 已存在")
+        }
+        self.tasks[task.id] = task
+        return Result#ok("添加成功")
+    }
+
+    // 获取任务
+    func get(id: string) -> Option[Task] {
+        return self.tasks.get(id)
+    }
+
+    // 更新任务
+    func update(id: string, task: Task) -> Result[string, string] {
+        if !self.tasks.get(id).has {
+            return Result#err("任务不存在")
+        }
+        self.tasks[id] = task
+        return Result#ok("更新成功")
+    }
+
+    // 删除任务
+    func delete(id: string) -> Result[string, string] {
+        if !self.tasks.get(id).has {
+            return Result#err("任务不存在")
+        }
+        // 模拟删除操作
+        let new_tasks: {string: Task} = {}
+        for key in self.tasks.keys() {
+            if key != id {
+                when task = self.tasks.get(key) {
+                    new_tasks[key] = task
+                }
+            }
+        }
+        self.tasks = new_tasks
+        return Result#ok("删除成功")
+    }
+
+    // 获取所有任务
+    func all() -> [Task] {
+        let result: [Task] = []
+        for key in self.tasks.keys() {
+            when task = self.tasks.get(key) {
+                result.push(task)
+            }
+        }
+        return result
+    }
+
+    // 按状态过滤任务
+    func filter_by_status(status: TaskStatus) -> [Task] {
+        return self.all().filter(func(task) -> task.status == status)
+    }
+
+    // 按优先级过滤任务
+    func filter_by_priority(priority: Priority) -> [Task] {
+        return self.all().filter(func(task) -> task.priority == priority)
+    }
+
+    // 获取活跃任务
+    func active_tasks() -> [Task] {
+        return self.all().filter(func(task) -> task.is_active())
+    }
+
+    // 获取已完成任务
+    func completed_tasks() -> [Task] {
+        return self.all().filter(func(task) -> task.is_completed())
+    }
+
+    // 计算任务统计信息
+    func statistics() -> {string: int} {
+        let stats: {string: int} = {
+            "total": 0,
+            "todo": 0,
+            "in_progress": 0,
+            "completed": 0,
+            "cancelled": 0
+        }
+
+        for task in self.all() {
+            stats["total"] += 1
+            match task.status {
+                TaskStatus#todo: stats["todo"] += 1
+                TaskStatus#in_progress: stats["in_progress"] += 1
+                TaskStatus#completed: stats["completed"] += 1
+                TaskStatus#cancelled: stats["cancelled"] += 1
+                _: ()
+            }
+        }
+
+        return stats
+    }
+}
+
+// 全局变量用于生成唯一 ID
+var counter = 0
+
+// 辅助函数：生成唯一 ID
+func generate_id() -> string {
+    // 简单的 ID 生成逻辑
+    counter += 1
+    return "task-" + counter.to_string()
+}
+
+// 主函数
+func main() {
+    println("=== 任务管理系统示例 ===")
+
+    // 创建任务管理器
+    let manager = TaskManager{}
+
+    // 添加测试任务
+    println("\n1. 添加测试任务")
+    let task1 = Task.create(generate_id(), "完成项目规划", "详细规划项目的各个阶段和时间线")
+    let task2 = Task.create(generate_id(), "编写代码", "实现核心功能模块")
+    let task3 = Task.create(generate_id(), "测试系统", "进行全面的系统测试")
+    let task4 = Task.create(generate_id(), "部署项目", "将系统部署到生产环境")
+
+    // 设置任务优先级
+    let task2_high = task2.update_priority(Priority#high)
+    let task4_urgent = task4.update_priority(Priority#urgent)
+
+    // 添加任务到管理器
+    match manager.add(task1) {
+        Result#ok(_): println("添加任务 1 成功")
+        Result#err(e): println("添加任务 1 失败: {e}")
+        _: println("添加任务 1 未知结果")
+    }
+
+    match manager.add(task2_high) {
+        Result#ok(_): println("添加任务 2 成功")
+        Result#err(e): println("添加任务 2 失败: {e}")
+        _: println("添加任务 2 未知结果")
+    }
+
+    match manager.add(task3) {
+        Result#ok(_): println("添加任务 3 成功")
+        Result#err(e): println("添加任务 3 失败: {e}")
+        _: println("添加任务 3 未知结果")
+    }
+
+    match manager.add(task4_urgent) {
+        Result#ok(_): println("添加任务 4 成功")
+        Result#err(e): println("添加任务 4 失败: {e}")
+        _: println("添加任务 4 未知结果")
+    }
+
+    // 尝试添加重复任务
+    println("\n2. 尝试添加重复任务")
+    match manager.add(task1) {
+        Result#ok(_): println("添加重复任务成功（应该失败）")
+        Result#err(e): println("添加重复任务失败: {e}")
+        _: println("添加重复任务未知结果")
+    }
+
+    // 更新任务状态
+    println("\n3. 更新任务状态")
+    when task1_in_progress = task1.update_status(TaskStatus#in_progress) {
+        match manager.update(task1.id, task1_in_progress) {
+            Result#ok(_): println("更新任务 1 状态为进行中成功")
+            Result#err(e): println("更新任务 1 状态失败: {e}")
+            _: println("更新任务 1 状态未知结果")
+        }
+    }
+
+    when task2_completed = task2_high.update_status(TaskStatus#completed) {
+        match manager.update(task2_high.id, task2_completed) {
+            Result#ok(_): println("更新任务 2 状态为已完成成功")
+            Result#err(e): println("更新任务 2 状态失败: {e}")
+            _: println("更新任务 2 状态未知结果")
+        }
+    }
+
+    // 查看所有任务
+    println("\n4. 所有任务")
+    for task in manager.all() {
+        println("ID: {task.id}")
+        println("标题: {task.title}")
+        println("描述: {task.description}")
+        println("状态: {task.status_text()}")
+        println("优先级: {task.priority_text()}")
+        println("创建时间: {task.created_at}")
+        println("更新时间: {task.updated_at}")
+        println("---")
+    }
+
+    // 查看任务统计
+    println("\n5. 任务统计")
+    let stats = manager.statistics()
+    let total = stats["total"]
+    let todo = stats["todo"]
+    let in_progress = stats["in_progress"]
+    let completed = stats["completed"]
+    let cancelled = stats["cancelled"]
+    println("总任务数: {total}")
+    println("待办: {todo}")
+    println("进行中: {in_progress}")
+    println("已完成: {completed}")
+    println("已取消: {cancelled}")
+
+    // 按状态过滤任务
+    println("\n6. 按状态过滤任务")
+    println("待办任务:")
+    for task in manager.filter_by_status(TaskStatus#todo) {
+        println("- {task.title} (优先级: {task.priority_text()})")
+    }
+
+    println("\n已完成任务:")
+    for task in manager.filter_by_status(TaskStatus#completed) {
+        println("- {task.title} (优先级: {task.priority_text()})")
+    }
+
+    // 按优先级过滤任务
+    println("\n7. 按优先级过滤任务")
+    println("紧急任务:")
+    for task in manager.filter_by_priority(Priority#urgent) {
+        println("- {task.title} (状态: {task.status_text()})")
+    }
+
+    // 删除任务
+    println("\n8. 删除任务")
+    match manager.delete(task3.id) {
+        Result#ok(_): println("删除任务 3 成功")
+        Result#err(e): println("删除任务 3 失败: {e}")
+        _: println("删除任务 3 未知结果")
+    }
+
+    // 再次查看任务统计
+    println("\n9. 任务统计（删除后）")
+    let stats_after_delete = manager.statistics()
+    let total_after = stats_after_delete["total"]
+    println("总任务数: {total_after}")
+
+    // 尝试获取不存在的任务
+    println("\n10. 尝试获取不存在的任务")
+    when task = manager.get("non-existent") {
+        println("获取到任务: {task.title}")
+    } else {
+        println("任务不存在")
+    }
+
+    println("\n=== 示例结束 ===")
+}
+
+// 运行主函数
+main()

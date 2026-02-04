@@ -103,6 +103,12 @@ pub enum Op {
     MatchBindings(u32),         // Index to Pattern constant, pushes bindings count then values
     LocalsPush,                 // Push a new locals frame
     LocalsPop,                  // Pop locals frame
+    /// Get static field: (type_name_idx, field_name_idx)
+    GetStaticField(u32, u32),
+    /// Set static field: (type_name_idx, field_name_idx)
+    SetStaticField(u32, u32),
+    /// Initialize static field: (type_name_idx, field_name_idx)
+    InitStaticField(u32, u32),
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

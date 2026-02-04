@@ -167,6 +167,15 @@ impl Compiler {
                 let idx = self.add_constant(xu_ir::Constant::Struct((**def).clone()));
                 self.bc.ops.push(Op::DefineStruct(idx));
 
+                // Compile static field initializations
+                let type_name = &def.name;
+                for sf in def.static_fields.iter() {
+                    self.compile_expr(&sf.default)?;
+                    let t_idx = self.add_constant(xu_ir::Constant::Str(type_name.clone()));
+                    let f_idx = self.add_constant(xu_ir::Constant::Str(sf.name.clone()));
+                    self.bc.ops.push(Op::InitStaticField(t_idx, f_idx));
+                }
+
                 // Compile all methods defined in the has block
                 for f in def.methods.iter() {
                     self.compile_func_def(f)?;
@@ -199,7 +208,7 @@ impl Compiler {
                 self.bc.ops.push(Op::Use(path_idx, alias_idx));
                 Some(())
             }
-            Stmt::Match(_) => None, // TODO: implement match stmt bytecode compilation
+            Stmt::Match(s) => self.compile_match_stmt(s),
             Stmt::Block(stmts) => {
                 for stmt in stmts.iter() {
                     self.compile_stmt(stmt)?;
@@ -316,6 +325,109 @@ impl Compiler {
             };
             *to = end;
         }
+        Some(())
+    }
+
+    fn compile_match_stmt(&mut self, stmt: &xu_ir::MatchStmt) -> Option<()> {
+        // Compile the match expression
+        self.compile_expr(&stmt.expr)?;
+
+        let mut arm_end_jumps: Vec<usize> = Vec::new();
+
+        for (i, (pat, body)) in stmt.arms.iter().enumerate() {
+            let is_last = i == stmt.arms.len() - 1 && stmt.else_branch.is_none();
+
+            // Handle pattern matching
+            if !matches!(pat, xu_ir::Pattern::Wildcard) {
+                // Add pattern to constants and emit match instruction
+                // MatchPattern peeks the value and pushes bool result
+                let pat_idx = self.add_constant(xu_ir::Constant::Pattern(pat.clone()));
+                self.bc.ops.push(Op::MatchPattern(pat_idx));
+
+                // Jump to next arm if pattern doesn't match
+                let jump_pos = self.bc.ops.len();
+                self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
+
+                // Get bindings from pattern
+                let bindings = collect_pattern_bindings(pat);
+                if !bindings.is_empty() {
+                    // Push env frame for bindings
+                    self.bc.ops.push(Op::EnvPush);
+
+                    // Emit MatchBindings to pop value and push binding values onto stack
+                    self.bc.ops.push(Op::MatchBindings(pat_idx));
+
+                    // Store bindings in env (in reverse order since they're on stack)
+                    for name in bindings.iter().rev() {
+                        let name_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
+                        self.bc.ops.push(Op::StoreName(name_idx));
+                    }
+
+                    // Compile body statements
+                    for s in body.iter() {
+                        self.compile_stmt(s)?;
+                    }
+
+                    // Pop env frame
+                    self.bc.ops.push(Op::EnvPop);
+                } else {
+                    // No bindings, just pop the original value
+                    self.bc.ops.push(Op::Pop);
+
+                    // Compile body statements
+                    for s in body.iter() {
+                        self.compile_stmt(s)?;
+                    }
+                }
+
+                // Jump to end of match
+                let end_jump = self.bc.ops.len();
+                self.bc.ops.push(Op::Jump(usize::MAX));
+                arm_end_jumps.push(end_jump);
+
+                // Patch the conditional jump to point here (next arm)
+                let next_arm_ip = self.bc.ops.len();
+                match self.bc.ops[jump_pos] {
+                    Op::JumpIfFalse(ref mut to) => *to = next_arm_ip,
+                    _ => return None,
+                }
+            } else {
+                // Wildcard pattern - always matches
+                // Pop the original value
+                self.bc.ops.push(Op::Pop);
+
+                // Compile body statements
+                for s in body.iter() {
+                    self.compile_stmt(s)?;
+                }
+
+                // Jump to end (unless this is the last arm)
+                if !is_last {
+                    let end_jump = self.bc.ops.len();
+                    self.bc.ops.push(Op::Jump(usize::MAX));
+                    arm_end_jumps.push(end_jump);
+                }
+            }
+        }
+
+        // Compile else branch if present
+        if let Some(else_body) = &stmt.else_branch {
+            // Pop the original value
+            self.bc.ops.push(Op::Pop);
+            for s in else_body.iter() {
+                self.compile_stmt(s)?;
+            }
+        }
+
+        // Patch all end jumps to point here
+        let end_ip = self.bc.ops.len();
+        for jump_pos in arm_end_jumps {
+            match self.bc.ops[jump_pos] {
+                Op::Jump(ref mut to) => *to = end_ip,
+                _ => return None,
+            }
+        }
+
         Some(())
     }
 
@@ -472,6 +584,39 @@ impl Compiler {
                 }
             },
             Expr::Member(m) => {
+                // Check if this is a static field assignment (Type.field = value)
+                if let Expr::Ident(name, _) = m.object.as_ref() {
+                    // Check if this identifier is a known local variable
+                    let is_local = self.resolve_local(name).is_some();
+                    if !is_local {
+                        // Could be a static field assignment
+                        if stmt.op == AssignOp::Set {
+                            self.compile_expr(&stmt.value)?;
+                            let t_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
+                            let f_idx = self.add_constant(xu_ir::Constant::Str(m.field.clone()));
+                            self.bc.ops.push(Op::SetStaticField(t_idx, f_idx));
+                        } else {
+                            // Compound assignment: Type.field += value
+                            // Load current value
+                            let t_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
+                            let f_idx = self.add_constant(xu_ir::Constant::Str(m.field.clone()));
+                            self.bc.ops.push(Op::GetStaticField(t_idx, f_idx));
+                            // Compile the RHS
+                            self.compile_expr(&stmt.value)?;
+                            // Apply the operation
+                            self.bc.ops.push(match stmt.op {
+                                AssignOp::Add => Op::Add,
+                                AssignOp::Sub => Op::Sub,
+                                AssignOp::Mul => Op::Mul,
+                                AssignOp::Div => Op::Div,
+                                AssignOp::Set => unreachable!(),
+                            });
+                            // Store back
+                            self.bc.ops.push(Op::SetStaticField(t_idx, f_idx));
+                        }
+                        return Some(());
+                    }
+                }
                 self.compile_expr(&stmt.value)?;
                 self.compile_expr(&m.object)?;
                 let n_idx = self.add_constant(xu_ir::Constant::Str(m.field.clone()));
@@ -944,6 +1089,19 @@ impl Compiler {
                 Some(())
             }
             Expr::Member(m) => {
+                // Check if this is a static field access (Type.field)
+                if let Expr::Ident(name, _) = m.object.as_ref() {
+                    // Check if this identifier is a known local variable
+                    let is_local = self.resolve_local(name).is_some();
+                    if !is_local {
+                        // Could be a static field access - generate GetStaticField
+                        // The runtime will check if it's actually a static field
+                        let t_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
+                        let f_idx = self.add_constant(xu_ir::Constant::Str(m.field.clone()));
+                        self.bc.ops.push(Op::GetStaticField(t_idx, f_idx));
+                        return Some(());
+                    }
+                }
                 self.compile_expr(&m.object)?;
                 let slot = self.alloc_ic_slot();
                 let n_idx = self.add_constant(xu_ir::Constant::Str(m.field.clone()));

@@ -5,6 +5,9 @@
 //! - GetIndex: Array/dict indexing
 //! - AssignMember: Assign to struct/object members
 //! - AssignIndex: Assign to array/dict elements
+//! - GetStaticField: Access static fields
+//! - SetStaticField: Assign to static fields
+//! - InitStaticField: Initialize static fields
 
 use xu_ir::Bytecode;
 
@@ -319,4 +322,124 @@ pub(crate) fn op_assign_index(
         return Ok(None);
     }
     Ok(None)
+}
+
+/// Execute Op::GetStaticField - get a static field value
+/// Falls back to instance member access if not a static field
+#[inline(always)]
+pub(crate) fn op_get_static_field(
+    rt: &mut Runtime,
+    bc: &Bytecode,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    type_idx: u32,
+    field_idx: u32,
+) -> Result<Option<Flow>, String> {
+    let type_name = rt.get_const_str(type_idx, &bc.constants);
+    let field_name = rt.get_const_str(field_idx, &bc.constants);
+
+    // First check if it's a static field
+    let key = (type_name.to_string(), field_name.to_string());
+    if let Some(value) = rt.static_fields.get(&key) {
+        stack.push(*value);
+        return Ok(None);
+    }
+
+    // Not a static field - try as instance member access on a global variable
+    if let Some(obj) = rt.env.get(type_name) {
+        match rt.get_member_with_ic_raw(obj, field_name, None) {
+            Ok(v) => stack.push(v),
+            Err(e) => {
+                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                if let Some(flow) = throw_value(
+                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                ) {
+                    return Ok(Some(flow));
+                }
+            }
+        }
+        return Ok(None);
+    }
+
+    // Neither static field nor global variable found
+    let err_msg = format!("Undefined static field: {}.{}", type_name, field_name);
+    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(err_msg.into())));
+    if let Some(flow) = throw_value(
+        rt, ip, handlers, stack, iters, pending, thrown, err_val,
+    ) {
+        return Ok(Some(flow));
+    }
+    Ok(None)
+}
+
+/// Execute Op::SetStaticField - set a static field value
+/// Falls back to instance member assignment if not a static field
+#[inline(always)]
+pub(crate) fn op_set_static_field(
+    rt: &mut Runtime,
+    bc: &Bytecode,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    type_idx: u32,
+    field_idx: u32,
+) -> Result<Option<Flow>, String> {
+    let type_name = rt.get_const_str(type_idx, &bc.constants);
+    let field_name = rt.get_const_str(field_idx, &bc.constants);
+    let value = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+
+    // First check if it's a static field
+    let key = (type_name.to_string(), field_name.to_string());
+    if rt.static_fields.contains_key(&key) {
+        rt.static_fields.insert(key, value);
+        return Ok(None);
+    }
+
+    // Not a static field - try as instance member assignment on a global variable
+    if let Some(obj) = rt.env.get(type_name) {
+        if let Err(e) = rt.assign_member(obj, field_name, xu_ir::AssignOp::Set, value) {
+            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+            if let Some(flow) = throw_value(
+                rt, ip, handlers, stack, iters, pending, thrown, err_val,
+            ) {
+                return Ok(Some(flow));
+            }
+        }
+        return Ok(None);
+    }
+
+    // Neither static field nor global variable found
+    let err_msg = format!("Undefined static field: {}.{}", type_name, field_name);
+    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(err_msg.into())));
+    if let Some(flow) = throw_value(
+        rt, ip, handlers, stack, iters, pending, thrown, err_val,
+    ) {
+        return Ok(Some(flow));
+    }
+    Ok(None)
+}
+
+/// Execute Op::InitStaticField - initialize a static field (used during struct definition)
+#[inline(always)]
+pub(crate) fn op_init_static_field(
+    rt: &mut Runtime,
+    bc: &Bytecode,
+    stack: &mut Vec<Value>,
+    type_idx: u32,
+    field_idx: u32,
+) -> Result<(), String> {
+    let type_name = rt.get_const_str(type_idx, &bc.constants);
+    let field_name = rt.get_const_str(field_idx, &bc.constants);
+    let value = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+
+    let key = (type_name.to_string(), field_name.to_string());
+    rt.static_fields.insert(key, value);
+    Ok(())
 }

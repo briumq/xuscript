@@ -39,6 +39,8 @@ pub struct Runtime {
     pub(crate) structs: HashMap<String, StructDef>,
     pub(crate) struct_layouts: HashMap<String, std::rc::Rc<[String]>>,
     pub(crate) enums: HashMap<String, Vec<String>>,
+    /// Static field storage: (type_name, field_name) -> Value
+    pub(crate) static_fields: HashMap<(String, String), Value>,
     pub(crate) next_id: i64,
     pub(crate) main_invoked: bool,
     pub(crate) loaded_modules: HashMap<String, Value>,
@@ -106,6 +108,7 @@ impl Runtime {
             structs: fast_map_new(),
             struct_layouts: fast_map_new(),
             enums: fast_map_new(),
+            static_fields: fast_map_new(),
             next_id: 1,
             main_invoked: false,
             loaded_modules: fast_map_new(),
@@ -580,6 +583,7 @@ impl Runtime {
         self.loaded_modules.clear();
         self.structs.clear();
         self.enums.clear();
+        self.static_fields.clear();
         self.next_id = 1;
         self.locals.clear();
 
