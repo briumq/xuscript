@@ -1,6 +1,5 @@
-//!
-//!
-//!
+//! Intermediate representation for Xu bytecode compilation.
+
 mod ast;
 mod bytecode;
 mod executable;

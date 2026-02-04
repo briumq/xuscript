@@ -1,5 +1,29 @@
-//!
-//!
+//! Xu language runtime.
+
+#![allow(clippy::collapsible_if)]
+#![allow(clippy::collapsible_else_if)]
+#![allow(clippy::clone_on_copy)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::should_implement_trait)]
+#![allow(clippy::map_clone)]
+#![allow(clippy::unused_enumerate_index)]
+#![allow(clippy::unwrap_or_default)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::question_mark)]
+#![allow(clippy::manual_range_contains)]
+#![allow(clippy::useless_format)]
+#![allow(clippy::manual_hash_one)]
+#![allow(clippy::get_first)]
+#![allow(clippy::if_same_then_else)]
+#![allow(clippy::borrowed_box)]
+#![allow(clippy::iter_cloned_collect)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::option_map_or_none)]
+#![allow(clippy::needless_borrow)]
+#![allow(clippy::len_zero)]
+#![allow(clippy::ptr_arg)]
+#![allow(clippy::useless_conversion)]
+#![allow(clippy::unnecessary_map_or)]
 
 // Reorganized module structure
 pub mod core;

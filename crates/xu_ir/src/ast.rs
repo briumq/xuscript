@@ -1,15 +1,11 @@
-//!
-//!
 use xu_syntax::Span;
 
 #[derive(Clone, Debug, PartialEq)]
-///
 pub struct Module {
     pub stmts: Box<[Stmt]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-///
 pub enum Stmt {
     StructDef(Box<StructDef>),
     EnumDef(Box<EnumDef>),
@@ -169,7 +165,6 @@ pub enum AssignOp {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-///
 pub enum Expr {
     Ident(String, std::cell::Cell<Option<(u32, u32)>>),
     Int(i64),
@@ -305,7 +300,7 @@ pub enum BinaryOp {
 }
 
 impl Expr {
-    ///
+    /// Returns true if this expression can be assigned to.
     pub fn is_assignable(&self) -> bool {
         matches!(self, Expr::Ident(_, _) | Expr::Member(_) | Expr::Index(_))
     }

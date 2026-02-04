@@ -24,7 +24,6 @@ fn top_level_define_errors_in_strict_mode() {
     let module = parse_module("x = 1;\n");
     let mut rt = Runtime::with_config(RuntimeConfig {
         strict_vars: true,
-        ..Default::default()
     });
     rt.set_frontend(Box::new(xu_driver::Driver::new()));
     let result = rt.exec_module(&module);
@@ -40,7 +39,6 @@ fn top_level_define_allowed_in_non_strict_mode() {
     let module = parse_module("x = 1;\nprintln(x);\n");
     let mut rt = Runtime::with_config(RuntimeConfig {
         strict_vars: false,
-        ..Default::default()
     });
     rt.set_frontend(Box::new(xu_driver::Driver::new()));
     let result = rt.exec_module(&module);

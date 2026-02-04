@@ -128,7 +128,7 @@ fn verify_examples() -> Result<(), String> {
 }
 
 fn build_xu_cli() -> Result<PathBuf, String> {
-    let output = run_owned("cargo", &vec![
+    let output = run_owned("cargo", &[
         "build".to_string(),
         "-p".to_string(),
         "xu_cli".to_string(),
@@ -430,7 +430,7 @@ fn verify_optional_projects() -> Result<(), String> {
 }
 
 fn xu_check(bin: &Path, path: &Path) -> Result<(), String> {
-    let output = run_owned(bin.to_str().unwrap(), &vec!["check".to_string(), path.display().to_string()])?;
+    let output = run_owned(bin.to_str().unwrap(), &["check".to_string(), path.display().to_string()])?;
     if !output.status.success() {
         return Err(format!(
             "xu check failed for {}:\n{}",
@@ -442,7 +442,7 @@ fn xu_check(bin: &Path, path: &Path) -> Result<(), String> {
 }
 
 fn xu_check_expect_fail(bin: &Path, path: &Path) -> Result<(), String> {
-    let output = run_owned(bin.to_str().unwrap(), &vec!["check".to_string(), path.display().to_string()])?;
+    let output = run_owned(bin.to_str().unwrap(), &["check".to_string(), path.display().to_string()])?;
     if output.status.success() {
         return Err(format!("unexpected check success: {}", path.display()));
     }
@@ -450,7 +450,7 @@ fn xu_check_expect_fail(bin: &Path, path: &Path) -> Result<(), String> {
 }
 
 fn xu_ast(bin: &Path, path: &Path) -> Result<(), String> {
-    let output = run_owned(bin.to_str().unwrap(), &vec!["ast".to_string(), path.display().to_string()])?;
+    let output = run_owned(bin.to_str().unwrap(), &["ast".to_string(), path.display().to_string()])?;
     if !output.status.success() {
         return Err(format!(
             "xu ast failed for {}:\n{}",
@@ -462,7 +462,7 @@ fn xu_ast(bin: &Path, path: &Path) -> Result<(), String> {
 }
 
 fn xu_run(bin: &Path, path: &Path) -> Result<(), String> {
-    let output = run_owned(bin.to_str().unwrap(), &vec!["run".to_string(), path.display().to_string()])?;
+    let output = run_owned(bin.to_str().unwrap(), &["run".to_string(), path.display().to_string()])?;
     if !output.status.success() {
         return Err(format!(
             "xu run failed for {}:\n{}",
@@ -474,7 +474,7 @@ fn xu_run(bin: &Path, path: &Path) -> Result<(), String> {
 }
 
 fn xu_run_expect_fail(bin: &Path, path: &Path) -> Result<(), String> {
-    let output = run_owned(bin.to_str().unwrap(), &vec!["run".to_string(), path.display().to_string()])?;
+    let output = run_owned(bin.to_str().unwrap(), &["run".to_string(), path.display().to_string()])?;
     if output.status.success() {
         return Err(format!("unexpected run success: {}", path.display()));
     }

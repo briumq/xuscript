@@ -1,7 +1,4 @@
-//!
-//!
-//!
-//!
+//! Bytecode representation for the Xu virtual machine.
 
 use crate::{AssignOp, EnumDef, FuncDef, Pattern, StructDef};
 

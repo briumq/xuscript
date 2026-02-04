@@ -1,8 +1,9 @@
-//!
+//! Type system definitions and type interning.
+
 use std::collections::HashMap;
 
+/// Represents a type in the Xu type system.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-///
 pub enum Type {
     Any,
     Unit,
@@ -20,10 +21,16 @@ pub enum Type {
 
 pub type TypeId = u32;
 
-///
+/// Interns types to deduplicate and enable fast comparison.
 pub struct TypeInterner {
     map: HashMap<Type, TypeId>,
     rev: Vec<Type>,
+}
+
+impl Default for TypeInterner {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TypeInterner {
@@ -99,7 +106,7 @@ impl TypeInterner {
         }
     }
 
-    ///
+    /// Parses a type string and returns its interned TypeId.
     pub fn parse_type_str(&mut self, s: &str) -> TypeId {
         let s = s.trim();
         if s == "list" {

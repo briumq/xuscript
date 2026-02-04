@@ -1,5 +1,4 @@
-//!
-//!
+//! Diagnostic types for error and warning reporting.
 
 use crate::{DiagnosticKind, DiagnosticsFormatter, Span};
 

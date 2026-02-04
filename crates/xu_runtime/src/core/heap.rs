@@ -223,81 +223,79 @@ impl Heap {
                 if val.is_obj() {
                     let id = val.as_obj_id();
                     if id.0 < self.objects.len() {
-                        // Only process if the object still exists
-                        if self.objects[id.0].is_some() {
-                            if self.set_mark(id) {
-                                // Safely borrow the object
-                                if let Some(obj) = &self.objects[id.0] {
-                                    match obj {
-                                        ManagedObject::List(list) => {
-                                            for item in list {
-                                                pending_values.push(item.clone());
-                                            }
+                        // Only process if the object still exists and not yet marked
+                        if self.objects[id.0].is_some() && self.set_mark(id) {
+                            // Safely borrow the object
+                            if let Some(obj) = &self.objects[id.0] {
+                                match obj {
+                                    ManagedObject::List(list) => {
+                                        for item in list {
+                                            pending_values.push(item.clone());
                                         }
-                                        ManagedObject::Tuple(list) => {
-                                            for item in list {
-                                                pending_values.push(item.clone());
-                                            }
-                                        }
-                                        ManagedObject::Dict(dict) => {
-                                            for value in dict.map.values() {
-                                                pending_values.push(value.clone());
-                                            }
-                                        }
-                                        ManagedObject::DictStr(dict) => {
-                                            for value in dict.map.values() {
-                                                pending_values.push(value.clone());
-                                            }
-                                        }
-                                        ManagedObject::Struct(s) => {
-                                            for field in &s.fields {
-                                                pending_values.push(field.clone());
-                                            }
-                                        }
-                                        ManagedObject::Module(m) => {
-                                            for value in m.exports.map.values() {
-                                                pending_values.push(value.clone());
-                                            }
-                                        }
-                                        ManagedObject::Enum(e) => {
-                                            let (_, _, payload) = e.as_ref();
-                                            for item in payload.iter() {
-                                                pending_values.push(item.clone());
-                                            }
-                                        }
-                                        ManagedObject::Function(func) => {
-                                            // Mark values captured by closures
-                                            match func {
-                                                Function::User(uf) => {
-                                                    // Mark values in the captured environment
-                                                    for val in &uf.env.stack {
-                                                        pending_values.push(val.clone());
-                                                    }
-                                                    for frame in &uf.env.frames {
-                                                        let scope = frame.scope.borrow();
-                                                        for val in &scope.values {
-                                                            pending_values.push(val.clone());
-                                                        }
-                                                    }
-                                                }
-                                                Function::Bytecode(bf) => {
-                                                    // Mark values in the captured environment
-                                                    for val in &bf.env.stack {
-                                                        pending_values.push(val.clone());
-                                                    }
-                                                    for frame in &bf.env.frames {
-                                                        let scope = frame.scope.borrow();
-                                                        for val in &scope.values {
-                                                            pending_values.push(val.clone());
-                                                        }
-                                                    }
-                                                }
-                                                Function::Builtin(_) => {}
-                                            }
-                                        }
-                                        // Skip Shape objects for now to avoid the crash
-                                        _ => {}
                                     }
+                                    ManagedObject::Tuple(list) => {
+                                        for item in list {
+                                            pending_values.push(item.clone());
+                                        }
+                                    }
+                                    ManagedObject::Dict(dict) => {
+                                        for value in dict.map.values() {
+                                            pending_values.push(value.clone());
+                                        }
+                                    }
+                                    ManagedObject::DictStr(dict) => {
+                                        for value in dict.map.values() {
+                                            pending_values.push(value.clone());
+                                        }
+                                    }
+                                    ManagedObject::Struct(s) => {
+                                        for field in &s.fields {
+                                            pending_values.push(field.clone());
+                                        }
+                                    }
+                                    ManagedObject::Module(m) => {
+                                        for value in m.exports.map.values() {
+                                            pending_values.push(value.clone());
+                                        }
+                                    }
+                                    ManagedObject::Enum(e) => {
+                                        let (_, _, payload) = e.as_ref();
+                                        for item in payload.iter() {
+                                            pending_values.push(item.clone());
+                                        }
+                                    }
+                                    ManagedObject::Function(func) => {
+                                        // Mark values captured by closures
+                                        match func {
+                                            Function::User(uf) => {
+                                                // Mark values in the captured environment
+                                                for val in &uf.env.stack {
+                                                    pending_values.push(val.clone());
+                                                }
+                                                for frame in &uf.env.frames {
+                                                    let scope = frame.scope.borrow();
+                                                    for val in &scope.values {
+                                                        pending_values.push(val.clone());
+                                                    }
+                                                }
+                                            }
+                                            Function::Bytecode(bf) => {
+                                                // Mark values in the captured environment
+                                                for val in &bf.env.stack {
+                                                    pending_values.push(val.clone());
+                                                }
+                                                for frame in &bf.env.frames {
+                                                    let scope = frame.scope.borrow();
+                                                    for val in &scope.values {
+                                                        pending_values.push(val.clone());
+                                                    }
+                                                }
+                                            }
+                                            Function::Builtin(_) => {}
+                                        }
+                                    }
+                                    // Skip Shape objects for now to avoid the crash
+                                    _ => {}
                                 }
                             }
                         }

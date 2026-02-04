@@ -1,5 +1,4 @@
 //! 类型检查共享逻辑
-//!
 //! 此模块包含 ast_exec 和 vm 之间共享的类型检查代码。
 
 use crate::core::heap::{Heap, ManagedObject};
@@ -12,7 +11,6 @@ pub const TYPE_SIG_INIT: u64 = 1469598103934665603u64;
 pub const FNV_PRIME: u64 = 1099511628211;
 
 /// 计算参数列表的类型签名
-///
 /// 用于类型检查的内联缓存（IC）优化。
 /// 当类型签名匹配时，可以跳过类型检查。
 #[inline]

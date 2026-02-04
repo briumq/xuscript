@@ -530,8 +530,7 @@ impl<'a> Lexer<'a> {
         ));
     }
 
-    ///
-    ///
+    /// Lexes a numeric literal (integer or float).
     fn lex_number(&mut self) {
         let start = self.i;
         if self.peek_str("0x") || self.peek_str("0X") {
@@ -688,8 +687,7 @@ impl<'a> Lexer<'a> {
         ));
     }
 
-    ///
-    ///
+    /// Lexes an identifier or keyword.
     fn lex_ident_or_keyword(&mut self) {
         let start = self.i;
         self.i += self.peek_char().unwrap().len_utf8();

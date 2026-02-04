@@ -31,7 +31,6 @@ use super::object_pools::ObjectPools;
 pub(crate) use crate::methods::MethodKind;
 
 /// Runtime 结构体 - xuscript 的核心执行引擎
-///
 /// 字段已按功能分组为子结构体以提高可维护性：
 /// - `types`: 类型系统（结构体、枚举、静态字段）
 /// - `caches`: 缓存管理（方法缓存、IC 槽、字符串池）

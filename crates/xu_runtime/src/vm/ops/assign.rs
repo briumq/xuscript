@@ -152,10 +152,8 @@ pub(crate) fn op_add_assign_local(
     };
     if cur.is_int() && rhs.is_int() {
         cur = Value::from_i64(cur.as_i64().wrapping_add(rhs.as_i64()));
-    } else {
-        if let Some(flow) = do_add_assign(rt, stack, ip, handlers, iters, pending, thrown, &mut cur, rhs)? {
-            return Ok(Some(flow));
-        }
+    } else if let Some(flow) = do_add_assign(rt, stack, ip, handlers, iters, pending, thrown, &mut cur, rhs)? {
+        return Ok(Some(flow));
     }
     rt.set_local_by_index(idx, cur);
     Ok(None)

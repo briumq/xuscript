@@ -1,5 +1,4 @@
 //! 类型系统子模块
-//!
 //! 管理结构体、枚举、静态字段等类型相关的数据。
 
 use xu_ir::StructDef;
@@ -10,7 +9,6 @@ use std::rc::Rc;
 type HashMap<K, V> = FastHashMap<K, V>;
 
 /// 类型系统管理器
-///
 /// 包含所有类型定义相关的字段：
 /// - structs: 结构体定义
 /// - struct_layouts: 结构体字段布局缓存

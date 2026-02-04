@@ -253,10 +253,8 @@ impl Env {
                     if let Some(slot) = self.stack.get_mut(frame.base + idx) {
                         *slot = value;
                     }
-                } else {
-                    if idx < scope.values.len() {
-                        scope.values[idx] = value;
-                    }
+                } else if idx < scope.values.len() {
+                    scope.values[idx] = value;
                 }
                 self.name_cache
                     .insert(name.to_string(), (depth as u32, idx as u32));
@@ -374,12 +372,10 @@ impl Env {
                     } else {
                         Value::UNIT
                     }
+                } else if idx < scope.values.len() {
+                    std::mem::replace(&mut scope.values[idx], Value::UNIT)
                 } else {
-                    if idx < scope.values.len() {
-                        std::mem::replace(&mut scope.values[idx], Value::UNIT)
-                    } else {
-                        Value::UNIT
-                    }
+                    Value::UNIT
                 };
                 self.name_cache
                     .insert(name.to_string(), (depth as u32, idx as u32));

@@ -1,5 +1,5 @@
-//!
-//!
+//! Xu syntax utilities: diagnostics, spans, source mapping, and token definitions.
+
 mod builtins;
 mod diagnostic;
 mod loc;

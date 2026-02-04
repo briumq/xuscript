@@ -6,6 +6,7 @@ use xu_syntax::{
 use super::{Expr, Parser};
 use crate::parser::fast_interpolation_expr;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, 'b> Parser<'a, 'b> {
     pub(super) fn parse_interpolated_string(&mut self, raw: &str) -> Option<Expr> {
         if raw.starts_with("r\"") && raw.ends_with('"') && raw.len() >= 3 {

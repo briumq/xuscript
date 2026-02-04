@@ -1,5 +1,4 @@
-//!
-//!
+//! Span and byte index types for source location tracking.
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ByteIndex(pub u32);

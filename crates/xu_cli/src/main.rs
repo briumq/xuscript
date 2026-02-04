@@ -1,4 +1,3 @@
-//!
 use std::io::Write;
 
 use xu_driver::Driver;
@@ -239,8 +238,6 @@ fn main() {
     }
 }
 
-///
-///
 fn escape_visible(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {

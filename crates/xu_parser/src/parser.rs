@@ -92,7 +92,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             };
             stmts.push(stmt);
             if !self.pending_stmts.is_empty() {
-                stmts.extend(self.pending_stmts.drain(..));
+                stmts.append(&mut self.pending_stmts);
             }
         }
 
@@ -120,7 +120,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                     Some(s) => {
                         stmts.push(s);
                         if !self.pending_stmts.is_empty() {
-                            stmts.extend(self.pending_stmts.drain(..));
+                            stmts.append(&mut self.pending_stmts);
                         }
                     }
                     None => stmts.push(self.recover_stmt()),
@@ -174,10 +174,8 @@ impl<'a, 'b> Parser<'a, 'b> {
                     break;
                 }
             }
-            if brace_depth == 0 {
-                if self.at(TokenKind::StmtEnd) || self.at(TokenKind::Newline) {
-                    break;
-                }
+            if brace_depth == 0 && (self.at(TokenKind::StmtEnd) || self.at(TokenKind::Newline)) {
+                break;
             }
             self.bump();
         }
@@ -489,7 +487,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             TokenKind::Int => {
                 let t = self.bumped();
                 let s = self.token_text(&t);
-                Some(Pattern::Int(Self::parse_int_literal(&s)))
+                Some(Pattern::Int(Self::parse_int_literal(s)))
             }
             TokenKind::Float => {
                 let t = self.bumped();
@@ -544,7 +542,7 @@ pub fn prefix_binding_power() -> u8 {
 }
 
 pub fn fast_interpolation_expr(key: &str) -> Option<Expr> {
-    if key.chars().all(|c| xu_syntax::is_ident_continue(c)) && xu_syntax::is_ident_start(key.chars().next()?) {
+    if key.chars().all(xu_syntax::is_ident_continue) && xu_syntax::is_ident_start(key.chars().next()?) {
         return Some(Expr::Ident(key.to_string(), std::cell::Cell::new(None)));
     }
     None

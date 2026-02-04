@@ -105,7 +105,7 @@ fn normalize_ast_snapshot(s: String) -> String {
     while let Some(line) = it.next() {
         if line.trim() == "Cell {" {
             let indent = line.split("Cell").next().unwrap_or("");
-            while let Some(next) = it.next() {
+            for next in it.by_ref() {
                 if next.trim() == "}," {
                     break;
                 }

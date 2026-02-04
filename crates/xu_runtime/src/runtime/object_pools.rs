@@ -1,5 +1,4 @@
 //! 对象池子模块
-//!
 //! 管理各种对象池，用于减少内存分配。
 
 use crate::core::Env;
@@ -13,7 +12,6 @@ const SMALL_LIST_CAP: usize = 8;
 const SMALL_LIST_POOL_MAX: usize = 64;
 
 /// 对象池管理器
-///
 /// 包含所有对象池相关的字段：
 /// - env_pool: 环境对象池
 /// - vm_stack_pool: VM 栈池

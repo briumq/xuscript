@@ -1,5 +1,4 @@
 //! 缓存管理子模块
-//!
 //! 管理各种运行时缓存，包括方法缓存、字典缓存、IC 槽等。
 
 use std::rc::Rc;
@@ -10,7 +9,6 @@ use super::cache::{ICSlot, MethodICSlot, DictCacheLast, DictCacheIntLast};
 type HashMap<K, V> = FastHashMap<K, V>;
 
 /// 缓存管理器
-///
 /// 包含所有缓存相关的字段：
 /// - method_cache: 方法查找缓存
 /// - dict_cache_*: 字典操作缓存

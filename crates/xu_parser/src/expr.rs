@@ -8,6 +8,7 @@ use crate::{
     RangeExpr, Stmt, StructInitExpr, StructInitItem, UnaryOp, Visibility,
 };
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, 'b> Parser<'a, 'b> {
     pub(super) fn parse_expr(&mut self, min_bp: u8) -> Option<Expr> {
         let lhs = self.parse_prefix()?;

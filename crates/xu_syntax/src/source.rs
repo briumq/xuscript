@@ -11,8 +11,7 @@ pub struct SourceText {
 
 impl SourceText {
     pub fn new(text: String) -> Self {
-        let mut line_starts = Vec::new();
-        line_starts.reserve(text.len().saturating_div(64).max(32));
+        let mut line_starts = Vec::with_capacity(text.len().saturating_div(64).max(32));
         line_starts.push(0u32);
         for (i, b) in text.bytes().enumerate() {
             if b == b'\n' {

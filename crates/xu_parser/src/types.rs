@@ -2,6 +2,7 @@ use super::Parser;
 use crate::TypeRef;
 use xu_syntax::{Diagnostic, DiagnosticKind, TokenKind};
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, 'b> Parser<'a, 'b> {
     pub(super) fn parse_type_ref(&mut self) -> Option<TypeRef> {
         if self.at(TokenKind::LBracket) {

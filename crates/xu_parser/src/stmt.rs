@@ -9,6 +9,7 @@ use crate::{
 use xu_syntax::{Diagnostic, DiagnosticKind, TokenKind, unquote};
 use super::Parser;
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a, 'b> Parser<'a, 'b> {
     /// Parse a single statement.
     pub(super) fn parse_stmt(&mut self) -> Option<Stmt> {

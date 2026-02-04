@@ -1,3 +1,5 @@
+#![allow(clippy::needless_return)]
+
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -483,7 +485,7 @@ fn parse_expectation_from_line(line: &str, key: &str) -> Option<String> {
 }
 
 #[allow(dead_code)]
-fn run_spec_file(path: &PathBuf, src: &str) -> Result<String, String> {
+fn run_spec_file(path: &Path, src: &str) -> Result<String, String> {
     let normalized = normalize_source(src);
     if !normalized.diagnostics.is_empty() {
         return Err(format!(
@@ -528,7 +530,7 @@ fn run_spec_file(path: &PathBuf, src: &str) -> Result<String, String> {
 }
 
 #[allow(dead_code)]
-fn setup_rt_for_edge(rt: &mut Runtime, entry_path: &PathBuf) {
+fn setup_rt_for_edge(rt: &mut Runtime, entry_path: &Path) {
     let root = repo_root();
     let stdlib_path = root.join("stdlib");
     let tests_root = root.join("tests");
