@@ -16,8 +16,6 @@ impl Runtime {
     pub fn gc(&mut self, extra_roots: &[Value]) {
         // Clear caches that are safe to clear (don't affect correctness)
         self.method_cache.clear();
-        self.dict_cache.clear();
-        self.dict_cache_int.clear();
         self.dict_cache_last = None;
         self.dict_cache_int_last = None;
         self.dict_version_last = None;

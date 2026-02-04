@@ -56,8 +56,6 @@ pub struct Runtime {
     pub(crate) func_entry_frame_depth: usize,
     pub(crate) current_param_bindings: Option<Vec<(String, usize)>>,
     pub(crate) method_cache: HashMap<(String, String), Value>,
-    pub(crate) dict_cache: HashMap<(usize, u64), (u64, Text, Value)>,
-    pub(crate) dict_cache_int: HashMap<(usize, i64), (u64, Value)>,
     pub(crate) dict_cache_last: Option<DictCacheLast>,
     pub(crate) dict_cache_int_last: Option<DictCacheIntLast>,
     pub(crate) dict_version_last: Option<(usize, u64)>,
@@ -123,8 +121,6 @@ impl Runtime {
             func_entry_frame_depth: 0,
             current_param_bindings: None,
             method_cache: fast_map_new(),
-            dict_cache: fast_map_new(),
-            dict_cache_int: fast_map_new(),
             dict_cache_last: None,
             dict_cache_int_last: None,
             dict_version_last: None,
@@ -597,8 +593,6 @@ impl Runtime {
             self.env.define(k.clone(), Value::str(s));
         }
         self.method_cache.clear();
-        self.dict_cache.clear();
-        self.dict_cache_int.clear();
         self.dict_cache_last = None;
         self.dict_cache_int_last = None;
         self.dict_version_last = None;
