@@ -34,7 +34,7 @@ User does {
 
     // 内部方法
     inner func validate() -> bool {
-        return self.name.length > 0 && self.age >= 0
+        return self.name.length() > 0 && self.age >= 0
     }
 }
 
@@ -112,7 +112,7 @@ func main() {
     
     // 多绑定短路
     println("\n=== 多绑定短路 ===")
-    when first = names.first, last = names.get(names.length - 1) {
+    when first = names.first(), last = names.get(names.length() - 1) {
         println("First: {first}, Last: {last}")
     } else {
         println("Names list is empty")
@@ -149,7 +149,7 @@ func main() {
     // 字典操作
     println("\n=== 字典操作 ===")
     user_map["charlie"] = User.create("Charlie", 30)
-    println("User map size: {user_map.length}")
+    println("User map size: {user_map.length()}")
     for key in user_map.keys() {
         when user = user_map.get(key) {
             println("{key}: {user.name}, {user.age}")

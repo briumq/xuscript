@@ -32,7 +32,7 @@ func parse_role(type_str: string, id_str: string) -> Result[Role, string] {
 // 例如: "admin:0:1700000000:secret" 或 "user:101:1700000000:secret"
 func decode_token(raw: string) -> Result[Token, string] {
     let parts = raw.split(":")
-    if parts.length < 4 {
+    if parts.length() < 4 {
         return Result#err("Invalid format")
     }
 

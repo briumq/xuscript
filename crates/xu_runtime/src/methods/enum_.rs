@@ -81,15 +81,6 @@ pub(super) fn dispatch(
             }
             Ok(Value::from_bool(variant.as_str() == "some"))
         }
-        MethodKind::OptNone => {
-            if !is_option || !args.is_empty() {
-                return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
-                    method: method.to_string(),
-                    ty: ty.as_str().to_string(),
-                }));
-            }
-            Ok(Value::from_bool(variant.as_str() == "none"))
-        }
         MethodKind::OptOr => {
             if args.len() != 1 {
                 return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
@@ -369,8 +360,8 @@ pub(super) fn dispatch(
                 ty: ty.as_str().to_string(),
             }))
         }
-        MethodKind::OptGet | MethodKind::DictGet => {
-            // get()/unwrap() for Option - DictGet is mapped from "get" method name
+        MethodKind::DictGet => {
+            // get() for Option - DictGet is mapped from "get" method name
             if !is_option {
                 return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
                     method: method.to_string(),

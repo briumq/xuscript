@@ -46,7 +46,7 @@ func test_match_bug() {
 
     // 测试3: 直接使用when语句（应该成功）
     println("\n=== 测试3: when语句 ===")
-    when first_user = users.first {
+    when first_user = users.first() {
         println("First user: {first_user.name}")
     } else {
         println("No users found")

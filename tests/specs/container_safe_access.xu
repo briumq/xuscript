@@ -1,6 +1,6 @@
 func assert(x) { __builtin_assert(x) }
 
-let first = [1, 2, 3].first
+let first = [1, 2, 3].first()
 match first {
     Option#some(x) { assert(x == 1) }
     Option#none    { assert(false) }

@@ -1,6 +1,6 @@
 use crate::errors::messages::{NOT_A_DICT, NOT_A_LIST, NOT_A_STRING};
 use crate::Value;
-use crate::core::value::{DictKey, i64_to_text_fast};
+use crate::core::value::DictKey;
 
 use crate::Runtime;
 
@@ -13,10 +13,6 @@ impl Runtime {
     ) -> Result<Value, String> {
         let tag = obj.get_tag();
         if tag == crate::core::value::TAG_DICT {
-            if matches!(field, "len" | "length" | "keys" | "values" | "items") {
-                return self.get_member_with_ic_raw(obj, field, None);
-            }
-
             let id = obj.as_obj_id();
             let (cur_ver, key_hash) = if let crate::core::heap::ManagedObject::Dict(me) = self.heap.get(id)
             {
@@ -151,38 +147,18 @@ impl Runtime {
             } else {
                 Err(self.error(xu_syntax::DiagnosticKind::Raw("Not an enum".into())))
             }
-        } else if tag == crate::core::value::TAG_OPTION && (field == "value" || field == "has" || field == "none" || field == "name" || field == "type_name") {
-            // Option#some has TAG_OPTION, supports .value, .has, .none, .name, .type_name
+        } else if tag == crate::core::value::TAG_OPTION && (field == "has" || field == "name" || field == "type_name") {
+            // Option#some has TAG_OPTION, supports .has, .name, .type_name
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::OptionSome(_inner) = self.heap.get(id) {
                 match field {
-                    "value" => {
-                        // Re-fetch to avoid borrow issues
-                        if let crate::core::heap::ManagedObject::OptionSome(inner) = self.heap.get(id) {
-                            Ok(*inner)
-                        } else {
-                            unreachable!()
-                        }
-                    }
                     "has" => Ok(Value::from_bool(true)),
-                    "none" => Ok(Value::from_bool(false)),
                     "name" => Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str("some".into())))),
                     "type_name" => Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str("Option".into())))),
                     _ => unreachable!(),
                 }
             } else {
                 Err(self.error(xu_syntax::DiagnosticKind::Raw("Not an Option".into())))
-            }
-        } else if tag == crate::core::value::TAG_LIST && field == "first" {
-            let id = obj.as_obj_id();
-            if let crate::core::heap::ManagedObject::List(v) = self.heap.get(id) {
-                if let Some(first) = v.first().cloned() {
-                    Ok(self.option_some(first))
-                } else {
-                    Ok(self.option_none())
-                }
-            } else {
-                Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())))
             }
         } else if tag == crate::core::value::TAG_LIST && (field == "len" || field == "length") {
             let id = obj.as_obj_id();
@@ -191,7 +167,28 @@ impl Runtime {
             } else {
                 Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())))
             }
-        } else if tag == crate::core::value::TAG_TUPLE && (field == "len" || field == "length") {
+        } else if tag == crate::core::value::TAG_STR && (field == "len" || field == "length") {
+            let id = obj.as_obj_id();
+            if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(id) {
+                Ok(Value::from_i64(s.as_str().chars().count() as i64))
+            } else {
+                Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_STRING.into())))
+            }
+        } else if tag == crate::core::value::TAG_DICT && (field == "len" || field == "length") {
+            let id = obj.as_obj_id();
+            if let crate::core::heap::ManagedObject::Dict(v) = self.heap.get(id) {
+                let mut n = v.map.len();
+                n += v.prop_values.len();
+                for ev in &v.elements {
+                    if ev.get_tag() != crate::core::value::TAG_VOID {
+                        n += 1;
+                    }
+                }
+                Ok(Value::from_i64(n as i64))
+            } else {
+                Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())))
+            }
+        } else if tag == crate::core::value::TAG_TUPLE && field == "length" {
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::Tuple(v) = self.heap.get(id) {
                 Ok(Value::from_i64(v.len() as i64))
@@ -214,128 +211,6 @@ impl Runtime {
                     field.to_string(),
                 )))
             }
-        } else if tag == crate::core::value::TAG_STR && (field == "len" || field == "length") {
-            let id = obj.as_obj_id();
-            if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(id) {
-                Ok(Value::from_i64(s.as_str().chars().count() as i64))
-            } else {
-                Err(self.error(xu_syntax::DiagnosticKind::Raw(
-                    NOT_A_STRING.into(),
-                )))
-            }
-        } else if tag == crate::core::value::TAG_DICT && (field == "len" || field == "length") {
-            let id = obj.as_obj_id();
-            if let crate::core::heap::ManagedObject::Dict(v) = self.heap.get(id) {
-                let mut n = v.map.len();
-                n += v.prop_values.len();
-                for ev in &v.elements {
-                    if ev.get_tag() != crate::core::value::TAG_VOID {
-                        n += 1;
-                    }
-                }
-                Ok(Value::from_i64(n as i64))
-            } else {
-                Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())))
-            }
-        } else if tag == crate::core::value::TAG_DICT && field == "keys" {
-            let id = obj.as_obj_id();
-            let keys_raw: Vec<crate::Text> = if let crate::core::heap::ManagedObject::Dict(db) =
-                self.heap.get(id)
-            {
-                let mut out: Vec<crate::Text> = Vec::with_capacity(db.map.len() + db.prop_values.len());
-                for k in db.map.keys() {
-                    match k {
-                        DictKey::StrInline { .. } | DictKey::Str { .. } => out.push(crate::Text::from_str(k.as_str())),
-                        DictKey::Int(i) => out.push(i64_to_text_fast(*i)),
-                    }
-                }
-                if let Some(sid) = db.shape {
-                    if let crate::core::heap::ManagedObject::Shape(shape) = self.heap.get(sid) {
-                        for k in shape.prop_map.keys() {
-                            out.push(crate::Text::from_str(k.as_str()));
-                        }
-                    }
-                }
-                for (i, v) in db.elements.iter().enumerate() {
-                    if v.get_tag() != crate::core::value::TAG_VOID {
-                        out.push(i64_to_text_fast(i as i64));
-                    }
-                }
-                out
-            } else {
-                return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
-            };
-            let mut keys: Vec<Value> = Vec::with_capacity(keys_raw.len());
-            for s in keys_raw {
-                keys.push(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(s))));
-            }
-            Ok(Value::list(self.heap.alloc(crate::core::heap::ManagedObject::List(keys))))
-        } else if tag == crate::core::value::TAG_DICT && field == "values" {
-            let id = obj.as_obj_id();
-            let values: Vec<Value> = if let crate::core::heap::ManagedObject::Dict(db) = self.heap.get(id)
-            {
-                let mut out: Vec<Value> = Vec::with_capacity(db.map.len() + db.prop_values.len());
-                out.extend(db.map.values().cloned());
-                if let Some(sid) = db.shape {
-                    if let crate::core::heap::ManagedObject::Shape(shape) = self.heap.get(sid) {
-                        for (_, off) in shape.prop_map.iter() {
-                            if let Some(v) = db.prop_values.get(*off) {
-                                out.push(*v);
-                            }
-                        }
-                    }
-                }
-                for v in db.elements.iter() {
-                    if v.get_tag() != crate::core::value::TAG_VOID {
-                        out.push(*v);
-                    }
-                }
-                out
-            } else {
-                return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
-            };
-            Ok(Value::list(self.heap.alloc(crate::core::heap::ManagedObject::List(values))))
-        } else if tag == crate::core::value::TAG_DICT && field == "items" {
-            let id = obj.as_obj_id();
-            let raw_items: Vec<(crate::Text, Value)> =
-                if let crate::core::heap::ManagedObject::Dict(db) = self.heap.get(id) {
-                    let mut out: Vec<(crate::Text, Value)> =
-                        Vec::with_capacity(db.map.len() + db.prop_values.len());
-                    for (k, v) in db.map.iter() {
-                        let key = match k {
-                            DictKey::StrInline { .. } | DictKey::Str { .. } => crate::Text::from_str(k.as_str()),
-                            DictKey::Int(i) => i64_to_text_fast(*i),
-                        };
-                        out.push((key, *v));
-                    }
-                    if let Some(sid) = db.shape {
-                        if let crate::core::heap::ManagedObject::Shape(shape) = self.heap.get(sid) {
-                            for (k, off) in shape.prop_map.iter() {
-                                if let Some(v) = db.prop_values.get(*off) {
-                                    out.push((crate::Text::from_str(k.as_str()), *v));
-                                }
-                            }
-                        }
-                    }
-                    for (i, v) in db.elements.iter().enumerate() {
-                        if v.get_tag() != crate::core::value::TAG_VOID {
-                            out.push((i64_to_text_fast(i as i64), *v));
-                        }
-                    }
-                    out
-                } else {
-                    return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
-                };
-            let mut items: Vec<Value> = Vec::with_capacity(raw_items.len());
-            for (k, v) in raw_items {
-                let key = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(k)));
-                let pair = Value::tuple(
-                    self.heap
-                        .alloc(crate::core::heap::ManagedObject::Tuple(vec![key, v])),
-                );
-                items.push(pair);
-            }
-            Ok(Value::list(self.heap.alloc(crate::core::heap::ManagedObject::List(items))))
         } else if tag == crate::core::value::TAG_DICT {
             // Generic dict field access - treat field as a string key
             let id = obj.as_obj_id();

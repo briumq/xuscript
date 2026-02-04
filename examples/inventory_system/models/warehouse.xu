@@ -71,7 +71,7 @@ Warehouse has {
     }
 
     func remove_stock(prod_id: string, qty: int) -> bool {
-        if !self.stock.has(prod_id) {
+        if self.stock.has(prod_id) {
             return false
         }
         let existing = self.stock[prod_id]

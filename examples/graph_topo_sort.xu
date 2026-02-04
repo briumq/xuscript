@@ -6,7 +6,7 @@ func topo(nodes: [string], edges: [[int]]) -> [string] {
     var changed = true
     while changed {
         changed = false
-        for i in 0..nodes.length {
+        for i in 0..nodes.length() {
             if indeg[i] == 0 {
                 out.push(nodes[i])
                 indeg[i] = -1

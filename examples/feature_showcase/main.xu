@@ -153,7 +153,7 @@ func test_local_features() {
     let doubled = evens.map(|n| n * 2)
     println("Evens doubled: {doubled}")
 
-    if doubled.length == 5 && doubled[0] == 4 {
+    if doubled.length() == 5 && doubled[0] == 4 {
         println("[PASS] List filter/map works")
     } else {
         println("[FAIL] List operations failed")
@@ -170,7 +170,7 @@ func test_local_features() {
 
     // Test Option combinators
     let maybe_num = dict.get("value")
-        .map(|s| s.length)
+        .map(|s| s.length())
         .or(0)
     println("Option combinator result: {maybe_num}")
 

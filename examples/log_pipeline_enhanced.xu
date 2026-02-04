@@ -8,7 +8,7 @@ Record has {
 
 func parse(line: string) -> Option[Record] {
     let parts = line.split("|")
-    if parts.length < 3 { return Option#none }
+    if parts.length() < 3 { return Option#none }
     let ts = parse_int(parts[0])
     let lv = parts[1]
     let level =

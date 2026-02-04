@@ -34,29 +34,22 @@ Xu 是一门**强类型脚本语言**，设计目标：
 
 ### 3.1 运算符
 
-|类别|符号|
-|---|---|
-|赋值|`=` `+=` `-=` `*=` `/=`|
-|比较|`>` `<` `>=` `<=` `==` `!=`|
-|算术|`+` `-` `*` `/` `%`|
-|逻辑|`!` `&&` `\|\|`|
+**运算符列表**（按优先级从高到低排列）：
+
+|优先级|类别|运算符|结合性|说明|
+|---|---|---|---|---|
+|1|访问|`()` `[]` `.` `#`|左到右|函数调用、索引、成员访问、枚举变体|
+|2|一元|`!` `-`|右到左|逻辑非、负号|
+|3|乘除|`*` `/` `%`|左到右|乘法、除法、取模|
+|4|加减|`+` `-`|左到右|加法、减法|
+|5|范围|`..` `..=`|左到右|不含结束值、含结束值|
+|6|比较|`>` `<` `>=` `<=`|左到右|大于、小于、大于等于、小于等于|
+|7|相等|`==` `!=`|左到右|等于、不等于|
+|8|逻辑与|`&&`|左到右|短路求值|
+|9|逻辑或|`\|\|`|左到右|短路求值|
+|10|赋值|`=` `+=` `-=` `*=` `/=`|右到左|赋值、复合赋值|
 
 > 逻辑运算符 `&&` 和 `||` 支持短路求值。
-
-**运算符优先级**（从高到低）：
-
-|优先级|运算符|结合性|
-|---|---|---|
-|1|`()` `[]` `.` `#`|左到右|
-|2|`!` `-`（一元）|右到左|
-|3|`*` `/` `%`|左到右|
-|4|`+` `-`|左到右|
-|5|`..` `..=`|左到右|
-|6|`>` `<` `>=` `<=`|左到右|
-|7|`==` `!=`|左到右|
-|8|`&&`|左到右|
-|9|`\|\|`|左到右|
-|10|`=` `+=` `-=` `*=` `/=`|右到左|
 
 ### 3.2 结构符号
 
@@ -277,7 +270,7 @@ Result[T, E] with [ ok(value: T) | err(error: E) ]
 常见返回类型：
 
 ```xu
-users.first                      // Option[User]
+users.first()                    // Option[User]
 users.find(|u| u.active)         // Option[User]
 map.get("key")                   // Option[V]
 file.read("config.json")         // Result[string, IOError]
@@ -589,9 +582,11 @@ func load_config() -> Result[Config, string] {
 
 ### 10.2 Option 组合子
 
-|方法|说明|
+|方法/属性|说明|
 |---|---|
-|`.has` `.none`|是否有值/无值（属性）|
+|`.has`|是否有值（属性）|
+|`has()`|是否有值（方法）|
+|`get()`|获取内部值，None 时报错|
 |`.or(v)`|有值取值，否则用默认值|
 |`.or_else(func)`|惰性默认值|
 |`.map(func)`|映射变换|
@@ -614,11 +609,12 @@ let config = file.read("config.json")
     .or(default_config)
 ```
 
-### 10.4 字符串方法
+### 10.4 字符串属性与方法
 
-|方法|说明|示例|
+|属性/方法|说明|示例|
 |---|---|---|
-|`.length()`|获取字符串长度|`"hello".length() // 返回 5`|
+|`.length`|获取字符串长度（属性）|`"hello".length // 返回 5`|
+|`.length()`|获取字符串长度（方法）|`"hello".length() // 返回 5`|
 |`.starts_with(prefix)`|检查是否以指定前缀开头|`"hello".starts_with("he") // 返回 true`|
 |`.ends_with(suffix)`|检查是否以指定后缀结尾|`"hello".ends_with("lo") // 返回 true`|
 |`.split(separator)`|按分隔符分割字符串|`"a,b,c".split(",") // 返回 ["a", "b", "c"]`|
@@ -654,11 +650,14 @@ let config = file.read("config.json")
 |`.to_string()`|将布尔值转换为字符串|`true.to_string() // 返回 "true"`|
 |`.not()`|逻辑非操作|`true.not() // 返回 false`|
 
-### 10.8 列表方法
+### 10.8 列表属性与方法
 
-|方法|说明|示例|
+|属性/方法|说明|示例|
 |---|---|---|
-|`.length()`|获取列表长度|`[1, 2, 3].length() // 返回 3`|
+|`.length`|获取列表长度（属性）|`[1, 2, 3].length // 返回 3`|
+|`.length()`|获取列表长度（方法）|`[1, 2, 3].length() // 返回 3`|
+|`.first()`|获取第一个元素|`[1, 2, 3].first() // 返回 Option#some(1)`|
+|`.get(index)`|安全获取指定索引的元素|`[1, 2, 3].get(0) // 返回 Option#some(1)`|
 |`.push(item)`|向列表追加元素|`let list = [1, 2]; list.push(3); // 现在 list 为 [1, 2, 3]`|
 |`.pop()`|移除并返回最后一个元素|`let list = [1, 2, 3]; list.pop(); // 返回 3，list 变为 [1, 2]`|
 |`.reverse()`|反转列表|`let list = [1, 2, 3]; list.reverse(); // 现在 list 为 [3, 2, 1]`|
@@ -667,16 +666,36 @@ let config = file.read("config.json")
 |`.clear()`|清空列表|`let list = [1, 2, 3]; list.clear(); // 现在 list 为 []`|
 |`.remove(index)`|按索引删除元素并返回|`let list = [1, 2, 3]; list.remove(0); // 返回 1，list 变为 [2, 3]`|
 
-### 10.9 字典方法
+### 10.9 字典属性与方法
 
-|方法|说明|示例|
+|属性/方法|说明|示例|
 |---|---|---|
-|`.length()`|获取字典长度|`{"a": 1, "b": 2}.length() // 返回 2`|
+|`.length`|获取字典长度（属性）|`{"a": 1, "b": 2}.length // 返回 2`|
+|`.length()`|获取字典长度（方法）|`{"a": 1, "b": 2}.length() // 返回 2`|
 |`.insert(key, value)`|插入键值对|`let dict = {"a": 1}; dict.insert("b", 2); // 现在 dict 为 {"a": 1, "b": 2}`|
-|`.get(key)`|获取指定键的值|`{"a": 1}.get("a") // 返回 Option.some(1)`|
+|`.get(key)`|获取指定键的值|`{"a": 1}.get("a") // 返回 Option#some(1)`|
 |`.keys()`|获取所有键|`{"a": 1, "b": 2}.keys() // 返回 ["a", "b"]`|
 |`.values()`|获取所有值|`{"a": 1, "b": 2}.values() // 返回 [1, 2]`|
+|`.items()`|获取所有键值对|`{"a": 1}.items() // 返回 [("a", 1)]`|
 |`.merge(other)`|合并另一个字典|`{"a": 1}.merge({"b": 2}) // 返回 {"a": 1, "b": 2}`|
+
+### 10.10 元组属性与方法
+
+|属性/方法|说明|示例|
+|---|---|---|
+|`.length`|获取元组长度（属性）|`(1, "hi", true).length // 返回 3`|
+|`.length()`|获取元组长度（方法）|`(1, "hi", true).length() // 返回 3`|
+|`.0`, `.1`, `.2` ...|按索引访问元素（属性）|`(1, "hi").0 // 返回 1`|
+
+### 10.11 枚举属性与方法
+
+|属性/方法|说明|示例|
+|---|---|---|
+|`.name`|获取变体名称（属性）|`Status#pending.name // 返回 "pending"`|
+|`.type_name`|获取类型名称（属性）|`Status#pending.type_name // 返回 "Status"`|
+|`name()`|获取变体名称（方法）|`Status#pending.name() // 返回 "pending"`|
+|`type_name()`|获取类型名称（方法）|`Status#pending.type_name() // 返回 "Status"`|
+|`to_string()`|转换为字符串表示|`Status#pending.to_string() // 返回 "Status#pending"`|
 
 ---
 
@@ -685,7 +704,7 @@ let config = file.read("config.json")
 |方式|语法|缺失时行为|
 |---|---|---|
 |强访问|`list[0]` `map["key"]`|panic|
-|安全访问|`list.first` `list.get(0)` `map.get("key")`|返回 Option|
+|安全访问|`list.first()` `list.get(0)` `map.get("key")`|返回 Option|
 
 > panic 为不可恢复错误，终止脚本执行。
 
@@ -736,8 +755,6 @@ User does {
 ## 13. 完整示例
 
 ```xu
-use "http" as http
-
 // 枚举定义
 Status with [ pending | approved | rejected ]
 
@@ -747,23 +764,24 @@ User has {
     age: int = 0
     status: Status = Status#pending
 
-    func greet(): println("Hello, {self.name}!")
+    func greet() {
+        println("Hello, {self.name}!")
+    }
 
-    func is_adult() -> bool: return self.age >= 18
+    func is_adult() -> bool {
+        return self.age >= 18
+    }
 
-    static func create(name: string, age: int) -> User: return User{ name: name, age: age }
+    static func create(name: string, age: int) -> User {
+        return User{ name: name, age: age }
+    }
 }
 
 // 扩展方法
 User does {
-    func to_json() -> string: return """{"name": "{self.name}", "age": {self.age}}"""
-}
-
-// 组合子链式处理错误
-func fetch_users(url: string) -> Result[[User], string] {
-    return http.get(url)
-        .then(|resp| parse_users(resp.body))
-        .map_err(|e| "请求失败: {e}")
+    func to_json() -> string {
+        return """{"name": "{self.name}", "age": {self.age}}"""
+    }
 }
 
 // 主函数
@@ -775,36 +793,43 @@ func main() {
 
     // 链式过滤
     let adults = users.filter(|u| u.is_adult())
-    if adults.any: println("成年人数: {adults.length}")
+    if adults.length > 0 {
+        println("成年人数: {adults.length}")
+    }
 
     // when 条件绑定
-    when user = users.find(|u| u.name == "Alice"): user.greet()
-    else: println("未找到 Alice")
+    when user = users.find(|u| u.name == "Alice") {
+        user.greet()
+    } else {
+        println("未找到 Alice")
+    }
 
     // 多绑定短路
-    when first = users.first, second = users.get(1): println("{first.name} 和 {second.name}")
-    else: println("用户不足")
+    when first = users.first(), second = users.get(1) {
+        println("{first.name} 和 {second.name}")
+    } else {
+        println("用户不足")
+    }
 
     // 结构体展开
-    when first = users.first {
+    when first = users.first() {
         let older = User{ ...first, age: first.age + 1 }
         println("{older.name} 明年 {older.age} 岁")
-    } else: println("没有用户")
+    } else {
+        println("没有用户")
+    }
 
     // match 表达式
-    let status_text = match users.first.or(User{ name: "?" }).status {
-        Status#pending:  "待审核"
-        Status#approved: "已通过"
-        Status#rejected: "已拒绝"
-        _: "未知"
+    let default_user = User{ name: "?" }
+    let first_user = users.first().or(default_user)
+    let status_text = match first_user.status {
+        Status#pending  { "待审核" }
+        Status#approved { "已通过" }
+        Status#rejected { "已拒绝" }
+        _ { "未知" }
     }
     println("状态: {status_text}")
-
-    // match 处理 Result
-    match fetch_users("/api/users") {
-        Result#ok(data): for user in data: println(user.name)
-        Result#err(msg): println("错误: {msg}")
-        _: println("未知结果")
-    }
 }
+
+main()
 ```

@@ -1,7 +1,7 @@
 Result with [ ok(user: string) | error(msg: string) ]
 
 func validate_name(name: string) -> Option[string] {
-    if name.length < 3 { return Option#none }
+    if name.length() < 3 { return Option#none }
     return Option#some(name)
 }
 

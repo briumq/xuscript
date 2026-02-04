@@ -1,5 +1,5 @@
 func summarize(names: [string]) -> string {
-    let n = names.length
+    let n = names.length()
     if n == 0 { return "empty strong_panic_blocked n={n}" }
     let strong = names[0]
     let first = names[0]

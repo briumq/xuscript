@@ -30,7 +30,7 @@ OrderService has {
     }
 
     func add_to_order(order_id: string, prod_id: string, qty: int) -> bool {
-        if !self.orders.has(order_id) {
+        if self.orders.has(order_id) {
             return false
         }
         let prod = self.inventory.get_product(prod_id)
@@ -42,7 +42,7 @@ OrderService has {
     }
 
     func add_item_to_order(order_id: string, prod: Product, qty: int) -> bool {
-        if !self.orders.has(order_id) {
+        if self.orders.has(order_id) {
             return false
         }
         let new_item = order_mod.OrderItem.create(prod, qty)
@@ -54,7 +54,7 @@ OrderService has {
     }
 
     func confirm_order(order_id: string, wh_id: string) -> bool {
-        if !self.orders.has(order_id) {
+        if self.orders.has(order_id) {
             return false
         }
         var current_order = self.orders[order_id]
@@ -81,7 +81,7 @@ OrderService has {
     }
 
     func ship_order(order_id: string) -> bool {
-        if !self.orders.has(order_id) {
+        if self.orders.has(order_id) {
             return false
         }
         var current_order = self.orders[order_id]
@@ -91,7 +91,7 @@ OrderService has {
     }
 
     func deliver_order(order_id: string) -> bool {
-        if !self.orders.has(order_id) {
+        if self.orders.has(order_id) {
             return false
         }
         var current_order = self.orders[order_id]
@@ -101,7 +101,7 @@ OrderService has {
     }
 
     func cancel_order(order_id: string) -> bool {
-        if !self.orders.has(order_id) {
+        if self.orders.has(order_id) {
             return false
         }
         var current_order = self.orders[order_id]

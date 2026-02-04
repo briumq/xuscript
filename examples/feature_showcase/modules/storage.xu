@@ -18,7 +18,7 @@ Storage has {
 Storage does {
     // Returns (success: bool, message: string)
     func put(key: string, value: string) -> (bool, string) {
-        if self.data.length >= self.capacity {
+        if self.data.length() >= self.capacity {
             return (false, "Capacity exceeded: {self.capacity}")
         }
         self.data[key] = value
@@ -49,7 +49,7 @@ Storage does {
     }
 
     func size() -> int {
-        return self.data.length
+        return self.data.length()
     }
 
     func keys() -> [string] {
@@ -61,13 +61,13 @@ Storage does {
     }
 
     func format() -> string {
-        return "Storage[{self.name}]: {self.data.length}/{self.capacity} items"
+        return "Storage[{self.name}]: {self.data.length()}/{self.capacity} items"
     }
 }
 
 // Inner helper for key validation
 inner func _is_valid_key(key: string) -> bool {
-    return key.length > 0 && key.length <= 256
+    return key.length() > 0 && key.length() <= 256
 }
 
 // Public batch operations

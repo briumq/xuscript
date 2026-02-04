@@ -9,5 +9,5 @@ func transform(m: {string: any}) -> {string: any} {
 func main() {
     let m = { "a": 1, "b": 2 }
     let t = transform(m)
-    println("keys={t.keys().length} A={t[\"A\"]} B={t[\"B\"]}")
+    println("keys={t.keys().length()} A={t[\"A\"]} B={t[\"B\"]}")
 }

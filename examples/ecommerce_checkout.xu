@@ -41,7 +41,7 @@ Cart does {
     }
 
     func is_empty() -> bool {
-        return self.items.length == 0
+        return self.items.length() == 0
     }
 }
 
@@ -54,7 +54,7 @@ Customer has {
 
 Customer does {
     func validate() -> bool {
-        return self.name.length > 0 && self.email.length > 0 && self.address.length > 0
+        return self.name.length() > 0 && self.email.length() > 0 && self.address.length() > 0
     }
 }
 

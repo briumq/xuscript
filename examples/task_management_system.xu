@@ -61,18 +61,18 @@ Task has {
     }
 
     func has_due_date() -> bool {
-        return !self.due_at.none
+        return self.due_at.has
     }
 
     func to_string() -> string {
-        let assignee_str = if !self.assignee.none {
-            "Assigned to: {self.assignee.value.name}"
+        let assignee_str = if self.assignee.has {
+            "Assigned to: {self.assignee.get().name}"
         } else {
             "Unassigned"
         }
-        
-        let due_str = if !self.due_at.none {
-            "Due: {self.due_at.value}"
+
+        let due_str = if self.due_at.has {
+            "Due: {self.due_at.get()}"
         } else {
             "No due date"
         }
@@ -124,7 +124,7 @@ TaskService has {
     func list_tasks(status: Option[TaskStatus] = Option#none) -> [Task] {
         var result: [Task] = []
         for (_, task) in self.tasks {
-            if status.none || task.status == status.value {
+            if !status.has || task.status == status.get() {
                 result.push(task)
             }
         }
@@ -149,10 +149,10 @@ TaskService has {
 
     func assign_task(task_id: string, user_id: string) -> Result[bool, string] {
         let task = self.get_task(task_id)
-        if !task.none {
+        if task.has {
             let user = self.get_user(user_id)
-            if !user.none {
-                task.value.assign_to(user.value)
+            if user.has {
+                task.get().assign_to(user.get())
                 return Result#ok(true)
             } else {
                 return Result#err("User not found")
@@ -164,11 +164,11 @@ TaskService has {
 
     func update_task_status(task_id: string, status: TaskStatus) -> Result[bool, string] {
         let task = self.get_task(task_id)
-        if !task.none {
+        if task.has {
             match status {
-                TaskStatus#in_progress: task.value.mark_in_progress()
-                TaskStatus#completed: task.value.mark_completed()
-                TaskStatus#cancelled: task.value.mark_cancelled()
+                TaskStatus#in_progress: task.get().mark_in_progress()
+                TaskStatus#completed: task.get().mark_completed()
+                TaskStatus#cancelled: task.get().mark_cancelled()
                 _: return Result#err("Invalid status")
             }
             return Result#ok(true)
@@ -188,7 +188,7 @@ TaskService has {
     }
 
     func get_task_statistics() {
-        let total = self.tasks.length
+        let total = self.tasks.length()
         let by_status = {}
         let by_priority = {}
         let by_assignee = {}
@@ -211,8 +211,8 @@ TaskService has {
             }
 
             // 按负责人统计
-            if !task.assignee.none {
-                let assignee_id = task.assignee.value.id
+            if task.assignee.has {
+                let assignee_id = task.assignee.get().id
                 if by_assignee.contains(assignee_id) {
                     by_assignee[assignee_id] = by_assignee[assignee_id] + 1
                 } else {

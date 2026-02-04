@@ -98,7 +98,7 @@ InventoryService has {
     }
 
     func stock_in(wh_id: string, prod_id: string, qty: int, location: string) -> bool {
-        if !self.warehouses.has(wh_id) || !self.products.has(prod_id) {
+        if self.warehouses.has(wh_id) || self.products.has(prod_id) {
             return false
         }
         var wh = self.warehouses[wh_id]
@@ -108,7 +108,7 @@ InventoryService has {
     }
 
     func stock_out(wh_id: string, prod_id: string, qty: int) -> bool {
-        if !self.warehouses.has(wh_id) {
+        if self.warehouses.has(wh_id) {
             return false
         }
         var wh = self.warehouses[wh_id]

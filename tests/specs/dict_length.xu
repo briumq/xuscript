@@ -1,16 +1,16 @@
-// 测试字典 length 属性
+// 测试字典 length 方法
 func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
 
 let empty_map: {string: int} = {}
-assert(empty_map.length == 0, "empty map length should be 0")
+assert(empty_map.length() == 0, "empty map length should be 0")
 
 let map = {"a": 1, "b": 2, "c": 3}
-assert(map.length == 3, "map length should be 3")
+assert(map.length() == 3, "map length should be 3")
 
 map["d"] = 4
-assert(map.length == 4, "map length should be 4 after insert")
+assert(map.length() == 4, "map length should be 4 after insert")
 
 map.remove("a")
-assert(map.length == 3, "map length should be 3 after remove")
+assert(map.length() == 3, "map length should be 3 after remove")
 
 println("dict_length: all tests passed")

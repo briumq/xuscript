@@ -18,7 +18,7 @@ func main() {
     // Test instance methods
     let formatted = laptop.format()
     println("Format: {formatted}")
-    helpers.assert(formatted.length > 0, "format() should return non-empty string")
+    helpers.assert(formatted.length() > 0, "format() should return non-empty string")
     helpers.print_success("Product.format() works")
 
     let margin = laptop.profit_margin()
@@ -50,7 +50,7 @@ func main() {
 
     let wh_format = wh.format()
     println("Format: {wh_format}")
-    helpers.assert(wh_format.length > 0, "format() should return non-empty string")
+    helpers.assert(wh_format.length() > 0, "format() should return non-empty string")
     helpers.print_success("Warehouse.format() works")
 
     let added = wh.add_stock("ELEC-001", 50, "A-01")
@@ -89,7 +89,7 @@ func main() {
 
     let ord_format = order.format()
     println("Format: {ord_format}")
-    helpers.assert(ord_format.length > 0, "format() should return non-empty string")
+    helpers.assert(ord_format.length() > 0, "format() should return non-empty string")
     helpers.print_success("Order.format() works")
 
     helpers.assert(order.is_pending(), "Order should be pending")
@@ -149,7 +149,7 @@ func main() {
 
     let item_format = item.format()
     println("Item format: {item_format}")
-    helpers.assert(item_format.length > 0, "OrderItem.format() should return non-empty string")
+    helpers.assert(item_format.length() > 0, "OrderItem.format() should return non-empty string")
     helpers.print_success("OrderItem.format() works")
 
     // ========================================
@@ -160,7 +160,7 @@ func main() {
     let si = warehouse_mod.StockItem.create("P-001", 100, "B-02")
     let si_format = si.format()
     println("StockItem format: {si_format}")
-    helpers.assert(si_format.length > 0, "StockItem.format() should return non-empty string")
+    helpers.assert(si_format.length() > 0, "StockItem.format() should return non-empty string")
     helpers.print_success("StockItem.format() works")
 
     // ========================================

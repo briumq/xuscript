@@ -14,11 +14,11 @@ assert(c == true, "c")
 
 // set_literal
 let s = set{1, 2, 3, 2, 1}
-assert(s.length == 3, "s.length")
+assert(s.length() == 3, "s.length()")
 assert(s.contains(1), "s.contains(1)")
 assert(s.contains(2), "s.contains(2)")
 assert(s.contains(3), "s.contains(3)")
 
 // set_empty
 let s2 = set{}
-assert(s2.length == 0, "s2.length")
+assert(s2.length() == 0, "s2.length()")

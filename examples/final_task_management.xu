@@ -32,14 +32,14 @@ Task has {
     due_at: Option[string] = Option#none
 
     func to_string() -> string {
-        let assignee_str = if !self.assignee.none {
-            "Assigned to: {self.assignee.value.name}"
+        let assignee_str = if self.assignee.has {
+            "Assigned to: {self.assignee.get().name}"
         } else {
             "Unassigned"
         }
-        
-        let due_str = if !self.due_at.none {
-            "Due: {self.due_at.value}"
+
+        let due_str = if self.due_at.has {
+            "Due: {self.due_at.get()}"
         } else {
             "No due date"
         }

@@ -71,7 +71,7 @@ Event does {
     }
 
     func format() -> string {
-        let tag_str = if self.tags.length > 0 {
+        let tag_str = if self.tags.length() > 0 {
             self.tags.join(", ")
         } else {
             "none"
@@ -82,7 +82,7 @@ Event does {
 
 // Inner validation function
 inner func _validate_event_name(name: string) -> bool {
-    return name.length > 0 && name.length <= 100
+    return name.length() > 0 && name.length() <= 100
 }
 
 // Public function to process event - returns tuple (success: bool, message: string)
@@ -90,7 +90,7 @@ func process_event(event: Event) -> (bool, string) {
     if !_validate_event_name(event.name) {
         return (false, "Invalid event name")
     }
-    if event.is_critical() && event.tags.length == 0 {
+    if event.is_critical() && event.tags.length() == 0 {
         return (false, "Critical events must have tags")
     }
     return (true, "Event {event.id} processed")

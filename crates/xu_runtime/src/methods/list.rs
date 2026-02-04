@@ -235,6 +235,14 @@ pub(super) fn dispatch(
             }
             Ok(default)
         }
+        MethodKind::ListFirst => {
+            validate_arity(rt, method, args.len(), 0, 0)?;
+            let list = expect_list(rt, recv)?;
+            match list.first() {
+                Some(v) => Ok(rt.option_some(*v)),
+                None => Ok(rt.option_none()),
+            }
+        }
         _ => Err(rt.error(xu_syntax::DiagnosticKind::UnknownListMethod(
             method.to_string(),
         ))),

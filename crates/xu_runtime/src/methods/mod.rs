@@ -26,6 +26,7 @@ pub(crate) enum MethodKind {
     ListFind,
     ListFindIndex,
     ListFindOr,
+    ListFirst,
     DictMerge,
     DictInsert,
     DictInsertInt,
@@ -71,8 +72,6 @@ pub(crate) enum MethodKind {
     OptEach,
     OptFilter,
     OptHas,
-    OptNone,
-    OptGet,
     ResMapErr,
     EnumName,
     EnumTypeName,
@@ -102,6 +101,7 @@ impl MethodKind {
             "find" => Self::ListFind,
             "find_index" => Self::ListFindIndex,
             "find_or" => Self::ListFindOr,
+            "first" => Self::ListFirst,
             "length" => Self::Len,
             "len" => Self::Len,
             "contains" => Self::Contains,
@@ -152,8 +152,6 @@ impl MethodKind {
             "each" => Self::OptEach,
             "filter" => Self::OptFilter,
             "has" => Self::OptHas,
-            "none" => Self::OptNone,
-            "unwrap" => Self::OptGet,
             "map_err" => Self::ResMapErr,
             "name" => Self::EnumName,
             "type_name" => Self::EnumTypeName,
@@ -166,7 +164,7 @@ pub(super) fn dispatch_builtin_method(
     rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
 ) -> Result<Value, String> {
     let tag = recv.get_tag();
-    
+
     // 根据接收者类型分发到不同的处理函数
     match tag {
         crate::core::value::TAG_LIST => list::dispatch(rt, recv, kind, args, method),
@@ -175,6 +173,7 @@ pub(super) fn dispatch_builtin_method(
         crate::core::value::TAG_STR => str::dispatch(rt, recv, kind, args, method),
         crate::core::value::TAG_ENUM => enum_::dispatch(rt, recv, kind, args, method),
         crate::core::value::TAG_OPTION => dispatch_option_some(rt, recv, kind, args, method),
+        crate::core::value::TAG_TUPLE => dispatch_tuple(rt, recv, kind, args, method),
         _ => dispatch_primitive_methods(rt, recv, kind, args, method),
     }
 }
@@ -203,6 +202,31 @@ fn dispatch_primitive_methods(
     ))
 }
 
+fn dispatch_tuple(
+    rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
+) -> Result<Value, String> {
+    let id = recv.as_obj_id();
+    let tuple = if let crate::core::heap::ManagedObject::Tuple(t) = rt.heap.get(id) {
+        t
+    } else {
+        return Err(err(rt, xu_syntax::DiagnosticKind::Raw("Not a tuple".into())));
+    };
+
+    match kind {
+        MethodKind::Len => {
+            validate_arity(rt, method, args.len(), 0, 0)?;
+            Ok(Value::from_i64(tuple.len() as i64))
+        }
+        _ => Err(err(
+            rt,
+            xu_syntax::DiagnosticKind::UnsupportedMethod {
+                method: method.to_string(),
+                ty: "tuple".to_string(),
+            },
+        )),
+    }
+}
+
 fn dispatch_option_some(
     rt: &mut Runtime, recv: Value, kind: MethodKind, args: &[Value], method: &str,
 ) -> Result<Value, String> {
@@ -210,7 +234,6 @@ fn dispatch_option_some(
 
     match kind {
         MethodKind::OptHas => Ok(Value::from_bool(true)),
-        MethodKind::OptNone => Ok(Value::from_bool(false)),
         MethodKind::OptOr => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             Ok(inner)
@@ -246,8 +269,8 @@ fn dispatch_option_some(
                 Ok(rt.option_none())
             }
         }
-        MethodKind::OptGet | MethodKind::DictGet => {
-            // get()/unwrap() for Option#some - return the inner value
+        MethodKind::DictGet => {
+            // get() for Option#some - return the inner value
             // DictGet is mapped from "get" method name, which is also used for Option.get()
             validate_arity(rt, method, args.len(), 0, 0)?;
             Ok(inner)
