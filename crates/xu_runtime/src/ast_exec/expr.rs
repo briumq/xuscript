@@ -414,6 +414,14 @@ impl Runtime {
                 self.enum_new_checked(ty, variant, payload.into_boxed_slice())
             }
             Expr::Member(m) => {
+                // Check if this is a static field access (Type.field)
+                if let Expr::Ident(type_name, _) = m.object.as_ref() {
+                    // First check if it's a static field
+                    let key = (type_name.clone(), m.field.clone());
+                    if let Some(value) = self.static_fields.get(&key) {
+                        return Ok(*value);
+                    }
+                }
                 let obj = self.eval_expr(&m.object)?;
                 self.get_member_with_ic(obj, &m.field, &m.ic_slot)
             }

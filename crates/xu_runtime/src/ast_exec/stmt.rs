@@ -40,6 +40,18 @@ impl Runtime {
                 self.struct_layouts
                     .insert(def.name.clone(), std::rc::Rc::from(layout));
 
+                // Initialize static fields
+                for sf in def.static_fields.iter() {
+                    let value = match self.eval_expr(&sf.default) {
+                        Ok(v) => v,
+                        Err(e) => return Flow::Throw(Value::str(self.heap.alloc(
+                            crate::core::heap::ManagedObject::Str(e.into())
+                        ))),
+                    };
+                    let key = (def.name.clone(), sf.name.clone());
+                    self.static_fields.insert(key, value);
+                }
+
                 // Register all methods defined in the has block
                 for f in def.methods.iter() {
                     let s = Stmt::FuncDef(Box::new(f.clone()));
@@ -629,6 +641,20 @@ impl Runtime {
                 Ok(())
             }
             Expr::Member(m) => {
+                // Check if this is a static field assignment (Type.field = value)
+                if let Expr::Ident(type_name, _) = m.object.as_ref() {
+                    let key = (type_name.clone(), m.field.clone());
+                    if self.static_fields.contains_key(&key) {
+                        if stmt.op == AssignOp::Set {
+                            self.static_fields.insert(key, rhs);
+                        } else {
+                            let cur = self.static_fields.get(&key).copied();
+                            let v = self.apply_assign_op(cur, stmt.op, rhs)?;
+                            self.static_fields.insert(key, v);
+                        }
+                        return Ok(());
+                    }
+                }
                 let obj = self.eval_expr(&m.object)?;
                 self.assign_member(obj, &m.field, stmt.op, rhs)
             }
