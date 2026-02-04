@@ -16,6 +16,7 @@ mod tuple;
 
 use common::*;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MethodKind {
     ListPush,
@@ -168,41 +169,14 @@ pub(super) fn dispatch_builtin_method(
 ) -> Result<Value, String> {
     let tag = recv.get_tag();
 
+    // 根据接收者类型分发到不同的处理函数
     match tag {
-        crate::core::value::TAG_LIST => {
-            let kind = match kind {
-                MethodKind::DictGet | MethodKind::DictGetInt => MethodKind::ListGet,
-                MethodKind::OptFilter => MethodKind::ListFilter,
-                MethodKind::OptMap => MethodKind::ListMap,
-                _ => kind,
-            };
-            list::dispatch(rt, recv, kind, args, method)
-        }
-        crate::core::value::TAG_DICT => {
-            let kind = match kind {
-                MethodKind::ListInsert => MethodKind::DictInsert,
-                MethodKind::OptHas => MethodKind::DictHas,
-                _ => kind,
-            };
-            dict::dispatch(rt, recv, kind, args, method)
-        }
+        crate::core::value::TAG_LIST => list::dispatch(rt, recv, kind, args, method),
+        crate::core::value::TAG_DICT => dict::dispatch(rt, recv, kind, args, method),
         crate::core::value::TAG_FILE => file::dispatch(rt, recv, kind, args, method),
-        crate::core::value::TAG_STR => {
-            let kind = match kind {
-                MethodKind::ListFind => MethodKind::StrFind,
-                MethodKind::DictGet | MethodKind::DictGetInt => MethodKind::StrGet,
-                _ => kind,
-            };
-            str::dispatch(rt, recv, kind, args, method)
-        }
-        crate::core::value::TAG_ENUM => {
-            let kind = if kind == MethodKind::DictGet { MethodKind::OptGet } else { kind };
-            enum_::dispatch(rt, recv, kind, args, method)
-        }
-        crate::core::value::TAG_OPTION => {
-            let kind = if kind == MethodKind::DictGet { MethodKind::OptGet } else { kind };
-            option::dispatch(rt, recv, kind, args, method)
-        }
+        crate::core::value::TAG_STR => str::dispatch(rt, recv, kind, args, method),
+        crate::core::value::TAG_ENUM => enum_::dispatch(rt, recv, kind, args, method),
+        crate::core::value::TAG_OPTION => option::dispatch(rt, recv, kind, args, method),
         crate::core::value::TAG_TUPLE => tuple::dispatch(rt, recv, kind, args, method),
         _ => dispatch_primitive_methods(rt, recv, kind, args, method),
     }

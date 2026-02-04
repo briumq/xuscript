@@ -46,7 +46,7 @@ pub(super) fn dispatch(
                 Ok(rt.option_none())
             }
         }
-        MethodKind::OptGet => {
+        MethodKind::OptGet | MethodKind::DictGet => {
             validate_arity(rt, method, args.len(), 0, 0)?;
             Ok(inner)
         }

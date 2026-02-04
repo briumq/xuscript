@@ -360,7 +360,7 @@ pub(super) fn dispatch(
                 ty: ty.as_str().to_string(),
             }))
         }
-        MethodKind::OptGet => {
+        MethodKind::OptGet | MethodKind::DictGet => {
             // get() for Option - OptGet is mapped from "get" method name
             if !is_option {
                 return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
