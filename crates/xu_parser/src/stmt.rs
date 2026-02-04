@@ -407,12 +407,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             } else {
                 None
             };
-            let body = if self.at(TokenKind::Colon) {
-                self.bump();
-                self.parse_block_or_inline_stmt_after_colon(false)?
-            } else {
-                self.parse_block()?
-            };
+            let body = self.parse_block()?;
             return Some(FuncDef {
                 vis,
                 name: internal,
@@ -435,12 +430,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         } else {
             None
         };
-        let body = if self.at(TokenKind::Colon) {
-            self.bump();
-            self.parse_block_or_inline_stmt_after_colon(false)?
-        } else {
-            self.parse_block()?
-        };
+        let body = self.parse_block()?;
         Some(FuncDef {
             vis,
             name,

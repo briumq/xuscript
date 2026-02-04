@@ -352,8 +352,8 @@ assert(check == true, "match colon bool")
 
 Counter has {
     value: int = 0
-    static func create(v1: int) -> Counter: return Counter{ value: v1 }
-    func get() -> int: return self.value
+    static func create(v1: int) -> Counter { return Counter{ value: v1 } }
+    func get() -> int { return self.value }
 }
 
 // 11.1 冒号语句中调用静态方法
