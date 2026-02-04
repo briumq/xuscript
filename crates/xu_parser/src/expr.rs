@@ -744,19 +744,23 @@ impl<'a, 'b> Parser<'a, 'b> {
             self.bump();
             return Some(args);
         }
-        loop {
-            self.skip_layout();
-            if self.at(TokenKind::RParen) {
+        // 在括号内允许结构体字面量，因为括号提供了明确的边界
+        self.with_struct_init(true, |p| {
+            loop {
+                p.skip_layout();
+                if p.at(TokenKind::RParen) {
+                    break;
+                }
+                args.push(p.parse_expr(0)?);
+                p.skip_layout();
+                if p.at(TokenKind::Comma) {
+                    p.bump();
+                    continue;
+                }
                 break;
             }
-            args.push(self.parse_expr(0)?);
-            self.skip_layout();
-            if self.at(TokenKind::Comma) {
-                self.bump();
-                continue;
-            }
-            break;
-        }
+            Some(())
+        })?;
         self.skip_layout();
         self.expect(TokenKind::RParen)?;
         Some(args)
