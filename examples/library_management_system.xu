@@ -137,15 +137,15 @@ Library has {
     }
     
     func find_book_by_id(id: int) -> Option[Book] {
-        return self.books.find(func(book) -> book.id == id)
+        return self.books.find(|book| book.id == id)
     }
     
     func find_user_by_id(id: string) -> Option[User] {
-        return self.users.find(func(user) -> user.id == id)
+        return self.users.find(|user| user.id == id)
     }
     
     func find_author_by_id(id: int) -> Option[Author] {
-        return self.authors.find(func(author) -> author.id == id)
+        return self.authors.find(|author| author.id == id)
     }
     
     func search_books_by_title(title: string) -> [Book] {
@@ -207,11 +207,11 @@ Library has {
     }
     
     func get_available_books() -> [Book] {
-        return self.books.filter(func(book) -> book.status == BookStatus#available)
+        return self.books.filter(|book| book.status == BookStatus#available)
     }
     
     func get_borrowed_books() -> [Book] {
-        return self.books.filter(func(book) -> book.status == BookStatus#borrowed)
+        return self.books.filter(|book| book.status == BookStatus#borrowed)
     }
     
     func print_books() {

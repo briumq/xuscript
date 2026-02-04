@@ -2,7 +2,7 @@
 func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
 
 func make_adder(a: int) {
-    return func(b: int) -> a + b
+    return |b: int| a + b
 }
 
 let add5 = make_adder(5)

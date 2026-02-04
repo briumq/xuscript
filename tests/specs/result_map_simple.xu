@@ -34,7 +34,7 @@ func test_result_map_simple() {
 
     // 测试1: Result.map返回结构体
     println("\n测试1: Result.map返回结构体")
-    let result1 = get_user(1).map(func(user: User) -> Token {
+    let result1 = get_user(1).map(|user: User| -> Token {
         return Token.create(user, "admin")
     })
     println("Result: {result1}")

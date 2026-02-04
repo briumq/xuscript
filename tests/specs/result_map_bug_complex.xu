@@ -39,7 +39,7 @@ func test_result_map_bug_complex() {
 
     // 测试1: 简单的Result.map返回结构体
     println("\n测试1: 简单的Result.map返回结构体")
-    let result1 = fetch_user(1).map(func(user: User) -> string {
+    let result1 = fetch_user(1).map(|user: User| -> string {
         return user.name
     })
     match result1 {
@@ -56,7 +56,7 @@ func test_result_map_bug_complex() {
 
     // 测试2: 嵌套的Result.map返回结构体
     println("\n测试2: 嵌套的Result.map返回结构体")
-    let result2 = fetch_user(1).map(func(user: User) -> UserProfile {
+    let result2 = fetch_user(1).map(|user: User| -> UserProfile {
         return UserProfile.create(user, "Software engineer", 30)
     })
     match result2 {
@@ -77,11 +77,11 @@ func test_result_map_bug_complex() {
     // 测试3: 链式的Result.map操作
     println("\n测试3: 链式的Result.map操作")
     let result3 = fetch_user(1)
-        .map(func(user: User) -> User {
+        .map(|user: User| -> User {
             // 修改用户信息
             return User.create(user.id, user.name + " (Verified)", user.email)
         })
-        .map(func(user: User) -> string {
+        .map(|user: User| -> string {
             return "Verified user: {user.name}"
         })
     match result3 {
@@ -98,7 +98,7 @@ func test_result_map_bug_complex() {
 
     // 测试4: Result.map返回包含Result的结构体
     println("\n测试4: Result.map返回包含Result的结构体")
-    let result4 = fetch_user(1).map(func(user: User) -> Result[User, string] {
+    let result4 = fetch_user(1).map(|user: User| -> Result[User, string] {
         // 模拟一个可能失败的操作
         if user.id == 1 {
             return Result#ok(user)

@@ -10,25 +10,25 @@ numbers.sort();
 println("After sort(): " + numbers);
 
 // 测试map方法
-let squared = numbers.map(func(x) -> {
+let squared = numbers.map(|x| {
     return x * x;
 });
 println("After map (squared): " + squared);
 
 // 测试filter方法
-let even = numbers.filter(func(x) -> {
+let even = numbers.filter(|x| {
     return x % 2 == 0;
 });
 println("After filter (even): " + even);
 
 // 测试reduce方法
-let sum = numbers.reduce(func(acc, x) -> {
+let sum = numbers.reduce(|acc, x| {
     return acc + x;
 }, 0);
 println("After reduce (sum): " + sum);
 
 // 测试find方法
-let found = numbers.find(func(x) -> {
+let found = numbers.find(|x| {
     return x > 5;
 });
 println("After find (x > 5): " + found);

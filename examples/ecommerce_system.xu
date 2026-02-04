@@ -62,7 +62,7 @@ ShoppingCart has {
         }
 
         // 检查购物车中是否已有该产品
-        when existing_item = self.items.find(func(item) -> item.product.id == product.id) {
+        when existing_item = self.items.find(|item| item.product.id == product.id) {
             existing_item.quantity += quantity
         } else {
             let new_item = CartItem{ product: product, quantity: quantity }
@@ -96,7 +96,7 @@ ShoppingCart has {
             return self.remove_product(product_id)
         }
 
-        when item = self.items.find(func(item) -> item.product.id == product_id) {
+        when item = self.items.find(|item| item.product.id == product_id) {
             if item.product.stock < quantity {
                 return Result#err("Insufficient stock")
             }
@@ -269,7 +269,7 @@ ProductRepository has {
     }
 
     func get_available_products() -> [Product] {
-        return self.products.values().filter(func(p) -> p.is_available())
+        return self.products.values().filter(|p| p.is_available())
     }
 
     func update_stock(id: string, quantity: int) -> Result {

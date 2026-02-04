@@ -3,8 +3,8 @@ func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
 
 var counter = 0
 
-let add = func(n) -> { counter += n }
-let sub = func(n) -> { counter -= n }
+let add = |n| { counter += n }
+let sub = |n| { counter -= n }
 
 assert(counter == 0, "initial")
 

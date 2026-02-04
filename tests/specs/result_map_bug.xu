@@ -28,7 +28,7 @@ func test_result_map_bug() {
     // 测试1: Result.map返回结构体（应该失败）
     println("\n测试1: Result.map返回结构体")
     println("期望: Token{ role: admin, exp: 3600 }")
-    let result = parse_role("admin").map(func(role: string) -> Token {
+    let result = parse_role("admin").map(|role: string| -> Token {
         return Token.create(role, 3600)
     })
     match result {

@@ -1,4 +1,4 @@
 func assert(x) { __builtin_assert(x) }
 
-let x = Option#none.or_else(func() -> 9)
+let x = Option#none.or_else(|| 9)
 assert(x == 9)

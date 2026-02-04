@@ -437,11 +437,11 @@ xu
 
 ```
 // test: lambda_simple
-let inc = func(x: int) -> x + 1
+let inc = |x: int| x + 1
 assert(inc(5) is 6)
 
 // test: lambda_inferred
-let add = func(a, b) -> a + b
+let add = |a, b| a + b
 assert(add(2, 3) is 5)
 ```
 
@@ -451,7 +451,7 @@ xu
 
 ```
 // test: lambda_block
-let process = func(x: int) -> int {
+let process = |x: int| -> int {
     let y = x * 2
     if y > 10 {
         return y
@@ -468,9 +468,9 @@ xu
 
 ```
 // test: closure
-func make_counter() -> func() -> int {
+func make_counter() -> || -> int {
     var count = 0
-    return func() -> {
+    return || {
         count += 1
         return count
     }
@@ -1038,39 +1038,39 @@ assert(b.or(0) is 0)
 
 // test: option_or_else
 let a: Option[int] = Option#none
-let result = a.or_else(func() -> 42)
+let result = a.or_else(|| 42)
 assert(result is 42)
 
 // test: option_map
 let a = Option#some(5)
-let b = a.map(func(x) -> x * 2)
+let b = a.map(|x| x * 2)
 assert(b.or(0) is 10)
 
 let c: Option[int] = Option#none
-let d = c.map(func(x) -> x * 2)
+let d = c.map(|x| x * 2)
 assert(d.none)
 
 // test: option_then
 let a = Option#some(5)
-let b = a.then(func(x) -> if x > 0 { Option#some(x * 2) } else { Option#none })
+let b = a.then(|x| if x > 0 { Option#some(x * 2) } else { Option#none })
 assert(b.or(0) is 10)
 
 // test: option_filter
 let a = Option#some(5)
-let b = a.filter(func(x) -> x > 3)
-let c = a.filter(func(x) -> x > 10)
+let b = a.filter(|x| x > 3)
+let c = a.filter(|x| x > 10)
 assert(b.has)
 assert(c.none)
 
 // test: option_each
 let a = Option#some(5)
 var result = 0
-a.each(func(x) { result = x })
+a.each(|x| { result = x })
 assert(result is 5)
 
 let b: Option[int] = Option#none
 result = 0
-b.each(func(x) { result = x })
+b.each(|x| { result = x })
 assert(result is 0)
 ```
 
@@ -1113,12 +1113,12 @@ assert(b.or(0) is 0)
 
 // test: result_map
 let a = Result#ok(5)
-let b = a.map(func(x) -> x * 2)
+let b = a.map(|x| x * 2)
 assert(b.or(0) is 10)
 
 // test: result_map_err
 let a = Result#err("error")
-let b = a.map_err(func(e) -> "wrapped: {e}")
+let b = a.map_err(|e| "wrapped: {e}")
 match b {
     Result#ok(_) { assert(false) }
     Result#err(e) { assert(e is "wrapped: error") }
@@ -1127,11 +1127,11 @@ match b {
 
 // test: result_then
 let a = Result#ok(5)
-let b = a.then(func(x) -> Result#ok(x * 2))
+let b = a.then(|x| Result#ok(x * 2))
 assert(b.or(0) is 10)
 
 let c = Result#ok(5)
-let d = c.then(func(x) -> Result#err("failed"))
+let d = c.then(|x| Result#err("failed"))
 assert(d.or(0) is 0)
 ```
 
@@ -1226,8 +1226,8 @@ func parse(content: string) -> Result[int, string] {
 }
 
 let result = read_file("exist.txt")
-    .then(func(s) -> parse(s))
-    .map_err(func(e) -> "failed: {e}")
+    .then(|s| parse(s))
+    .map_err(|e| "failed: {e}")
     .or(-1)
 
 assert(result is 42)
@@ -1333,9 +1333,9 @@ let users = [
 ]
 
 let names = users
-    .filter(func(u) -> u.active)
-    .filter(func(u) -> u.is_adult())
-    .map(func(u) -> u.name)
+    .filter(|u| u.active)
+    .filter(|u| u.is_adult())
+    .map(|u| u.name)
 
 assert(names.length is 2)
 assert(names[0] is "Alice")
@@ -1356,8 +1356,8 @@ let list: [int] = []
 assert(list.length is 0)
 assert(not list.any)
 assert(list.first.none)
-assert(list.filter(func(x) -> true).length is 0)
-assert(list.map(func(x) -> x * 2).length is 0)
+assert(list.filter(|x| true).length is 0)
+assert(list.map(|x| x * 2).length is 0)
 ```
 
 ### 17.2 嵌套结构
@@ -1494,7 +1494,7 @@ when user = find_user(users, 2) {
 }
 
 // 链式过滤
-let pending_users = users.filter(func(u) -> u.status is Status#pending)
+let pending_users = users.filter(|u| u.status is Status#pending)
 assert(pending_users.length is 3)
 
 // match 表达式
@@ -1514,13 +1514,13 @@ assert(first_status is "待处理")
 
 // Option 组合子
 let first_name = users.first
-    .map(func(u) -> u.name)
+    .map(|u| u.name)
     .or("匿名")
 assert(first_name is "Alice")
 
 // 不存在的用户
 let missing = find_user(users, 999)
-    .map(func(u) -> u.name)
+    .map(|u| u.name)
     .or("未找到")
 assert(missing is "未找到")
 ```

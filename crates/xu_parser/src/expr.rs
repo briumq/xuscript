@@ -276,7 +276,8 @@ impl<'a, 'b> Parser<'a, 'b> {
     fn parse_primary(&mut self) -> Option<Expr> {
         self.skip_trivia();
         match self.peek_kind() {
-            TokenKind::KwFunc => self.parse_func_lit_expr(),
+            TokenKind::Pipe => self.parse_closure_expr(),
+            TokenKind::PipePipe => self.parse_empty_closure_expr(),
             TokenKind::KwSelf => {
                 self.bump();
                 Some(Expr::Ident("self".to_string(), std::cell::Cell::new(None)))
@@ -363,28 +364,85 @@ impl<'a, 'b> Parser<'a, 'b> {
         }
     }
 
-    fn parse_func_lit_expr(&mut self) -> Option<Expr> {
-        self.expect(TokenKind::KwFunc)?;
-        self.expect(TokenKind::LParen)?;
-        let params = self.parse_params()?;
-        self.expect(TokenKind::RParen)?;
-
-        if !self.at_arrow() {
-            self.diagnostics.push(Diagnostic::error_kind(
-                DiagnosticKind::ExpectedToken("->".to_string()),
-                Some(self.cur_span()),
-            ));
-            return None;
-        }
-        self.bump();
-        if self.at(TokenKind::Gt) {
-            self.bump();
-        }
+    /// Parse empty closure expression: || expr or || { body }
+    fn parse_empty_closure_expr(&mut self) -> Option<Expr> {
+        self.expect(TokenKind::PipePipe)?;
 
         self.skip_trivia();
         let name = format!("__anon_func_{}", self.tmp_counter);
         self.tmp_counter += 1;
 
+        // Check for { body } form
+        if self.at(TokenKind::LBrace) {
+            let body = self.parse_block()?;
+            return Some(Expr::FuncLit(Box::new(FuncDef {
+                vis: Visibility::Inner,
+                name,
+                params: Box::new([]),
+                return_ty: None,
+                body,
+            })));
+        }
+
+        // Single expression form: || expr
+        let expr = self.parse_expr(0)?;
+        let body = vec![Stmt::Return(Some(expr))].into_boxed_slice();
+        Some(Expr::FuncLit(Box::new(FuncDef {
+            vis: Visibility::Inner,
+            name,
+            params: Box::new([]),
+            return_ty: None,
+            body,
+        })))
+    }
+
+    /// Parse closure expression: |params| expr or |params| -> T { body }
+    fn parse_closure_expr(&mut self) -> Option<Expr> {
+        self.expect(TokenKind::Pipe)?;
+
+        // Parse parameters
+        let params = if self.at(TokenKind::Pipe) {
+            // Empty params: ||
+            vec![]
+        } else {
+            self.parse_closure_params()?
+        };
+        self.expect(TokenKind::Pipe)?;
+
+        self.skip_trivia();
+        let name = format!("__anon_func_{}", self.tmp_counter);
+        self.tmp_counter += 1;
+
+        // Check for -> T { body } form (with return type)
+        if self.at_arrow() {
+            self.bump();
+            if self.at(TokenKind::Gt) {
+                self.bump();
+            }
+            self.skip_trivia();
+
+            // Try to parse return type
+            let saved_i = self.i;
+            let saved_diags = self.diagnostics.len();
+            if let Some(ret) = self.parse_type_ref() {
+                self.skip_trivia();
+                if self.at(TokenKind::LBrace) {
+                    let body = self.parse_block()?;
+                    return Some(Expr::FuncLit(Box::new(FuncDef {
+                        vis: Visibility::Inner,
+                        name,
+                        params: params.into_boxed_slice(),
+                        return_ty: Some(ret),
+                        body,
+                    })));
+                }
+            }
+            // Restore if not a valid return type + block
+            self.i = saved_i;
+            self.diagnostics.truncate(saved_diags);
+        }
+
+        // Check for { body } form (block without return type)
         if self.at(TokenKind::LBrace) {
             let body = self.parse_block()?;
             return Some(Expr::FuncLit(Box::new(FuncDef {
@@ -396,28 +454,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             })));
         }
 
-        let saved_i = self.i;
-        let saved_diags = self.diagnostics.len();
-        if let Some(ret) = self.parse_type_ref() {
-            self.skip_trivia();
-            if self.at(TokenKind::Colon) {
-                self.bump();
-            }
-            self.skip_trivia();
-            if self.at(TokenKind::LBrace) {
-                let body = self.parse_block()?;
-                return Some(Expr::FuncLit(Box::new(FuncDef {
-                    vis: Visibility::Inner,
-                    name,
-                    params: params.into_boxed_slice(),
-                    return_ty: Some(ret),
-                    body,
-                })));
-            }
-        }
-        self.i = saved_i;
-        self.diagnostics.truncate(saved_diags);
-
+        // Single expression form: |x| expr
         let expr = self.parse_expr(0)?;
         let body = vec![Stmt::Return(Some(expr))].into_boxed_slice();
         Some(Expr::FuncLit(Box::new(FuncDef {
@@ -427,6 +464,37 @@ impl<'a, 'b> Parser<'a, 'b> {
             return_ty: None,
             body,
         })))
+    }
+
+    /// Parse closure parameters (without surrounding pipes)
+    fn parse_closure_params(&mut self) -> Option<Vec<crate::Param>> {
+        let mut params: Vec<crate::Param> = Vec::with_capacity(4);
+        loop {
+            self.skip_trivia();
+            if self.at(TokenKind::Pipe) {
+                break;
+            }
+            let name = self.expect_ident()?;
+            self.skip_trivia();
+            let ty = if self.at(TokenKind::Colon) {
+                self.bump();
+                Some(self.parse_type_ref()?)
+            } else {
+                None
+            };
+            params.push(crate::Param {
+                name,
+                ty,
+                default: None,
+            });
+            self.skip_trivia();
+            if self.at(TokenKind::Comma) {
+                self.bump();
+                continue;
+            }
+            break;
+        }
+        Some(params)
     }
 
     fn parse_match_expr(&mut self) -> Option<Expr> {

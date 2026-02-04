@@ -152,22 +152,22 @@ TaskManager has {
 
     // 按状态过滤任务
     func filter_by_status(status: TaskStatus) -> [Task] {
-        return self.all().filter(func(task) -> task.status == status)
+        return self.all().filter(|task| task.status == status)
     }
 
     // 按优先级过滤任务
     func filter_by_priority(priority: Priority) -> [Task] {
-        return self.all().filter(func(task) -> task.priority == priority)
+        return self.all().filter(|task| task.priority == priority)
     }
 
     // 获取活跃任务
     func active_tasks() -> [Task] {
-        return self.all().filter(func(task) -> task.is_active())
+        return self.all().filter(|task| task.is_active())
     }
 
     // 获取已完成任务
     func completed_tasks() -> [Task] {
-        return self.all().filter(func(task) -> task.is_completed())
+        return self.all().filter(|task| task.is_completed())
     }
 
     // 计算任务统计信息

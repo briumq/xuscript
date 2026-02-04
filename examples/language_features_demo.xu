@@ -142,7 +142,7 @@ func main() {
     // Option 组合子
     println("\n=== Option 组合子 ===")
     let first_user = user_map.get("alice")
-        .map(func(u) -> u.name)
+        .map(|u| u.name)
         .or("Unknown")
     println("First user name: {first_user}")
     
@@ -171,8 +171,8 @@ func main() {
     // 列表操作
     println("\n=== 列表操作 ===")
     let numbers = [1, 2, 3, 4, 5]
-    let doubled = numbers.map(func(n) -> n * 2)
-    let even = numbers.filter(func(n) -> n % 2 == 0)
+    let doubled = numbers.map(|n| n * 2)
+    let even = numbers.filter(|n| n % 2 == 0)
     println("Original: {numbers}")
     println("Doubled: {doubled}")
     println("Even: {even}")

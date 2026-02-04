@@ -6,8 +6,8 @@ func assert(cond: bool, msg: string) {
 }
 
 // 预定义闭包（避免类型检查器的顺序问题）
-let add_one = func(x2: int) -> x2 + 1
-let double = func(x3: int) -> x3 * 2
+let add_one = |x2: int| x2 + 1
+let double = |x3: int| x3 * 2
 
 var result = 0
 var text = ""
@@ -259,7 +259,7 @@ assert(result == 100, "match varying indent")
 // 7.1 冒号后是方法链
 let list = [1, 2, 3, 4, 5]
 result = 0
-for num2 in list.filter(func(x1) -> x1 > 2): result = result + num2
+for num2 in list.filter(|x1| x1 > 2): result = result + num2
 assert(result == 12, "colon method chain")
 
 // 7.2 冒号后是复杂算术

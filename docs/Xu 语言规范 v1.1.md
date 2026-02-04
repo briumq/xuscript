@@ -68,7 +68,7 @@ Xu 是一门**强类型脚本语言**，设计目标：
 |`#`|枚举变体|枚举变体 `Status#pending`|
 |`.`|成员访问|属性/方法访问、静态方法、模块成员访问|
 |`..` `..=`|范围|整数范围（不含/含结束值）|
-|`->`|指向|函数返回类型、匿名函数体|
+|`->`|指向|函数返回类型、闭包返回类型标注|
 |`...`|展开|结构体字段展开|
 |`:`|标注|类型标注、键值对、单语句块引导|
 |`_`|通配|模式匹配占位符|
@@ -278,7 +278,7 @@ Result[T, E] with [ ok(value: T) | err(error: E) ]
 
 ```xu
 users.first                      // Option[User]
-users.find(func(u) -> u.active)  // Option[User]
+users.find(|u| u.active)         // Option[User]
 map.get("key")                   // Option[V]
 file.read("config.json")         // Result[string, IOError]
 ```
@@ -328,29 +328,36 @@ let (q, r) = div(10, 3)
 let (only_q, _) = div(10, 3) // 忽略第二个返回值
 ```
 
-### 6.2 匿名函数
+### 6.2 匿名函数（闭包）
 
-统一使用 `func` 关键字：
+使用 `|参数| 表达式` 语法：
 
 **单表达式形式**：
 
 ```xu
-let inc = func(x: int) -> x + 1
-let add_fn = func(a, b) -> a + b
+let inc = |x: int| x + 1
+let add_fn = |a, b| a + b
 
 users
-    .filter(func(u) -> u.active)
-    .map(func(u) -> u.name)
+    .filter(|u| u.active)
+    .map(|u| u.name)
 ```
 
 **块形式**：
 
 ```xu
-let process = func(x: int) -> int {
+let process = |x: int| -> int {
     let y = x * 2
     if y > 10 { return y }
     return 10
 }
+```
+
+**空参数形式**：
+
+```xu
+let get_value = || 42
+let lazy_init = || { compute_something() }
 ```
 
 ---
@@ -553,8 +560,8 @@ func load_config() -> Result[Config, string] {
 ```xu
 func load_config() -> Result[Config, string] {
     return file.read("config.json")
-        .then(func(s) -> parse(s))
-        .map_err(func(e) -> "配置加载失败: {e}")
+        .then(|s| parse(s))
+        .map_err(|e| "配置加载失败: {e}")
 }
 ```
 
@@ -602,8 +609,8 @@ func load_config() -> Result[Config, string] {
 
 ```xu
 let config = file.read("config.json")
-    .then(func(s) -> parse(s))
-    .map_err(func(e) -> "配置加载失败: {e}")
+    .then(|s| parse(s))
+    .map_err(|e| "配置加载失败: {e}")
     .or(default_config)
 ```
 
@@ -755,8 +762,8 @@ User does {
 // 组合子链式处理错误
 func fetch_users(url: string) -> Result[[User], string] {
     return http.get(url)
-        .then(func(resp) -> parse_users(resp.body))
-        .map_err(func(e) -> "请求失败: {e}")
+        .then(|resp| parse_users(resp.body))
+        .map_err(|e| "请求失败: {e}")
 }
 
 // 主函数
@@ -767,11 +774,11 @@ func main() {
     ]
 
     // 链式过滤
-    let adults = users.filter(func(u) -> u.is_adult())
+    let adults = users.filter(|u| u.is_adult())
     if adults.any: println("成年人数: {adults.length}")
 
     // when 条件绑定
-    when user = users.find(func(u) -> u.name == "Alice"): user.greet()
+    when user = users.find(|u| u.name == "Alice"): user.greet()
     else: println("未找到 Alice")
 
     // 多绑定短路

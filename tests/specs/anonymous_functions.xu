@@ -1,21 +1,21 @@
 func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
 
 func make_adder(a: int) {
-    return func(b: int) -> a + b
+    return |b: int| a + b
 }
 
 let add5 = make_adder(5)
 assert(add5(3) == 8, "closure_capture")
 
-let inc = func(x: int) -> x + 1
+let inc = |x: int| x + 1
 assert(inc(1) == 2, "expr_body")
 
-let dbl = func(x: int) -> int {
+let dbl = |x: int| -> int {
     let y = x * 2
     return y
 }
 assert(dbl(3) == 6, "block_body")
 
 func apply(f, x) { return f(x) }
-assert(apply(func(x: int) -> x + 2, 3) == 5, "pass_as_value")
+assert(apply(|x: int| x + 2, 3) == 5, "pass_as_value")
 

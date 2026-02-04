@@ -3,9 +3,9 @@ func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
 
 var shared = 0
 
-let get_value = func() -> shared
-let set_value = func(v) -> { shared = v }
-let increment = func() -> { shared = shared + 1 }
+let get_value = || shared
+let set_value = |v| { shared = v }
+let increment = || { shared = shared + 1 }
 
 assert(get_value() == 0, "initial value")
 

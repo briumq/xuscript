@@ -57,7 +57,7 @@ func test_match_bug_complex() {
 
     // 测试3: 内联match表达式与闭包结合
     println("\n测试3: 内联match表达式与闭包结合")
-    let users = [1, 2, 3].map(func(id) -> {
+    let users = [1, 2, 3].map(|id| {
         return match fetch_user(id) {
             Result#ok(user) { user.name }
             Result#err(error) { "error" }

@@ -28,7 +28,7 @@ Cart does {
     }
 
     func remove(product_id: string) {
-        let new_items = self.items.filter(func(item) -> item.id != product_id)
+        let new_items = self.items.filter(|item| item.id != product_id)
         self.items = new_items
     }
 

@@ -1,9 +1,9 @@
 func assert(x) { __builtin_assert(x) }
 
-let s2 = Option#some(2).filter(func(x: int) -> x > 1)
+let s2 = Option#some(2).filter(|x: int| x > 1)
 assert(match s2 { Option#some(v) { v } _ { 0 } } == 2)
 
-let snone = Option#some(0).filter(func(x: int) -> x > 1)
+let snone = Option#some(0).filter(|x: int| x > 1)
 assert(match snone { Option#none() { true } _ { false } })
 
-Option#some(3).each(func(x: int) -> x + 1)
+Option#some(3).each(|x: int| x + 1)
