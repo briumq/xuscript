@@ -502,6 +502,17 @@ pub fn infer_type(
             }
         }
         Expr::Member(m) => {
+            // Check if this is a static field access (Type.field)
+            if let Expr::Ident(type_name, _) = m.object.as_ref() {
+                // Check if it's a known struct type
+                if let Some(fields) = structs.get(type_name) {
+                    // Check for static field with "static:" prefix
+                    let static_key = format!("static:{}", m.field);
+                    if let Some(field_ty) = fields.get(&static_key) {
+                        return Some(interner.parse_type_str(field_ty));
+                    }
+                }
+            }
             let ot = infer_type(&m.object, func_sigs, structs, type_env, interner);
             if let Some(tid) = ot {
                 let ty_name = interner.name(tid);

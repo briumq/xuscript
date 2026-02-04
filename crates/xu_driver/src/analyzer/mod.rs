@@ -69,6 +69,10 @@ pub(crate) fn analyze_module(
                 for f in &def.fields {
                     fields.insert(f.name.clone(), type_to_string(&f.ty));
                 }
+                // Also collect static fields with a special prefix
+                for sf in &def.static_fields {
+                    fields.insert(format!("static:{}", sf.name), type_to_string(&sf.ty));
+                }
                 structs.insert(def.name.clone(), fields);
                 // Register methods defined in the has block
                 for method in def.methods.iter() {
@@ -191,6 +195,10 @@ pub(crate) fn process_import(
                     let mut fields = HashMap::new();
                     for f in &def.fields {
                         fields.insert(f.name.clone(), type_to_string(&f.ty));
+                    }
+                    // Also collect static fields with a special prefix
+                    for sf in &def.static_fields {
+                        fields.insert(format!("static:{}", sf.name), type_to_string(&sf.ty));
                     }
                     struct_exports.insert(def.name.clone(), fields);
                 }

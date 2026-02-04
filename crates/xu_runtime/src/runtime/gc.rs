@@ -70,6 +70,11 @@ impl Runtime {
             roots.push(*val);
         }
 
+        // Add static field values as roots
+        for val in self.static_fields.values() {
+            roots.push(*val);
+        }
+
         // Mark all reachable objects
         self.heap.mark_all(&roots, &[&self.env], &[&self.locals]);
 
