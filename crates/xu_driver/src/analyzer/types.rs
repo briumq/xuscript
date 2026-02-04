@@ -26,9 +26,9 @@ pub fn analyze_types(
             func_sigs.insert(def.name.clone(), (params, ret));
         }
         // Collect static methods from struct definitions (has blocks)
+        // Note: method.name is already mangled by the parser (e.g., __static__Task__create)
         if let Stmt::StructDef(def) = s {
             for method in def.methods.iter() {
-                let static_name = format!("__static__{}__{}", def.name, method.name);
                 let params = method
                     .params
                     .iter()
@@ -38,7 +38,7 @@ pub fn analyze_types(
                     .return_ty
                     .as_ref()
                     .map(|t| typeref_to_typeid(&mut interner, t));
-                func_sigs.insert(static_name, (params, ret));
+                func_sigs.insert(method.name.clone(), (params, ret));
             }
         }
     }
@@ -127,15 +127,16 @@ fn analyze_type_stmts(
                         }
                     }
                 }
+                let expected_ret = def.return_ty
+                    .as_ref()
+                    .map(|t| typeref_to_typeid(interner, t));
                 analyze_type_stmts(
                     &def.body,
                     func_sigs,
                     structs,
                     type_env,
                     finder,
-                    def.return_ty
-                        .as_ref()
-                        .map(|t| typeref_to_typeid(interner, t)),
+                    expected_ret,
                     interner,
                     out,
                 );
@@ -611,7 +612,11 @@ pub fn infer_type(
                 (Some(Type::List(_)), "contains") => Some(interner.intern(Type::Bool)),
                 (Some(Type::List(_)), "add") => None, // Unit/Void
                 (Some(Type::Dict(_, _)), "contains") => Some(interner.intern(Type::Bool)),
-                (Some(Type::Dict(_, v)), "get") => Some(*v), // Returns value type (simplified, should be Option[v])
+                (Some(Type::Dict(_, _)), "get") => {
+                    // dict.get() returns Option[V], but we simplify to Option (struct type)
+                    // since we don't have a proper Option[T] generic type in the type system
+                    Some(interner.intern(Type::Struct("Option".to_string())))
+                }
                 (Some(Type::Struct(s)), "read") if s == "file" => Some(interner.intern(Type::Text)),
                 (Some(Type::Struct(s)), "close") if s == "file" => None, // Unit/Void
                 (Some(Type::Text), "split") => {
