@@ -369,6 +369,38 @@ pub(super) fn dispatch(
                 ty: ty.as_str().to_string(),
             }))
         }
+        MethodKind::OptGet | MethodKind::DictGet => {
+            // get()/unwrap() for Option - DictGet is mapped from "get" method name
+            if !is_option {
+                return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
+                    method: method.to_string(),
+                    ty: ty.as_str().to_string(),
+                }));
+            }
+            if !args.is_empty() {
+                return Err(rt.error(xu_syntax::DiagnosticKind::ArgumentCountMismatch {
+                    expected_min: 0,
+                    expected_max: 0,
+                    actual: args.len(),
+                }));
+            }
+            if variant.as_str() == "some" {
+                payload.get(0).cloned().ok_or_else(|| {
+                    rt.error(xu_syntax::DiagnosticKind::Raw(
+                        "Option#some missing value".into(),
+                    ))
+                })
+            } else if variant.as_str() == "none" {
+                Err(rt.error(xu_syntax::DiagnosticKind::Raw(
+                    format!("Called {}() on None value", method).into(),
+                )))
+            } else {
+                Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
+                    method: method.to_string(),
+                    ty: ty.as_str().to_string(),
+                }))
+            }
+        }
         _ => Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
             method: method.to_string(),
             ty: ty.as_str().to_string(),

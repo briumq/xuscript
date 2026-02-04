@@ -3,6 +3,7 @@
 //!
 //!
 
+use std::collections::HashSet;
 use xu_ir::{
     AssignOp, AssignStmt, BinaryOp, Bytecode, BytecodeFunction, Expr, IfStmt, Module, Op, Pattern,
     ReceiverType, Stmt, UnaryOp, infer_module_alias,
@@ -68,6 +69,7 @@ struct Compiler {
     loops: Vec<LoopCtx>,
     scopes: Vec<Scope>,
     next_ic_slot: usize,
+    known_types: HashSet<String>,
 }
 
 impl Compiler {
@@ -77,6 +79,7 @@ impl Compiler {
             loops: Vec::new(),
             scopes: vec![Scope { locals: Vec::new() }],
             next_ic_slot: 0,
+            known_types: HashSet::new(),
         }
     }
 
@@ -164,6 +167,7 @@ impl Compiler {
         match stmt {
             Stmt::Error(_) => None,
             Stmt::StructDef(def) => {
+                self.known_types.insert(def.name.clone());
                 let idx = self.add_constant(xu_ir::Constant::Struct((**def).clone()));
                 self.bc.ops.push(Op::DefineStruct(idx));
 
@@ -184,6 +188,7 @@ impl Compiler {
                 Some(())
             }
             Stmt::EnumDef(def) => {
+                self.known_types.insert(def.name.clone());
                 let idx = self.add_constant(xu_ir::Constant::Enum((**def).clone()));
                 self.bc.ops.push(Op::DefineEnum(idx));
                 Some(())
@@ -586,10 +591,9 @@ impl Compiler {
             Expr::Member(m) => {
                 // Check if this is a static field assignment (Type.field = value)
                 if let Expr::Ident(name, _) = m.object.as_ref() {
-                    // Check if this identifier is a known local variable
-                    let is_local = self.resolve_local(name).is_some();
-                    if !is_local {
-                        // Could be a static field assignment
+                    // Check if this identifier is a known type name
+                    if self.known_types.contains(name) {
+                        // Static field assignment
                         if stmt.op == AssignOp::Set {
                             self.compile_expr(&stmt.value)?;
                             let t_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
@@ -1294,19 +1298,17 @@ impl Compiler {
 
     /// 编译成员访问表达式
     fn compile_expr_member(&mut self, m: &xu_ir::MemberExpr) -> Option<()> {
-        // 检查是否为静态字段访问 (Type.field)
+        // 只有当标识符是已知类型名时才使用静态字段访问
         if let Expr::Ident(name, _) = m.object.as_ref() {
-            // 检查此标识符是否为已知的局部变量
-            let is_local = self.resolve_local(name).is_some();
-            if !is_local {
-                // 可能是静态字段访问 - 生成 GetStaticField
-                // 运行时会检查它是否真的是静态字段
+            // 检查是否是已知的类型名（结构体或枚举）
+            if self.known_types.contains(name) {
                 let t_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
                 let f_idx = self.add_constant(xu_ir::Constant::Str(m.field.clone()));
                 self.bc.ops.push(Op::GetStaticField(t_idx, f_idx));
                 return Some(());
             }
         }
+        // 所有其他情况：编译对象表达式并使用 GetMember
         self.compile_expr(&m.object)?;
         let slot = self.alloc_ic_slot();
         let n_idx = self.add_constant(xu_ir::Constant::Str(m.field.clone()));

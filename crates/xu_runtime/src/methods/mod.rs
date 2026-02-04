@@ -25,6 +25,7 @@ pub(crate) enum MethodKind {
     ListReduce,
     ListFind,
     ListFindIndex,
+    ListFindOr,
     DictMerge,
     DictInsert,
     DictInsertInt,
@@ -71,6 +72,7 @@ pub(crate) enum MethodKind {
     OptFilter,
     OptHas,
     OptNone,
+    OptGet,
     ResMapErr,
     EnumName,
     EnumTypeName,
@@ -99,6 +101,7 @@ impl MethodKind {
             "reduce" => Self::ListReduce,
             "find" => Self::ListFind,
             "find_index" => Self::ListFindIndex,
+            "find_or" => Self::ListFindOr,
             "length" => Self::Len,
             "len" => Self::Len,
             "contains" => Self::Contains,
@@ -150,6 +153,7 @@ impl MethodKind {
             "filter" => Self::OptFilter,
             "has" => Self::OptHas,
             "none" => Self::OptNone,
+            "unwrap" => Self::OptGet,
             "map_err" => Self::ResMapErr,
             "name" => Self::EnumName,
             "type_name" => Self::EnumTypeName,
@@ -241,6 +245,12 @@ fn dispatch_option_some(
             } else {
                 Ok(rt.option_none())
             }
+        }
+        MethodKind::OptGet | MethodKind::DictGet => {
+            // get()/unwrap() for Option#some - return the inner value
+            // DictGet is mapped from "get" method name, which is also used for Option.get()
+            validate_arity(rt, method, args.len(), 0, 0)?;
+            Ok(inner)
         }
         MethodKind::IntToString => {
             // to_string() for Option#some

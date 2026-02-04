@@ -195,11 +195,11 @@ pub(super) fn dispatch(
         }
         MethodKind::ListFindIndex => {
             validate_arity(rt, method, args.len(), 1, 1)?;
-            
+
             let f = args[0];
             let list = expect_list(rt, recv)?;
             let items = list.to_vec();
-            
+
             for (index, item) in items.iter().enumerate() {
                 let found = rt.call_function(f, &[*item])?;
                 if !found.is_bool() {
@@ -212,6 +212,28 @@ pub(super) fn dispatch(
                 }
             }
             Ok(rt.option_none())
+        }
+        MethodKind::ListFindOr => {
+            // find_or(predicate, default) - find element or return default
+            validate_arity(rt, method, args.len(), 2, 2)?;
+
+            let f = args[0];
+            let default = args[1];
+            let list = expect_list(rt, recv)?;
+            let items = list.to_vec();
+
+            for item in items {
+                let found = rt.call_function(f, &[item])?;
+                if !found.is_bool() {
+                    return Err(err(rt, xu_syntax::DiagnosticKind::InvalidConditionType(
+                        found.type_name().to_string(),
+                    )));
+                }
+                if found.as_bool() {
+                    return Ok(item);
+                }
+            }
+            Ok(default)
         }
         _ => Err(rt.error(xu_syntax::DiagnosticKind::UnknownListMethod(
             method.to_string(),
