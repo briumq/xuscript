@@ -18,9 +18,9 @@ User has {
 func test_match_bug() {
     // 创建测试数据
     let users = [
-        User::create("Alice", 20, Status#approved),
-        User::create("Bob", 16, Status#pending),
-        User::create("Charlie", 25, Status#rejected)
+        User.create("Alice", 20, Status#approved),
+        User.create("Bob", 16, Status#pending),
+        User.create("Charlie", 25, Status#rejected)
     ]
 
     // 测试1: 内联match表达式赋值（应该失败）

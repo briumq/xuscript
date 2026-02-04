@@ -248,12 +248,7 @@ impl<'a> Lexer<'a> {
                 }
                 Some(':') => {
                     self.i += 1;
-                    if self.peek_char() == Some(':') {
-                        self.i += 1;
-                        self.push(TokenKind::ColonColon, start, self.i);
-                    } else {
-                        self.push(TokenKind::Colon, start, self.i);
-                    }
+                    self.push(TokenKind::Colon, start, self.i);
                 }
                 Some('+') => {
                     self.i += 1;

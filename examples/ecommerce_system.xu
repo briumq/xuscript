@@ -304,12 +304,12 @@ func main() {
     let repo = ProductRepository{}
 
     // 添加示例产品
-    repo.add_product(Product::create("p1", "Smartphone X", 5999.99, ProductCategory#electronics, 50))
-    repo.add_product(Product::create("p2", "Laptop Pro", 9999.99, ProductCategory#electronics, 30))
-    repo.add_product(Product::create("p3", "T-Shirt", 99.99, ProductCategory#clothing, 100))
-    repo.add_product(Product::create("p4", "Jeans", 199.99, ProductCategory#clothing, 80))
-    repo.add_product(Product::create("p5", "Book: Rust Programming", 89.99, ProductCategory#books, 20))
-    repo.add_product(Product::create("p6", "Coffee Beans", 49.99, ProductCategory#food, 60))
+    repo.add_product(Product.create("p1", "Smartphone X", 5999.99, ProductCategory#electronics, 50))
+    repo.add_product(Product.create("p2", "Laptop Pro", 9999.99, ProductCategory#electronics, 30))
+    repo.add_product(Product.create("p3", "T-Shirt", 99.99, ProductCategory#clothing, 100))
+    repo.add_product(Product.create("p4", "Jeans", 199.99, ProductCategory#clothing, 80))
+    repo.add_product(Product.create("p5", "Book: Rust Programming", 89.99, ProductCategory#books, 20))
+    repo.add_product(Product.create("p6", "Coffee Beans", 49.99, ProductCategory#food, 60))
 
     // 展示所有产品
     println("=== Available Products ===")
@@ -380,7 +380,7 @@ func main() {
 
     // 创建订单
     println("\n=== Creating Order ===")
-    let order = Order::create(generate_order_id(), cart)
+    let order = Order.create(generate_order_id(), cart)
     println(order.to_string())
 
     // 处理订单

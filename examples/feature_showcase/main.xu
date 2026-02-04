@@ -19,8 +19,8 @@ func test_counter_module() {
     _print_section("Counter Module Tests")
 
     // Test static factory methods
-    let c1 = counter_mod.Counter::create("clicks")
-    let c2 = counter_mod.Counter::create_with_step("score", 10)
+    let c1 = counter_mod.Counter.create("clicks")
+    let c2 = counter_mod.Counter.create_with_step("score", 10)
 
     // Test instance methods
     c1.increment()
@@ -57,7 +57,7 @@ func test_event_module() {
     _print_section("Event Module Tests")
 
     // Test static methods
-    let e1 = event_mod.Event::create(1, "user_login")
+    let e1 = event_mod.Event.create(1, "user_login")
     e1.add_tag("auth")
     println(e1.format())
 
@@ -76,7 +76,7 @@ func test_event_module() {
     }
 
     // Test critical event
-    let e2 = event_mod.Event::create_critical(2, "system_alert")
+    let e2 = event_mod.Event.create_critical(2, "system_alert")
     e2.add_tag("monitoring")
     println(e2.format())
 
@@ -92,7 +92,7 @@ func test_storage_module() {
     _print_section("Storage Module Tests")
 
     // Test static factory
-    let store = storage_mod.Storage::create_with_capacity("cache", 10)
+    let store = storage_mod.Storage.create_with_capacity("cache", 10)
     println(store.format())
 
     // Test put with tuple return

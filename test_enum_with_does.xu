@@ -63,17 +63,17 @@ func main() {
     }
 
     // 测试静态方法
-    let default_status = Status::default();
+    let default_status = Status.default();
     println("Default status: " + default_status.to_string());
 
     // 测试从字符串创建状态
-    let from_str = Status::from_string("active");
+    let from_str = Status.from_string("active");
     match from_str {
         Option#some(s) { println("From string 'active': " + s.to_string()) }
         _ { println("From string 'active': None") }
     }
 
-    let from_str_invalid = Status::from_string("invalid");
+    let from_str_invalid = Status.from_string("invalid");
     match from_str_invalid {
         Option#some(s) { println("From string 'invalid': " + s.to_string()) }
         _ { println("From string 'invalid': None") }

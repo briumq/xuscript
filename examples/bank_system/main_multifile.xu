@@ -135,7 +135,7 @@ func main() {
     println("  - Match expressions for pattern matching")
     println("  - Collections (dict, list)")
 
-    var bank = bank_svc_mod.BankService::create()
+    var bank = bank_svc_mod.BankService.create()
 
     _section("Setup: Creating Customers and Accounts")
 

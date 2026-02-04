@@ -22,7 +22,7 @@ Token has {
 // 定义返回Result的函数
 func get_user(id: int) -> Result[User, string] {
     if id == 1 {
-        return Result#ok(User::create("Alice", 20))
+        return Result#ok(User.create("Alice", 20))
     } else {
         return Result#err("User not found")
     }
@@ -35,7 +35,7 @@ func test_result_map_simple() {
     // 测试1: Result.map返回结构体
     println("\n测试1: Result.map返回结构体")
     let result1 = get_user(1).map(func(user: User) -> Token {
-        return Token::create(user, "admin")
+        return Token.create(user, "admin")
     })
     println("Result: {result1}")
 
@@ -44,13 +44,13 @@ func test_result_map_simple() {
     let user_result = get_user(1)
     let result2 = match user_result {
         Result#ok(user) {
-            Token::create(user, "admin")
+            Token.create(user, "admin")
         }
         Result#err(error) {
-            Token::create(User::create("Unknown", 0), "error")
+            Token.create(User.create("Unknown", 0), "error")
         }
         _ {
-            Token::create(User::create("Unknown", 0), "unknown")
+            Token.create(User.create("Unknown", 0), "unknown")
         }
     }
     println("Result: {result2}")

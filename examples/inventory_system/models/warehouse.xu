@@ -63,9 +63,9 @@ Warehouse has {
         }
         if self.stock.has(prod_id) {
             let existing = self.stock[prod_id]
-            self.stock[prod_id] = StockItem::create(prod_id, existing.quantity + qty, loc)
+            self.stock[prod_id] = StockItem.create(prod_id, existing.quantity + qty, loc)
         } else {
-            self.stock[prod_id] = StockItem::create(prod_id, qty, loc)
+            self.stock[prod_id] = StockItem.create(prod_id, qty, loc)
         }
         return true
     }
@@ -81,7 +81,7 @@ Warehouse has {
         if existing.quantity == qty {
             self.stock.remove(prod_id)
         } else {
-            self.stock[prod_id] = StockItem::create(prod_id, existing.quantity - qty, existing.location)
+            self.stock[prod_id] = StockItem.create(prod_id, existing.quantity - qty, existing.location)
         }
         return true
     }

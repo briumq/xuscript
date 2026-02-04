@@ -18,9 +18,9 @@ User has {
 // 定义一个返回Result的函数
 func fetch_user(id: int) -> Result[User, string] {
     if id == 1 {
-        return Result#ok(User::create("Alice", 20, Status#approved))
+        return Result#ok(User.create("Alice", 20, Status#approved))
     } else if id == 2 {
-        return Result#ok(User::create("Bob", 16, Status#pending))
+        return Result#ok(User.create("Bob", 16, Status#pending))
     } else {
         return Result#err("User not found")
     }

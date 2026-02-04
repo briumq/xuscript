@@ -1,5 +1,4 @@
 use super::Parser;
-use crate::mangling::static_name;
 use crate::parser::{infix_binding_power, prefix_binding_power, BraceContent};
 
 use xu_syntax::{Diagnostic, DiagnosticKind, TokenKind, unquote};
@@ -133,54 +132,6 @@ impl<'a, 'b> Parser<'a, 'b> {
                             };
                         }
                         _ => break,
-                    }
-                }
-                TokenKind::ColonColon => {
-                    // Handle Type::method() - static method call
-                    match expr {
-                        Expr::Ident(ty, _) => {
-                            self.bump();
-                            let method = self.expect_ident()?;
-                            if self.at(TokenKind::LParen) {
-                                let args = self.parse_args()?;
-                                expr = Expr::Call(Box::new(CallExpr {
-                                    callee: Box::new(Expr::Ident(
-                                        static_name(&ty, &method),
-                                        std::cell::Cell::new(None),
-                                    )),
-                                    args: args.into_boxed_slice(),
-                                }));
-                            } else {
-                                // Type::name without () is invalid for static methods
-                                expr = Expr::Ident(ty, std::cell::Cell::new(None));
-                                break;
-                            }
-                        }
-                        Expr::Member(m) => {
-                            // Handle module.Type::method() form
-                            self.bump();
-                            let method = self.expect_ident()?;
-                            if self.at(TokenKind::LParen) {
-                                let args = self.parse_args()?;
-                                let mangled = static_name(&m.field, &method);
-                                expr = Expr::Call(Box::new(CallExpr {
-                                    callee: Box::new(Expr::Member(Box::new(MemberExpr {
-                                        object: m.object,
-                                        field: mangled,
-                                        ic_slot: std::cell::Cell::new(None),
-                                    }))),
-                                    args: args.into_boxed_slice(),
-                                }));
-                            } else {
-                                // module.Type::name without () is invalid
-                                expr = Expr::Member(m);
-                                break;
-                            }
-                        }
-                        other => {
-                            expr = other;
-                            break;
-                        }
                     }
                 }
                 TokenKind::Dot => {

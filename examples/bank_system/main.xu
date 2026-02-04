@@ -169,14 +169,14 @@ BankService has {
 
 BankService does {
     func register_customer(name: string, email: string) -> Customer {
-        let cust = Customer::create(self.next_customer_id, name, email)
+        let cust = Customer.create(self.next_customer_id, name, email)
         self.customers[cust.id] = cust
         self.next_customer_id = self.next_customer_id + 1
         return cust
     }
 
     func open_account(customer_id: int, acc_type: AccountType, initial_deposit: int) -> Account {
-        let acc = Account::create_with_balance(
+        let acc = Account.create_with_balance(
             self.next_account_id,
             self.customers[customer_id].name,
             acc_type,
@@ -383,7 +383,7 @@ func main() {
     println("  - Match expressions for pattern matching")
     println("  - Collections (dict, list)")
 
-    var bank = BankService::create()
+    var bank = BankService.create()
 
     _section("Setup: Creating Customers and Accounts")
 

@@ -30,11 +30,11 @@ func main() {
     println("=== 测试使用 does 关键字定义结构体方法 ===")
     
     // 使用静态方法创建用户
-    let adult = User::create("Alice", 20)
+    let adult = User.create("Alice", 20)
     adult.greet()
     println("{adult.name} is adult: {adult.is_adult()}")
     
-    let minor = User::create("Bob", 16)
+    let minor = User.create("Bob", 16)
     minor.greet()
     println("{minor.name} is adult: {minor.is_adult()}")
 }

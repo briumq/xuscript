@@ -67,7 +67,7 @@ func main() {
     let pi = 3.14159
     var counter = 0
     let names = ["Alice", "Bob", "Charlie"]
-    let user_map = {"alice": User::create("Alice", 20), "bob": User::create("Bob", 18)}
+    let user_map = {"alice": User.create("Alice", 20), "bob": User.create("Bob", 18)}
     
     // 循环示例
     println("=== 循环示例 ===")
@@ -84,7 +84,7 @@ func main() {
     
     // 条件语句
     println("\n=== 条件语句 ===")
-    let user = User::create("David", 16)
+    let user = User.create("David", 16)
     if user.is_adult() {
         println("{user.name} is an adult")
     } else {
@@ -148,7 +148,7 @@ func main() {
     
     // 字典操作
     println("\n=== 字典操作 ===")
-    user_map["charlie"] = User::create("Charlie", 30)
+    user_map["charlie"] = User.create("Charlie", 30)
     println("User map size: {user_map.length}")
     for key in user_map.keys() {
         when user = user_map.get(key) {

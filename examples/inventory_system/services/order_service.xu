@@ -14,17 +14,17 @@ OrderService has {
     }
 
     func create_order(customer: string) -> Order {
-        let order_id = order_mod.Order::generate_id("ORD", self.next_order_seq)
+        let order_id = order_mod.Order.generate_id("ORD", self.next_order_seq)
         self.next_order_seq = self.next_order_seq + 1
-        let new_order = order_mod.Order::create(order_id, customer)
+        let new_order = order_mod.Order.create(order_id, customer)
         self.orders[order_id] = new_order
         return new_order
     }
 
     func create_order_with_shipping(customer: string, shipping: float) -> Order {
-        let order_id = order_mod.Order::generate_id("ORD", self.next_order_seq)
+        let order_id = order_mod.Order.generate_id("ORD", self.next_order_seq)
         self.next_order_seq = self.next_order_seq + 1
-        let new_order = order_mod.Order::create_with_shipping(order_id, customer, shipping)
+        let new_order = order_mod.Order.create_with_shipping(order_id, customer, shipping)
         self.orders[order_id] = new_order
         return new_order
     }
@@ -45,7 +45,7 @@ OrderService has {
         if !self.orders.has(order_id) {
             return false
         }
-        let new_item = order_mod.OrderItem::create(prod, qty)
+        let new_item = order_mod.OrderItem.create(prod, qty)
         var current_order = self.orders[order_id]
         current_order.add_item(new_item)
         current_order.update_shipping()

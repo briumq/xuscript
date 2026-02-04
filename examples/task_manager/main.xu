@@ -76,7 +76,7 @@ TaskService has {
 
 TaskService does {
   func add_task(title: string, desc: string, prio: string, assign: string) -> Task {
-    let task = Task::create(self.next_id, title, desc, prio, assign)
+    let task = Task.create(self.next_id, title, desc, prio, assign)
     self.tasks[task.id] = task
     self.next_id = self.next_id + 1
     return task
@@ -133,7 +133,7 @@ UserService has {
 
 UserService does {
   func add_user(uname: string, mail: string, user_role: string) -> User {
-    let user = User::create(self.next_id, uname, mail, user_role)
+    let user = User.create(self.next_id, uname, mail, user_role)
     self.users[user.id] = user
     self.next_id = self.next_id + 1
     return user
@@ -162,8 +162,8 @@ UserService does {
 // ============================================
 
 func main() {
-  var task_svc = TaskService::create()
-  var user_svc = UserService::create()
+  var task_svc = TaskService.create()
+  var user_svc = UserService.create()
 
   println("========================================")
   println("       Task Manager Application")

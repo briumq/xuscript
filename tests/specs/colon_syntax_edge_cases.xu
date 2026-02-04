@@ -358,7 +358,7 @@ Counter has {
 
 // 11.1 冒号语句中调用静态方法
 var c = Counter{ value: 0 }
-if true: c = Counter::create(100)
+if true: c = Counter.create(100)
 assert(c.get() == 100, "colon static method call")
 
 // ============================================

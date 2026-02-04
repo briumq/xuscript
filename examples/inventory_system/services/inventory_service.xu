@@ -16,7 +16,7 @@ InventoryService has {
     func add_electronics(name: string, price: float, cost: float) -> Product {
         let id = "ELEC-{self.next_product_id}"
         self.next_product_id = self.next_product_id + 1
-        let prod = product_mod.Product::create_electronics(id, name, price, cost)
+        let prod = product_mod.Product.create_electronics(id, name, price, cost)
         self.products[id] = prod
         return prod
     }
@@ -24,7 +24,7 @@ InventoryService has {
     func add_clothing(name: string, price: float, cost: float) -> Product {
         let id = "CLTH-{self.next_product_id}"
         self.next_product_id = self.next_product_id + 1
-        let prod = product_mod.Product::create_clothing(id, name, price, cost)
+        let prod = product_mod.Product.create_clothing(id, name, price, cost)
         self.products[id] = prod
         return prod
     }
@@ -32,7 +32,7 @@ InventoryService has {
     func add_food(name: string, price: float, cost: float, min_stock: int) -> Product {
         let id = "FOOD-{self.next_product_id}"
         self.next_product_id = self.next_product_id + 1
-        let prod = product_mod.Product::create_food(id, name, price, cost, min_stock)
+        let prod = product_mod.Product.create_food(id, name, price, cost, min_stock)
         self.products[id] = prod
         return prod
     }
@@ -40,7 +40,7 @@ InventoryService has {
     func add_book(name: string, price: float, cost: float) -> Product {
         let id = "BOOK-{self.next_product_id}"
         self.next_product_id = self.next_product_id + 1
-        let prod = product_mod.Product::create_book(id, name, price, cost)
+        let prod = product_mod.Product.create_book(id, name, price, cost)
         self.products[id] = prod
         return prod
     }
@@ -72,7 +72,7 @@ InventoryService has {
     func add_small_warehouse(name: string, location: string) -> Warehouse {
         let id = "WH-{self.next_warehouse_id}"
         self.next_warehouse_id = self.next_warehouse_id + 1
-        let wh = warehouse_mod.Warehouse::create_small(id, name, location)
+        let wh = warehouse_mod.Warehouse.create_small(id, name, location)
         self.warehouses[id] = wh
         return wh
     }
@@ -80,7 +80,7 @@ InventoryService has {
     func add_large_warehouse(name: string, location: string) -> Warehouse {
         let id = "WH-{self.next_warehouse_id}"
         self.next_warehouse_id = self.next_warehouse_id + 1
-        let wh = warehouse_mod.Warehouse::create_large(id, name, location)
+        let wh = warehouse_mod.Warehouse.create_large(id, name, location)
         self.warehouses[id] = wh
         return wh
     }
@@ -88,7 +88,7 @@ InventoryService has {
     func add_warehouse(name: string, location: string, capacity: int) -> Warehouse {
         let id = "WH-{self.next_warehouse_id}"
         self.next_warehouse_id = self.next_warehouse_id + 1
-        let wh = warehouse_mod.Warehouse::create(id, name, location, capacity)
+        let wh = warehouse_mod.Warehouse.create(id, name, location, capacity)
         self.warehouses[id] = wh
         return wh
     }
