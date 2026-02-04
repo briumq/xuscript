@@ -65,8 +65,8 @@ pub fn analyze_expr(
                 let mut binds: Vec<String> = Vec::new();
                 collect_pattern_binds(pat, &mut binds);
                 for name in binds {
-                    let idx = scope.last().unwrap().len();
-                    scope.last_mut().unwrap().insert(name, idx);
+                    let idx = scope.last().expect("scope stack should not be empty").len();
+                    scope.last_mut().expect("scope stack should not be empty").insert(name, idx);
                 }
                 analyze_expr(e, funcs, scope, finder, out);
                 scope.pop();
@@ -98,8 +98,8 @@ pub fn analyze_expr(
 
             scope.push(HashMap::new());
             for p in def.params.iter_mut() {
-                let idx = scope.last().unwrap().len();
-                scope.last_mut().unwrap().insert(p.name.clone(), idx);
+                let idx = scope.last().expect("scope stack should not be empty").len();
+                scope.last_mut().expect("scope stack should not be empty").insert(p.name.clone(), idx);
                 if let Some(d) = &mut p.default {
                     analyze_expr(d, funcs, scope, finder, out);
                 }

@@ -7,6 +7,10 @@ mod config;
 mod cache;
 mod binary;
 mod gc;
+pub mod type_check;
+mod type_system;
+mod cache_manager;
+mod object_pools;
 
 // Re-export all public types
 pub use config::{ExecResult, Flow, RuntimeConfig};

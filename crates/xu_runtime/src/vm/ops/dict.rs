@@ -36,7 +36,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
                 d.elements[idx] = v;
                 if was_void {
                     d.ver += 1;
-                    rt.dict_version_last = Some((id.0, d.ver));
+                    rt.caches.dict_version_last = Some((id.0, d.ver));
                 }
             }
             stack.push(recv);
@@ -86,7 +86,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
                 let key = DictKey::from_str(key_str);
                 vac.insert(key, v);
                 d.ver += 1;
-                rt.dict_version_last = Some((id.0, d.ver));
+                rt.caches.dict_version_last = Some((id.0, d.ver));
             }
         }
         stack.push(recv);
@@ -107,7 +107,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
                 hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
                     vac.insert(key, v);
                     d.ver += 1;
-                    rt.dict_version_last = Some((id.0, d.ver));
+                    rt.caches.dict_version_last = Some((id.0, d.ver));
                 }
             }
         }
@@ -165,7 +165,7 @@ pub(crate) fn op_dict_merge(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<
         }
         if changed {
             a.ver += 1;
-            rt.dict_version_last = Some((aid.0, a.ver));
+            rt.caches.dict_version_last = Some((aid.0, a.ver));
         }
     }
     stack.push(recv);

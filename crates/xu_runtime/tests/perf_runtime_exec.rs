@@ -1,15 +1,15 @@
 use std::time::Instant;
-use xu_lexer::{Lexer, normalize_source};
-use xu_parser::Parser;
+use xu_driver::Driver;
+use xu_ir::Frontend;
 use xu_runtime::Runtime;
 
 fn run(src: &str) -> String {
-    let normalized = normalize_source(src);
-    let lex = Lexer::new(&normalized.text).lex();
-    let bump = bumpalo::Bump::new();
-    let parse = Parser::new(&normalized.text, &lex.tokens, &bump).parse();
+    let compiled = Driver::new()
+        .compile_text_no_analyze("test.xu", src)
+        .unwrap();
     let mut rt = Runtime::new();
-    let result = rt.exec_module(&parse.module).unwrap();
+    rt.set_frontend(Box::new(Driver::new()));
+    let result = rt.exec_executable(&compiled.executable).unwrap();
     result.output
 }
 
@@ -22,11 +22,13 @@ fn perf_runtime_loop_accumulate() {
         .unwrap_or(5000);
     let src = format!(
         r#"
-func main():
-  count = 0;
-  for _ in [1..{scale}]:
-    count += 1;
-  println(count);
+func main() {{
+  var count = 0
+  for _ in [1..{scale}] {{
+    count += 1
+  }}
+  println(count)
+}}
 "#
     );
     let t0 = Instant::now();
@@ -48,12 +50,14 @@ fn perf_runtime_bulk_dict_ops() {
         .unwrap_or(5000);
     let src = format!(
         r#"
-func main():
-  d = {{}};
-  for _ in [1..{scale}]:
-    k = "k" + to_text(gen_id());
-    d.insert(k, 1);
-  println(d.length);
+func main() {{
+  let d: {{string: int}} = {{}}
+  for _ in [1..{scale}] {{
+    let k = "k" + to_text(gen_id())
+    d.insert(k, 1)
+  }}
+  println(d.length)
+}}
 "#
     );
     let t0 = Instant::now();

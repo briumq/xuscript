@@ -24,20 +24,15 @@ impl Runtime {
     }
 
     fn exec_stmt(&mut self, stmt: &Stmt) -> Flow {
-        self.stmt_count += 1;
-        if self.stmt_count >= 64 {
-            self.stmt_count = 0;
-            self.maybe_gc();
-        }
         match stmt {
             Stmt::StructDef(def) => {
-                self.structs.insert(def.name.clone(), (**def).clone());
+                self.types.structs.insert(def.name.clone(), (**def).clone());
                 let layout = def
                     .fields
                     .iter()
                     .map(|f| f.name.clone())
                     .collect::<Vec<_>>();
-                self.struct_layouts
+                self.types.struct_layouts
                     .insert(def.name.clone(), std::rc::Rc::from(layout));
 
                 // Initialize static fields
@@ -49,7 +44,7 @@ impl Runtime {
                         ))),
                     };
                     let key = (def.name.clone(), sf.name.clone());
-                    self.static_fields.insert(key, value);
+                    self.types.static_fields.insert(key, value);
                 }
 
                 // Register all methods defined in the has block
@@ -64,7 +59,7 @@ impl Runtime {
                 Flow::None
             }
             Stmt::EnumDef(def) => {
-                self.enums.insert(def.name.clone(), def.variants.to_vec());
+                self.types.enums.insert(def.name.clone(), def.variants.to_vec());
                 Flow::None
             }
             Stmt::FuncDef(def) => {
@@ -644,13 +639,13 @@ impl Runtime {
                 // Check if this is a static field assignment (Type.field = value)
                 if let Expr::Ident(type_name, _) = m.object.as_ref() {
                     let key = (type_name.clone(), m.field.clone());
-                    if self.static_fields.contains_key(&key) {
+                    if self.types.static_fields.contains_key(&key) {
                         if stmt.op == AssignOp::Set {
-                            self.static_fields.insert(key, rhs);
+                            self.types.static_fields.insert(key, rhs);
                         } else {
-                            let cur = self.static_fields.get(&key).copied();
+                            let cur = self.types.static_fields.get(&key).copied();
                             let v = self.apply_assign_op(cur, stmt.op, rhs)?;
-                            self.static_fields.insert(key, v);
+                            self.types.static_fields.insert(key, v);
                         }
                         return Ok(());
                     }
@@ -711,7 +706,7 @@ impl Runtime {
             let mut prev = None;
             let mut pos = 0;
             if let crate::core::heap::ManagedObject::Struct(s) = self.heap.get(id) {
-                let layout = self.struct_layouts.get(&s.ty).ok_or_else(|| {
+                let layout = self.types.struct_layouts.get(&s.ty).ok_or_else(|| {
                     self.error(xu_syntax::DiagnosticKind::UnknownStruct(s.ty.clone()))
                 })?;
                 pos = layout.iter().position(|f| f == field).ok_or_else(|| {
@@ -796,7 +791,7 @@ impl Runtime {
                 if let crate::core::heap::ManagedObject::Dict(me) = self.heap.get_mut(id) {
                     me.map.insert(key, rhs);
                     me.ver += 1;
-                    self.dict_version_last = Some((id.0, me.ver));
+                    self.caches.dict_version_last = Some((id.0, me.ver));
                 }
                 return Ok(());
             }
@@ -813,7 +808,7 @@ impl Runtime {
                 let prev = me.map.insert(key, v);
                 if prev.as_ref() != Some(&v) {
                     me.ver += 1;
-                    self.dict_version_last = Some((id.0, me.ver));
+                    self.caches.dict_version_last = Some((id.0, me.ver));
                 }
             }
 

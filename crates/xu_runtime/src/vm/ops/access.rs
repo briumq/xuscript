@@ -45,8 +45,8 @@ pub(crate) fn op_get_member(
             // IC check
             let mut val = None;
             if let Some(idx_slot) = slot_idx {
-                if idx_slot < rt.ic_slots.len() {
-                    let c = &rt.ic_slots[idx_slot];
+                if idx_slot < rt.caches.ic_slots.len() {
+                    let c = &rt.caches.ic_slots[idx_slot];
                     if c.struct_ty_hash == s.ty_hash && c.key_hash == field_hash {
                         if let Some(offset) = c.field_offset {
                             val = Some(s.fields[offset]);
@@ -128,7 +128,7 @@ pub(crate) fn op_get_index(
                 }
 
                 if val.is_none() {
-                    if let Some(c) = rt.dict_cache_int_last.as_ref() {
+                    if let Some(c) = rt.caches.dict_cache_int_last.as_ref() {
                         if c.id == id.0 && c.ver == cur_ver && c.key == key {
                             val = Some(c.value);
                         }
@@ -139,7 +139,7 @@ pub(crate) fn op_get_index(
                     let hash = Runtime::hash_dict_key_int(me.map.hasher(), key);
                     if let Some((_, v)) = me.map.raw_entry().from_hash(hash, |k| matches!(k, crate::core::value::DictKey::Int(i) if *i == key)) {
                         val = Some(*v);
-                        rt.dict_cache_int_last = Some(DictCacheIntLast {
+                        rt.caches.dict_cache_int_last = Some(DictCacheIntLast {
                             id: id.0,
                             key,
                             ver: cur_ver,
@@ -161,7 +161,7 @@ pub(crate) fn op_get_index(
                     }
                     // Check last cache
                     if val.is_none() {
-                        if let Some(c) = rt.dict_cache_last.as_ref() {
+                        if let Some(c) = rt.caches.dict_cache_last.as_ref() {
                             if c.id == id.0
                                 && c.ver == cur_ver
                                 && c.key.as_str() == key_text.as_str()
@@ -177,7 +177,7 @@ pub(crate) fn op_get_index(
                             Runtime::dict_get_by_str_with_hash(me, key_text.as_str(), key_hash)
                         {
                             val = Some(v);
-                            rt.dict_cache_last = Some(DictCacheLast {
+                            rt.caches.dict_cache_last = Some(DictCacheLast {
                                 id: id.0,
                                 ver: cur_ver,
                                 key: key_text.clone(),
@@ -344,7 +344,7 @@ pub(crate) fn op_get_static_field(
 
     // First check if it's a static field
     let key = (type_name.to_string(), field_name.to_string());
-    if let Some(value) = rt.static_fields.get(&key) {
+    if let Some(value) = rt.types.static_fields.get(&key) {
         stack.push(*value);
         return Ok(None);
     }
@@ -397,8 +397,8 @@ pub(crate) fn op_set_static_field(
 
     // First check if it's a static field
     let key = (type_name.to_string(), field_name.to_string());
-    if rt.static_fields.contains_key(&key) {
-        rt.static_fields.insert(key, value);
+    if rt.types.static_fields.contains_key(&key) {
+        rt.types.static_fields.insert(key, value);
         return Ok(None);
     }
 
@@ -440,6 +440,6 @@ pub(crate) fn op_init_static_field(
     let value = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
 
     let key = (type_name.to_string(), field_name.to_string());
-    rt.static_fields.insert(key, value);
+    rt.types.static_fields.insert(key, value);
     Ok(())
 }

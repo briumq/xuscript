@@ -15,12 +15,12 @@ impl Runtime {
     /// and sweeps unreachable objects.
     pub fn gc(&mut self, extra_roots: &[Value]) {
         // Clear caches that are safe to clear (don't affect correctness)
-        self.method_cache.clear();
-        self.dict_cache_last = None;
-        self.dict_cache_int_last = None;
-        self.dict_version_last = None;
-        self.ic_slots.clear();
-        self.ic_method_slots.clear();
+        self.caches.method_cache.clear();
+        self.caches.dict_cache_last = None;
+        self.caches.dict_cache_int_last = None;
+        self.caches.dict_version_last = None;
+        self.caches.ic_slots.clear();
+        self.caches.ic_method_slots.clear();
 
         // Create roots vector
         let mut roots: Vec<Value> = Vec::new();
@@ -59,19 +59,19 @@ impl Runtime {
         }
 
         // Add bytecode string cache values as roots
-        for cache in self.bytecode_string_cache.values() {
+        for cache in self.caches.bytecode_string_cache.values() {
             for val in cache.iter().flatten() {
                 roots.push(*val);
             }
         }
 
         // Add small integer string cache values as roots
-        for val in self.small_int_strings.iter().flatten() {
+        for val in self.caches.small_int_strings.iter().flatten() {
             roots.push(*val);
         }
 
         // Add static field values as roots
-        for val in self.static_fields.values() {
+        for val in self.types.static_fields.values() {
             roots.push(*val);
         }
 
@@ -83,6 +83,7 @@ impl Runtime {
     }
 
     /// Perform garbage collection if the heap has grown enough.
+    #[allow(dead_code)]
     pub(crate) fn maybe_gc(&mut self) {
         if self.heap.should_gc() {
             self.gc(&[]);
@@ -90,6 +91,7 @@ impl Runtime {
     }
 
     /// Perform garbage collection if the heap has grown enough, with extra roots.
+    #[allow(dead_code)]
     pub(crate) fn maybe_gc_with_roots(&mut self, roots: &[Value]) {
         if self.heap.should_gc() {
             self.gc(roots);

@@ -152,8 +152,8 @@ pub(crate) fn op_call_method(
     // IC check (Hot path for bytecode methods)
     let mut fast_res = None;
     if let Some(idx) = slot_idx {
-        if idx < rt.ic_method_slots.len() {
-            let slot = &rt.ic_method_slots[idx];
+        if idx < rt.caches.ic_method_slots.len() {
+            let slot = &rt.caches.ic_method_slots[idx];
             if slot.tag == tag && slot.method_hash == method_hash {
                 if tag == crate::core::value::TAG_STRUCT {
                     let id = recv.as_obj_id();
@@ -252,8 +252,8 @@ fn try_dict_get_fast(
 
     // Check IC cache first - fast path when same dict, same key, same version
     if let Some(idx) = slot_idx {
-        if *idx < rt.ic_slots.len() {
-            let c = &rt.ic_slots[*idx];
+        if *idx < rt.caches.ic_slots.len() {
+            let c = &rt.caches.ic_slots[*idx];
             if c.id == dict_id.0 && c.key_len as usize == key_bytes.len() && key_bytes.len() <= 16 {
                 // Fast compare short keys
                 if &c.key_short[..key_bytes.len()] == key_bytes {
@@ -276,13 +276,13 @@ fn try_dict_get_fast(
             // Create Option::some and cache it
             let opt = rt.option_some(v);
             if let Some(idx) = slot_idx {
-                while rt.ic_slots.len() <= *idx {
-                    rt.ic_slots.push(crate::ICSlot::default());
+                while rt.caches.ic_slots.len() <= *idx {
+                    rt.caches.ic_slots.push(crate::ICSlot::default());
                 }
                 let mut key_short = [0u8; 16];
                 let klen = key_bytes.len().min(16);
                 key_short[..klen].copy_from_slice(&key_bytes[..klen]);
-                rt.ic_slots[*idx] = crate::ICSlot {
+                rt.caches.ic_slots[*idx] = crate::ICSlot {
                     id: dict_id.0,
                     key_hash,
                     key_id: key_id.0,
@@ -389,8 +389,8 @@ fn try_dict_insert_fast(
     // IC optimization for insert
     let mut cached_hash = None;
     if let Some(idx) = slot_idx {
-        if *idx < rt.ic_slots.len() {
-            let c = &rt.ic_slots[*idx];
+        if *idx < rt.caches.ic_slots.len() {
+            let c = &rt.caches.ic_slots[*idx];
             if c.id == dict_id.0 && c.key_id == key_id.0 {
                 // Cache hit: same dict and same key object (e.g. constant string)
                 cached_hash = Some(c.key_hash);
@@ -410,10 +410,10 @@ fn try_dict_insert_fast(
             let h = Runtime::hash_bytes(me.map.hasher(), key_str.as_bytes());
             // Update IC cache
             if let Some(idx) = slot_idx {
-                while rt.ic_slots.len() <= *idx {
-                    rt.ic_slots.push(crate::ICSlot::default());
+                while rt.caches.ic_slots.len() <= *idx {
+                    rt.caches.ic_slots.push(crate::ICSlot::default());
                 }
-                rt.ic_slots[*idx] = crate::ICSlot {
+                rt.caches.ic_slots[*idx] = crate::ICSlot {
                     id: dict_id.0,
                     key_hash: h,
                     key_id: key_id.0,

@@ -44,11 +44,11 @@ pub fn analyze_types(
     }
 
     let mut type_env: Vec<HashMap<String, TypeId>> = vec![HashMap::new()];
-    let fn_ty = interner.builtin_by_name("func").unwrap();
+    let fn_ty = interner.builtin_by_name("func").expect("func type should be registered");
     for builtin in xu_syntax::BUILTIN_NAMES {
         type_env
             .last_mut()
-            .unwrap()
+            .expect("type_env should not be empty")
             .insert(builtin.to_string(), fn_ty);
     }
     analyze_type_stmts(
@@ -97,7 +97,7 @@ fn analyze_type_stmts(
                 for p in &def.params {
                     if let Some(t) = &p.ty {
                         let tid = typeref_to_typeid(interner, t);
-                        type_env.last_mut().unwrap().insert(p.name.clone(), tid);
+                        type_env.last_mut().expect("type_env should not be empty").insert(p.name.clone(), tid);
                         if let Some(d) = &p.default {
                             if let Some(actual_id) =
                                 infer_type(d, func_sigs, structs, type_env, interner)
@@ -160,8 +160,8 @@ fn analyze_type_stmts(
                 // Register module alias in type environment
                 // Use explicit alias if provided, otherwise infer from path
                 let alias = u.alias.clone().unwrap_or_else(|| infer_module_alias(&u.path));
-                let any = interner.builtin_by_name("any").unwrap();
-                type_env.last_mut().unwrap().insert(alias, any);
+                let any = interner.builtin_by_name("any").expect("any type should be registered");
+                type_env.last_mut().expect("type_env should not be empty").insert(alias, any);
             }
             Stmt::If(s) => {
                 for (cond, body) in &s.branches {
@@ -242,7 +242,7 @@ fn analyze_type_stmts(
                 } else {
                     interner.intern(Type::Any)
                 };
-                type_env.last_mut().unwrap().insert(s.var.clone(), var_ty);
+                type_env.last_mut().expect("type_env should not be empty").insert(s.var.clone(), var_ty);
                 analyze_type_stmts(
                     &s.body,
                     func_sigs,
@@ -329,14 +329,14 @@ fn analyze_type_stmts(
                     if let Expr::Ident(name, _) = &s.target {
                         type_env
                             .last_mut()
-                            .unwrap()
+                            .expect("type_env should not be empty")
                             .insert(name.clone(), expected_id);
                     }
                 } else if s.decl.is_some() {
                     if let Expr::Ident(name, _) = &s.target {
                         let actual = infer_type(&s.value, func_sigs, structs, type_env, interner)
                             .unwrap_or(interner.intern(Type::Any));
-                        type_env.last_mut().unwrap().insert(name.clone(), actual);
+                        type_env.last_mut().expect("type_env should not be empty").insert(name.clone(), actual);
                     }
                 } else if let Expr::Ident(name, _) = &s.target {
                     if let Some(expected) = type_env.iter().rev().find_map(|m| m.get(name).cloned())
@@ -681,11 +681,11 @@ fn typeref_to_typeid(interner: &mut TypeInterner, t: &TypeRef) -> TypeId {
         if let Some(id) = interner.builtin_by_name(&t.name) {
             id
         } else if t.name == "list" {
-            let any = interner.builtin_by_name("any").unwrap();
+            let any = interner.builtin_by_name("any").expect("any type should be registered");
             interner.list(any)
         } else if t.name == "dict" {
-            let text = interner.builtin_by_name("text").unwrap();
-            let any = interner.builtin_by_name("any").unwrap();
+            let text = interner.builtin_by_name("text").expect("text type should be registered");
+            let any = interner.builtin_by_name("any").expect("any type should be registered");
             interner.dict(text, any)
         } else if t.name == "tuple" {
             interner.intern(Type::Any)

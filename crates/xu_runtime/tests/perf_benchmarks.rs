@@ -42,11 +42,28 @@ fn perf_benchmarks_suite() {
         .unwrap();
     let dir = root.join("tests/benchmarks/xu");
     let output = run_file(&dir.join("full_suite.xu"));
+    let scale = std::env::var("BENCH_SCALE").unwrap_or_else(|_| "50000".to_string());
 
-    // Parse output lines "key=value"
+    // Parse JSON output lines: {"case":"name","scale":N,"duration_ms":X.X,"rss_bytes":N}
     let mut results = HashMap::new();
     for line in output.lines() {
-        if let Some((k, v)) = line.split_once('=') {
+        let line = line.trim();
+        if line.starts_with('{') && line.ends_with('}') {
+            // Simple JSON parsing for our specific format
+            if let (Some(case_start), Some(duration_start)) = (line.find("\"case\":\""), line.find("\"duration_ms\":")) {
+                let case_end = line[case_start + 8..].find('"').map(|i| case_start + 8 + i);
+                if let Some(case_end) = case_end {
+                    let case = &line[case_start + 8..case_end];
+                    // Find duration value
+                    let duration_str = &line[duration_start + 14..];
+                    let duration_end = duration_str.find(',').or_else(|| duration_str.find('}')).unwrap_or(duration_str.len());
+                    let duration: f64 = duration_str[..duration_end].parse().unwrap_or(0.0);
+                    let key = format!("{}_{}", case.replace('-', "_"), scale);
+                    results.insert(key, (duration.ceil() as u64).to_string());
+                }
+            }
+        } else if let Some((k, v)) = line.split_once('=') {
+            // Fallback to old key=value format
             results.insert(k.trim().to_string(), v.trim().to_string());
         }
     }

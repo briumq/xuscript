@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use hashbrown::hash_map::RawEntryMut;
 use smallvec::SmallVec;
-use xu_ir::{Executable, Expr, Module, Stmt, StructDef};
+use xu_ir::{Executable, Expr, Module, Stmt};
 
 use crate::core::Value;
 use crate::core::Env;
@@ -23,65 +23,68 @@ pub use crate::core::text::Text;
 
 // Import types from sibling modules
 use super::config::{ExecResult, Flow, RuntimeConfig};
-use super::cache::{ICSlot, MethodICSlot, DictCacheLast, DictCacheIntLast};
+use super::cache::MethodICSlot;
+use super::type_system::TypeSystem;
+use super::cache_manager::CacheManager;
+use super::object_pools::ObjectPools;
 
 pub(crate) use crate::methods::MethodKind;
 
+/// Runtime 结构体 - xuscript 的核心执行引擎
+///
+/// 字段已按功能分组为子结构体以提高可维护性：
+/// - `types`: 类型系统（结构体、枚举、静态字段）
+/// - `caches`: 缓存管理（方法缓存、IC 槽、字符串池）
+/// - `pools`: 对象池（环境池、VM 栈池等）
 pub struct Runtime {
+    // ==================== 核心执行状态 ====================
     pub(crate) env: Env,
-    pub(crate) env_pool: Vec<Env>,
     pub(crate) heap: crate::core::heap::Heap,
     caps: capabilities::Capabilities,
+    pub(crate) output: String,
+    pub(crate) main_invoked: bool,
+    pub(crate) call_stack_depth: usize,
+    rng_state: u64,
+    pub(crate) config: RuntimeConfig,
+
+    // ==================== 类型系统 ====================
+    /// 类型系统管理器（结构体、枚举、静态字段）
+    pub(crate) types: TypeSystem,
+
+    // ==================== 缓存管理 ====================
+    /// 缓存管理器（方法缓存、IC 槽、字符串池）
+    pub(crate) caches: CacheManager,
+
+    // ==================== 对象池 ====================
+    /// 对象池管理器（环境池、VM 栈池等）
+    pub(crate) pools: ObjectPools,
+
+    // ==================== 模块系统 ====================
     pub(crate) module_loader: Box<dyn modules::ModuleLoader>,
     pub(crate) frontend: Option<Box<dyn xu_ir::Frontend>>,
-    pub(crate) output: String,
-    pub(crate) stmt_count: usize,
-    pub(crate) structs: HashMap<String, StructDef>,
-    pub(crate) struct_layouts: HashMap<String, std::rc::Rc<[String]>>,
-    pub(crate) enums: HashMap<String, Vec<String>>,
-    /// Static field storage: (type_name, field_name) -> Value
-    pub(crate) static_fields: HashMap<(String, String), Value>,
-    pub(crate) next_id: i64,
-    pub(crate) main_invoked: bool,
     pub(crate) loaded_modules: HashMap<String, Value>,
     pub(crate) import_parse_cache: HashMap<String, modules::ImportParseCacheEntry>,
     pub(crate) import_stack: Vec<String>,
     pub(crate) entry_path: Option<String>,
-    rng_state: u64,
-    pub(crate) config: RuntimeConfig,
+
+    // ==================== 局部变量管理 ====================
     pub(crate) locals: slot_allocator::LocalSlots,
     pub(crate) compiled_locals: HashMap<String, Vec<String>>,
     pub(crate) compiled_locals_idx: HashMap<String, HashMap<String, usize>>,
     pub(crate) current_func: Option<String>,
-    /// The locals frame depth when the current function was entered.
-    /// Used to determine if a slot lookup should use locals or env.
+    /// 当前函数进入时的局部变量帧深度
     pub(crate) func_entry_frame_depth: usize,
     pub(crate) current_param_bindings: Option<Vec<(String, usize)>>,
-    pub(crate) method_cache: HashMap<(String, String), Value>,
-    pub(crate) dict_cache_last: Option<DictCacheLast>,
-    pub(crate) dict_cache_int_last: Option<DictCacheIntLast>,
-    pub(crate) dict_version_last: Option<(usize, u64)>,
-    pub(crate) ic_slots: Vec<ICSlot>,
-    pub(crate) ic_method_slots: Vec<MethodICSlot>,
-    pub(crate) string_pool: HashMap<String, Rc<String>>,
-    /// Pre-allocated string constant Values per Bytecode (keyed by Bytecode pointer)
-    /// Each entry maps constant index to pre-allocated Value
-    pub(crate) bytecode_string_cache: HashMap<usize, Vec<Option<Value>>>,
+
+    // ==================== 其他配置 ====================
     pub(crate) stdlib_path: Option<String>,
     pub(crate) args: Vec<String>,
-    pub(crate) call_stack_depth: usize,
     predefined_constants: HashMap<String, String>,
-    pub(crate) vm_stack_pool: Vec<Vec<Value>>,
-    pub(crate) vm_iters_pool: Vec<Vec<ir::IterState>>,
-    pub(crate) vm_handlers_pool: Vec<Vec<ir::Handler>>,
-    builder_pool: Vec<String>,
-    /// Cached Option::none value to avoid repeated allocations
-    cached_option_none: Option<Value>,
-    /// Cached small integer strings (0-9999) for to_text optimization
-    pub(crate) small_int_strings: Vec<Option<Value>>,
-    /// Temporary GC roots for values being evaluated (e.g., function arguments)
+
+    // ==================== GC 相关 ====================
+    /// 临时 GC 根（用于正在求值的值）
     pub(crate) gc_temp_roots: Vec<Value>,
-    /// Active VM stacks that need GC protection (raw pointers for performance)
+    /// 需要 GC 保护的活动 VM 栈
     pub(crate) active_vm_stacks: Vec<*const Vec<Value>>,
 }
 
@@ -98,49 +101,38 @@ impl Runtime {
             .unwrap_or(1);
         let mut rt = Self {
             env,
-            env_pool: Vec::new(),
             heap: crate::core::heap::Heap::new(),
             caps: capabilities::Capabilities::default(),
+            output: String::new(),
+            main_invoked: false,
+            call_stack_depth: 0,
+            rng_state: seed,
+            config,
+            // 类型系统
+            types: TypeSystem::new(),
+            // 缓存管理
+            caches: CacheManager::new(),
+            // 对象池
+            pools: ObjectPools::new(),
+            // 模块系统
             module_loader: Box::new(modules::StdModuleLoader),
             frontend: None,
-            output: String::new(),
-            stmt_count: 0,
-            structs: fast_map_new(),
-            struct_layouts: fast_map_new(),
-            enums: fast_map_new(),
-            static_fields: fast_map_new(),
-            next_id: 1,
-            main_invoked: false,
             loaded_modules: fast_map_new(),
             import_parse_cache: fast_map_new(),
             import_stack: Vec::new(),
             entry_path: None,
-            rng_state: seed,
-            config,
+            // 局部变量管理
             locals: slot_allocator::LocalSlots::new(),
             compiled_locals: fast_map_new(),
             compiled_locals_idx: fast_map_new(),
             current_func: None,
             func_entry_frame_depth: 0,
             current_param_bindings: None,
-            method_cache: fast_map_new(),
-            dict_cache_last: None,
-            dict_cache_int_last: None,
-            dict_version_last: None,
-            ic_slots: Vec::new(),
-            ic_method_slots: Vec::new(),
-            string_pool: fast_map_new(),
-            bytecode_string_cache: fast_map_new(),
+            // 其他配置
             stdlib_path: None,
             args: Vec::new(),
-            call_stack_depth: 0,
             predefined_constants: fast_map_new(),
-            vm_stack_pool: Vec::new(),
-            vm_iters_pool: Vec::new(),
-            vm_handlers_pool: Vec::new(),
-            builder_pool: Vec::new(),
-            cached_option_none: None,
-            small_int_strings: Vec::new(),
+            // GC 相关
             gc_temp_roots: Vec::new(),
             active_vm_stacks: Vec::new(),
         };
@@ -153,11 +145,11 @@ impl Runtime {
             // Text::INLINE_CAP
             return Text::from_str(s);
         }
-        if let Some(rc) = self.string_pool.get(s) {
+        if let Some(rc) = self.caches.string_pool.get(s) {
             return Text::Heap { data: rc.clone(), char_count: std::cell::Cell::new(u32::MAX) };
         }
         let rc = Rc::new(s.to_string());
-        self.string_pool.insert(s.to_string(), rc.clone());
+        self.caches.string_pool.insert(s.to_string(), rc.clone());
         Text::Heap { data: rc, char_count: std::cell::Cell::new(u32::MAX) }
     }
 
@@ -166,7 +158,7 @@ impl Runtime {
     #[inline]
     pub fn get_string_const(&mut self, bc_ptr: usize, idx: u32, s: &str) -> Value {
         // Fast path: check if we have a cached value
-        if let Some(cache) = self.bytecode_string_cache.get(&bc_ptr) {
+        if let Some(cache) = self.caches.bytecode_string_cache.get(&bc_ptr) {
             if let Some(Some(val)) = cache.get(idx as usize) {
                 return *val;
             }
@@ -175,7 +167,7 @@ impl Runtime {
         let text = self.intern_string(s);
         let val = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(text)));
 
-        let cache = self.bytecode_string_cache.entry(bc_ptr).or_insert_with(Vec::new);
+        let cache = self.caches.bytecode_string_cache.entry(bc_ptr).or_insert_with(Vec::new);
         let idx_usize = idx as usize;
         if cache.len() <= idx_usize {
             cache.resize(idx_usize + 1, None);
@@ -185,7 +177,7 @@ impl Runtime {
     }
 
     pub(crate) fn option_none(&mut self) -> Value {
-        if let Some(v) = self.cached_option_none {
+        if let Some(v) = self.caches.cached_option_none {
             return v;
         }
         static OPTION: &str = "Option";
@@ -195,7 +187,7 @@ impl Runtime {
             crate::Text::from_str(NONE),
             Box::new([]),
         )))));
-        self.cached_option_none = Some(v);
+        self.caches.cached_option_none = Some(v);
         v
     }
 
@@ -209,16 +201,16 @@ impl Runtime {
         }
         let idx = i as usize;
         // Ensure cache is large enough
-        if self.small_int_strings.len() <= idx {
-            self.small_int_strings.resize(idx + 1, None);
+        if self.caches.small_int_strings.len() <= idx {
+            self.caches.small_int_strings.resize(idx + 1, None);
         }
         // Return cached value or create new one
-        if let Some(v) = self.small_int_strings[idx] {
+        if let Some(v) = self.caches.small_int_strings[idx] {
             Some(v)
         } else {
             let text = crate::core::value::i64_to_text_fast(i);
             let v = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(text)));
-            self.small_int_strings[idx] = Some(v);
+            self.caches.small_int_strings[idx] = Some(v);
             Some(v)
         }
     }
@@ -230,23 +222,12 @@ impl Runtime {
 
     /// Get a String from the builder pool, or create a new one with the given capacity
     pub(crate) fn builder_pool_get(&mut self, cap: usize) -> String {
-        if let Some(mut s) = self.builder_pool.pop() {
-            s.clear();
-            if s.capacity() < cap {
-                s.reserve(cap - s.capacity());
-            }
-            s
-        } else {
-            String::with_capacity(cap)
-        }
+        self.pools.get_builder(cap)
     }
 
     /// Return a String to the builder pool for reuse
     pub(crate) fn builder_pool_return(&mut self, s: String) {
-        // Only keep strings with reasonable capacity to avoid memory bloat
-        if s.capacity() <= 4096 && self.builder_pool.len() < 16 {
-            self.builder_pool.push(s);
-        }
+        self.pools.return_builder(s);
     }
 
     pub fn define_global_constant(&mut self, name: &str, value: &str) {
@@ -281,7 +262,7 @@ impl Runtime {
         variant: &str,
         payload: Box<[Value]>,
     ) -> Result<Value, String> {
-        if let Some(vars) = self.enums.get(ty) {
+        if let Some(vars) = self.types.enums.get(ty) {
             if !vars.contains(&variant.to_string()) {
                 return Err(self.error(xu_syntax::DiagnosticKind::UnknownEnumVariant(
                     ty.to_string(),
@@ -543,10 +524,10 @@ impl Runtime {
         for s in &program.module.stmts {
             match s {
                 Stmt::StructDef(def) => {
-                    self.structs.insert(def.name.clone(), (**def).clone());
+                    self.types.structs.insert(def.name.clone(), (**def).clone());
                 }
                 Stmt::EnumDef(def) => {
-                    self.enums.insert(def.name.clone(), def.variants.to_vec());
+                    self.types.enums.insert(def.name.clone(), def.variants.to_vec());
                 }
                 _ => {}
             }
@@ -581,10 +562,7 @@ impl Runtime {
         self.main_invoked = false;
         self.import_stack.clear();
         self.loaded_modules.clear();
-        self.structs.clear();
-        self.enums.clear();
-        self.static_fields.clear();
-        self.next_id = 1;
+        self.types.reset();
         self.locals.clear();
 
         self.env = Env::new();
@@ -596,12 +574,7 @@ impl Runtime {
                 .alloc(crate::core::heap::ManagedObject::Str(v.to_string().into()));
             self.env.define(k.clone(), Value::str(s));
         }
-        self.method_cache.clear();
-        self.dict_cache_last = None;
-        self.dict_cache_int_last = None;
-        self.dict_version_last = None;
-        self.ic_slots.clear();
-        self.ic_method_slots.clear();
+        self.caches.reset();
         self.current_param_bindings = None;
         self.call_stack_depth = 0;
     }
@@ -763,8 +736,8 @@ impl Runtime {
 
         // IC check
         if let Some(idx) = slot_idx {
-            if idx < self.ic_method_slots.len() {
-                let slot = &self.ic_method_slots[idx];
+            if idx < self.caches.ic_method_slots.len() {
+                let slot = &self.caches.ic_method_slots[idx];
                 if slot.tag == tag && slot.method_hash == method_hash {
                     if tag == crate::core::value::TAG_STRUCT {
                         let id = recv.as_obj_id();
@@ -839,10 +812,10 @@ impl Runtime {
             }
             // Update IC
             if let Some(idx) = slot_idx {
-                while self.ic_method_slots.len() <= idx {
-                    self.ic_method_slots.push(MethodICSlot::default());
+                while self.caches.ic_method_slots.len() <= idx {
+                    self.caches.ic_method_slots.push(MethodICSlot::default());
                 }
-                self.ic_method_slots[idx] = MethodICSlot {
+                self.caches.ic_method_slots[idx] = MethodICSlot {
                     tag,
                     method_hash,
                     struct_ty_hash: 0,
@@ -872,13 +845,13 @@ impl Runtime {
             let callee = match if let crate::core::heap::ManagedObject::Struct(s) = self.heap.get(id) {
                 let ty = s.ty.as_str();
                 let hash = {
-                    let mut h = self.method_cache.hasher().build_hasher();
+                    let mut h = self.caches.method_cache.hasher().build_hasher();
                     ty.hash(&mut h);
                     method.hash(&mut h);
                     h.finish()
                 };
                 match self
-                    .method_cache
+                    .caches.method_cache
                     .raw_entry_mut()
                     .from_hash(hash, |(t, m)| t == ty && m == method)
                 {
@@ -923,10 +896,10 @@ impl Runtime {
 
             // Update IC
             if let Some(idx) = slot_idx {
-                while self.ic_method_slots.len() <= idx {
-                    self.ic_method_slots.push(MethodICSlot::default());
+                while self.caches.ic_method_slots.len() <= idx {
+                    self.caches.ic_method_slots.push(MethodICSlot::default());
                 }
-                self.ic_method_slots[idx] = MethodICSlot {
+                self.caches.ic_method_slots[idx] = MethodICSlot {
                     tag,
                     method_hash,
                     struct_ty_hash: if let crate::core::heap::ManagedObject::Struct(s) = self.heap.get(id) {
@@ -968,13 +941,13 @@ impl Runtime {
                     let (ty, _variant, _payload) = e.as_ref();
                     let ty_str = ty.as_str();
                     let hash = {
-                        let mut h = self.method_cache.hasher().build_hasher();
+                        let mut h = self.caches.method_cache.hasher().build_hasher();
                         ty_str.hash(&mut h);
                         method.hash(&mut h);
                         h.finish()
                     };
                     match self
-                        .method_cache
+                        .caches.method_cache
                         .raw_entry_mut()
                         .from_hash(hash, |(t, m)| t == ty_str && m == method)
                     {
@@ -1020,10 +993,10 @@ impl Runtime {
                             )));
                         }
                         if let Some(idx) = slot_idx {
-                            while self.ic_method_slots.len() <= idx {
-                                self.ic_method_slots.push(MethodICSlot::default());
+                            while self.caches.ic_method_slots.len() <= idx {
+                                self.caches.ic_method_slots.push(MethodICSlot::default());
                             }
-                            self.ic_method_slots[idx] = MethodICSlot {
+                            self.caches.ic_method_slots[idx] = MethodICSlot {
                                 tag,
                                 method_hash,
                                 struct_ty_hash: 0,
@@ -1038,10 +1011,10 @@ impl Runtime {
                 };
 
             if let Some(idx) = slot_idx {
-                while self.ic_method_slots.len() <= idx {
-                    self.ic_method_slots.push(MethodICSlot::default());
+                while self.caches.ic_method_slots.len() <= idx {
+                    self.caches.ic_method_slots.push(MethodICSlot::default());
                 }
-                self.ic_method_slots[idx] = MethodICSlot {
+                self.caches.ic_method_slots[idx] = MethodICSlot {
                     tag,
                     method_hash,
                     struct_ty_hash: ty_hash,
@@ -1083,10 +1056,10 @@ impl Runtime {
 
             // Update IC
             if let Some(idx) = slot_idx {
-                while self.ic_method_slots.len() <= idx {
-                    self.ic_method_slots.push(MethodICSlot::default());
+                while self.caches.ic_method_slots.len() <= idx {
+                    self.caches.ic_method_slots.push(MethodICSlot::default());
                 }
-                self.ic_method_slots[idx] = MethodICSlot {
+                self.caches.ic_method_slots[idx] = MethodICSlot {
                     tag,
                     method_hash,
                     struct_ty_hash: 0,

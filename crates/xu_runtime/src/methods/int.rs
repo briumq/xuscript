@@ -30,10 +30,10 @@ pub(crate) fn dispatch(rt: &mut Runtime, recv: Value, kind: super::MethodKind, a
             } else {
                 let mut result = String::new();
                 let mut n = i.abs();
-                let digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                let digits = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
                 while n > 0 {
                     let digit = (n % base) as usize;
-                    result.push(digits.chars().nth(digit).unwrap());
+                    result.push(digits[digit] as char);
                     n /= base;
                 }
                 if i < 0 {

@@ -19,7 +19,12 @@ use crate::Runtime;
 /// Execute Op::ListNew - create a new list
 #[inline(always)]
 pub(crate) fn op_list_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -> Result<(), String> {
-    let mut items: Vec<Value> = Vec::with_capacity(n);
+    // Try to get a pooled list for small lists (≤8 elements)
+    let mut items = if let Some(pooled) = rt.pools.get_small_list(n) {
+        pooled
+    } else {
+        Vec::with_capacity(n)
+    };
     for _ in 0..n {
         items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
     }
@@ -36,7 +41,12 @@ pub(crate) fn op_tuple_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -
         stack.push(Value::VOID);
         return Ok(true); // Signal to continue (skip ip increment)
     }
-    let mut items: Vec<Value> = Vec::with_capacity(n);
+    // Try to get a pooled list for small tuples (≤8 elements)
+    let mut items = if let Some(pooled) = rt.pools.get_small_list(n) {
+        pooled
+    } else {
+        Vec::with_capacity(n)
+    };
     for _ in 0..n {
         items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
     }

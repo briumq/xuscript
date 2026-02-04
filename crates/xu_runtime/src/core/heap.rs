@@ -141,6 +141,7 @@ impl Heap {
         }
     }
 
+    #[inline]
     pub fn should_gc(&self) -> bool {
         self.alloc_count >= self.gc_threshold || self.alloc_bytes >= self.gc_threshold_bytes
     }

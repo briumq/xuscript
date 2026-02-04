@@ -12,20 +12,11 @@ use super::ops::{access, assign, call, collection, compare, iter, math, string, 
 use super::stack::{stack_underflow, Handler, IterState, Pending};
 
 pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, String> {
-    let mut stack = rt
-        .vm_stack_pool
-        .pop()
-        .unwrap_or_else(|| Vec::with_capacity(32));
+    let mut stack = rt.pools.get_stack();
     stack.clear();
-    let mut iters = rt
-        .vm_iters_pool
-        .pop()
-        .unwrap_or_else(|| Vec::with_capacity(4));
+    let mut iters = rt.pools.get_iters();
     iters.clear();
-    let mut handlers = rt
-        .vm_handlers_pool
-        .pop()
-        .unwrap_or_else(|| Vec::with_capacity(4));
+    let mut handlers = rt.pools.get_handlers();
     handlers.clear();
 
     // Register this VM stack for GC protection
@@ -44,15 +35,9 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
             unsafe {
                 // Unregister VM stack from GC protection
                 (*self.rt).active_vm_stacks.pop();
-                (*self.rt)
-                    .vm_stack_pool
-                    .push(std::mem::take(&mut *self.stack));
-                (*self.rt)
-                    .vm_iters_pool
-                    .push(std::mem::take(&mut *self.iters));
-                (*self.rt)
-                    .vm_handlers_pool
-                    .push(std::mem::take(&mut *self.handlers));
+                (*self.rt).pools.return_stack(std::mem::take(&mut *self.stack));
+                (*self.rt).pools.return_iters(std::mem::take(&mut *self.iters));
+                (*self.rt).pools.return_handlers(std::mem::take(&mut *self.handlers));
             }
         }
     }
@@ -69,13 +54,15 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
     let mut ip: usize = 0;
     let ops = &bc.ops;
     let ops_len = ops.len();
+    let mut stmt_count: usize = 0;
 
     while ip < ops_len {
         // SAFETY: ip is always < ops_len due to the loop condition above,
         // so this index is always in bounds.
         let op = unsafe { ops.get_unchecked(ip) };
-        rt.stmt_count = rt.stmt_count.wrapping_add(1);
-        if rt.stmt_count & 127 == 0 {
+        stmt_count = stmt_count.wrapping_add(1);
+        // Check GC every 1024 instructions (was 128)
+        if stmt_count & 1023 == 0 {
             rt.maybe_gc_with_roots(&stack);
         }
         match op {

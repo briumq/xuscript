@@ -24,11 +24,11 @@ impl Runtime {
             } else {
                 return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
             };
-            self.dict_version_last = Some((id.0, cur_ver));
+            self.caches.dict_version_last = Some((id.0, cur_ver));
 
             if let Some(idx) = slot_cell.get() {
-                if idx < self.ic_slots.len() {
-                    let c = &self.ic_slots[idx];
+                if idx < self.caches.ic_slots.len() {
+                    let c = &self.caches.ic_slots[idx];
                     if c.id == id.0 && c.ver == cur_ver && c.key_hash == key_hash {
                         return Ok(c.value);
                     }
@@ -43,21 +43,21 @@ impl Runtime {
             .ok_or_else(|| self.error(xu_syntax::DiagnosticKind::UnknownMember(field.to_string())))?;
 
             let idx = if let Some(i0) = slot_cell.get() {
-                if i0 < self.ic_slots.len() {
+                if i0 < self.caches.ic_slots.len() {
                     i0
                 } else {
-                    let ix = self.ic_slots.len();
-                    self.ic_slots.push(crate::ICSlot::default());
+                    let ix = self.caches.ic_slots.len();
+                    self.caches.ic_slots.push(crate::ICSlot::default());
                     slot_cell.set(Some(ix));
                     ix
                 }
             } else {
-                let ix = self.ic_slots.len();
-                self.ic_slots.push(crate::runtime::ICSlot::default());
+                let ix = self.caches.ic_slots.len();
+                self.caches.ic_slots.push(crate::runtime::ICSlot::default());
                 slot_cell.set(Some(ix));
                 ix
             };
-            self.ic_slots[idx] = crate::runtime::ICSlot {
+            self.caches.ic_slots[idx] = crate::runtime::ICSlot {
                 id: id.0,
                 key_hash,
                 ver: cur_ver,
@@ -86,8 +86,8 @@ impl Runtime {
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::Struct(s) = self.heap.get(id) {
                 if let Some(idx) = slot_idx {
-                    if idx < self.ic_slots.len() {
-                        let c = &self.ic_slots[idx];
+                    if idx < self.caches.ic_slots.len() {
+                        let c = &self.caches.ic_slots[idx];
                         if c.struct_ty_hash == s.ty_hash && c.key_hash == xu_ir::stable_hash64(field)
                         {
                             if let Some(offset) = c.field_offset {
@@ -97,7 +97,7 @@ impl Runtime {
                     }
                 }
 
-                let layout = self.struct_layouts.get(&s.ty).ok_or_else(|| {
+                let layout = self.types.struct_layouts.get(&s.ty).ok_or_else(|| {
                     self.error(xu_syntax::DiagnosticKind::UnknownStruct(s.ty.clone()))
                 })?;
                 let pos = layout.iter().position(|f| f == field).ok_or_else(|| {
@@ -105,10 +105,10 @@ impl Runtime {
                 })?;
 
                 if let Some(idx) = slot_idx {
-                    while self.ic_slots.len() <= idx {
-                        self.ic_slots.push(crate::ICSlot::default());
+                    while self.caches.ic_slots.len() <= idx {
+                        self.caches.ic_slots.push(crate::ICSlot::default());
                     }
-                    self.ic_slots[idx] = crate::ICSlot {
+                    self.caches.ic_slots[idx] = crate::ICSlot {
                         struct_ty_hash: s.ty_hash,
                         key_hash: xu_ir::stable_hash64(field),
                         field_offset: Some(pos),
@@ -394,11 +394,11 @@ impl Runtime {
             } else {
                 return Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
             };
-            self.dict_version_last = Some((id.0, cur_ver));
+            self.caches.dict_version_last = Some((id.0, cur_ver));
 
             if let Some(idx) = slot_cell.get() {
-                if idx < self.ic_slots.len() {
-                    let c = &self.ic_slots[idx];
+                if idx < self.caches.ic_slots.len() {
+                    let c = &self.caches.ic_slots[idx];
                     if c.id == id.0 && c.ver == cur_ver && c.key_hash == key_hash {
                         return Ok(c.value);
                     }
@@ -410,21 +410,21 @@ impl Runtime {
             })?;
 
             let idx = if let Some(i0) = slot_cell.get() {
-                if i0 < self.ic_slots.len() {
+                if i0 < self.caches.ic_slots.len() {
                     i0
                 } else {
-                    let ix = self.ic_slots.len();
-                    self.ic_slots.push(crate::ICSlot::default());
+                    let ix = self.caches.ic_slots.len();
+                    self.caches.ic_slots.push(crate::ICSlot::default());
                     slot_cell.set(Some(ix));
                     ix
                 }
             } else {
-                let ix = self.ic_slots.len();
-                self.ic_slots.push(crate::runtime::ICSlot::default());
+                let ix = self.caches.ic_slots.len();
+                self.caches.ic_slots.push(crate::runtime::ICSlot::default());
                 slot_cell.set(Some(ix));
                 ix
             };
-            self.ic_slots[idx] = crate::runtime::ICSlot {
+            self.caches.ic_slots[idx] = crate::runtime::ICSlot {
                 id: id.0,
                 key_hash,
                 ver: cur_ver,
@@ -471,8 +471,8 @@ impl Runtime {
                     };
                     let key_hash = Self::hash_bytes(me.map.hasher(), key.as_bytes());
                     if let Some(idx) = slot_idx {
-                        if idx < self.ic_slots.len() {
-                            let c = &self.ic_slots[idx];
+                        if idx < self.caches.ic_slots.len() {
+                            let c = &self.caches.ic_slots[idx];
                             if c.id == id.0 && c.ver == me.ver && c.key_hash == key_hash {
                                 return Ok(c.value);
                             }
@@ -481,10 +481,10 @@ impl Runtime {
                     let out_val = Self::dict_get_by_str_with_hash(me, &key, key_hash)
                         .ok_or_else(|| self.error(xu_syntax::DiagnosticKind::KeyNotFound(key.clone())))?;
                     if let Some(idx) = slot_idx {
-                        while self.ic_slots.len() <= idx {
-                            self.ic_slots.push(crate::ICSlot::default());
+                        while self.caches.ic_slots.len() <= idx {
+                            self.caches.ic_slots.push(crate::ICSlot::default());
                         }
-                        self.ic_slots[idx] = crate::ICSlot {
+                        self.caches.ic_slots[idx] = crate::ICSlot {
                             id: id.0,
                             key_hash,
                             ver: me.ver,
@@ -497,8 +497,8 @@ impl Runtime {
                     let key = index.as_i64();
                     let key_hash = Self::hash_dict_key_int(me.map.hasher(), key);
                     if let Some(idx) = slot_idx {
-                        if idx < self.ic_slots.len() {
-                            let c = &self.ic_slots[idx];
+                        if idx < self.caches.ic_slots.len() {
+                            let c = &self.caches.ic_slots[idx];
                             if c.id == id.0 && c.ver == me.ver && c.key_hash == key_hash {
                                 return Ok(c.value);
                             }
@@ -512,10 +512,10 @@ impl Runtime {
                             self.error(xu_syntax::DiagnosticKind::KeyNotFound(key.to_string()))
                         })?;
                     if let Some(idx) = slot_idx {
-                        while self.ic_slots.len() <= idx {
-                            self.ic_slots.push(crate::ICSlot::default());
+                        while self.caches.ic_slots.len() <= idx {
+                            self.caches.ic_slots.push(crate::ICSlot::default());
                         }
-                        self.ic_slots[idx] = crate::ICSlot {
+                        self.caches.ic_slots[idx] = crate::ICSlot {
                             id: id.0,
                             key_hash,
                             ver: me.ver,

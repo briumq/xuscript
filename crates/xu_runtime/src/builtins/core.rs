@@ -12,8 +12,8 @@ pub fn builtin_print(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> 
 }
 
 pub fn builtin_gen_id(rt: &mut Runtime, _args: &[Value]) -> Result<Value, String> {
-    let id = rt.next_id;
-    rt.next_id = rt.next_id.saturating_add(1);
+    let id = rt.types.next_id;
+    rt.types.next_id = rt.types.next_id.saturating_add(1);
     Ok(Value::from_i64(id as i64))
 }
 

@@ -108,7 +108,7 @@ impl Compiler {
         if let Some(idx) = self.resolve_local(name) {
             return idx;
         }
-        let scope = self.scopes.last_mut().unwrap();
+        let scope = self.scopes.last_mut().expect("scopes should never be empty");
         let pos = scope.locals.len();
         scope.locals.push(name.to_string());
         let mut offset = 0;
@@ -682,545 +682,644 @@ impl Compiler {
         }
     }
 
-    ///
-    ///
+    /// 编译表达式的主入口函数
     fn compile_expr(&mut self, expr: &Expr) -> Option<()> {
         match expr {
             Expr::Error(_) => None,
-            Expr::Ident(name, _) => {
-                if let Some(idx) = self.resolve_local(name) {
-                    self.bc.ops.push(Op::LoadLocal(idx));
-                } else {
-                    let n_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
-                    self.bc.ops.push(Op::LoadName(n_idx));
-                }
-                Some(())
-            }
-            Expr::Int(v) => {
-                self.bc.ops.push(Op::ConstInt(*v));
-                Some(())
-            }
-            Expr::Float(v) => {
-                self.bc.ops.push(Op::ConstFloat(*v));
-                Some(())
-            }
-            Expr::Bool(v) => {
-                self.bc.ops.push(Op::ConstBool(*v));
-                Some(())
-            }
-            Expr::Str(s) => {
-                let s_idx = self.add_constant(xu_ir::Constant::Str(s.clone()));
-                self.bc.ops.push(Op::Const(s_idx));
-                Some(())
-            }
-            Expr::Unary { op, expr } => {
-                if let Some(folded) = self.try_fold_unary(*op, expr) {
-                    self.bc.ops.push(folded);
-                    return Some(());
-                }
-                match op {
-                    UnaryOp::Not => {
-                        self.compile_expr(expr)?;
-                        self.bc.ops.push(Op::Not);
-                        Some(())
-                    }
-                    UnaryOp::Neg => {
-                        self.bc.ops.push(Op::ConstInt(0));
-                        self.compile_expr(expr)?;
-                        self.bc.ops.push(Op::Sub);
-                        Some(())
-                    }
-                }
-            }
-            Expr::Binary { op, left, right } => {
-                if let Some(folded) = self.try_fold_binary(*op, left, right) {
-                    self.bc.ops.push(folded);
-                    return Some(());
-                }
-                // Optimize "string_literal" + to_text(var) pattern
-                if *op == BinaryOp::Add {
-                    if let Expr::Str(_) = left.as_ref() {
-                        if let Some(inner) = extract_to_text_arg(right) {
-                            self.compile_expr(left)?;
-                            self.compile_expr(inner)?;
-                            self.bc.ops.push(Op::StrAppend);
-                            return Some(());
-                        }
-                    }
-                }
-                // Short-circuit evaluation for && and ||
-                if *op == BinaryOp::And {
-                    // a && b:
-                    // 1. compile a
-                    // 2. Dup (keep a copy for the result if short-circuit)
-                    // 3. JumpIfFalse to end (if a is false, result is false)
-                    // 4. Pop (remove the duplicate)
-                    // 5. compile b (result is b)
-                    // end:
-                    self.compile_expr(left)?;
-                    self.bc.ops.push(Op::Dup);
-                    let jump_idx = self.bc.ops.len();
-                    self.bc.ops.push(Op::JumpIfFalse(0)); // placeholder
-                    self.bc.ops.push(Op::Pop);
-                    self.compile_expr(right)?;
-                    let end_idx = self.bc.ops.len();
-                    self.bc.ops[jump_idx] = Op::JumpIfFalse(end_idx);
-                    return Some(());
-                }
-                if *op == BinaryOp::Or {
-                    // a || b:
-                    // 1. compile a
-                    // 2. Dup (keep a copy for the result if short-circuit)
-                    // 3. JumpIfTrue to end (if a is true, result is true)
-                    // 4. Pop (remove the duplicate)
-                    // 5. compile b (result is b)
-                    // end:
-                    self.compile_expr(left)?;
-                    self.bc.ops.push(Op::Dup);
-                    let jump_idx = self.bc.ops.len();
-                    self.bc.ops.push(Op::JumpIfTrue(0)); // placeholder
-                    self.bc.ops.push(Op::Pop);
-                    self.compile_expr(right)?;
-                    let end_idx = self.bc.ops.len();
-                    self.bc.ops[jump_idx] = Op::JumpIfTrue(end_idx);
-                    return Some(());
-                }
-                self.compile_expr(left)?;
-                self.compile_expr(right)?;
-                self.bc.ops.push(match op {
-                    BinaryOp::Add => Op::Add,
-                    BinaryOp::Sub => Op::Sub,
-                    BinaryOp::Mul => Op::Mul,
-                    BinaryOp::Div => Op::Div,
-                    BinaryOp::Mod => Op::Mod,
-                    BinaryOp::Eq => Op::Eq,
-                    BinaryOp::Ne => Op::Ne,
-                    BinaryOp::And => Op::And,  // unreachable due to short-circuit above
-                    BinaryOp::Or => Op::Or,    // unreachable due to short-circuit above
-                    BinaryOp::Gt => Op::Gt,
-                    BinaryOp::Lt => Op::Lt,
-                    BinaryOp::Ge => Op::Ge,
-                    BinaryOp::Le => Op::Le,
-                });
-                Some(())
-            }
-            Expr::InterpolatedString(parts) => {
-                fn const_part_text(e: &Expr) -> Option<String> {
-                    match e {
-                        Expr::Str(s) => Some(s.clone()),
-                        Expr::Bool(b) => Some(if *b {
-                            "true".to_string()
-                        } else {
-                            "false".to_string()
-                        }),
-                        Expr::Int(i) => Some((*i).to_string()),
-                        Expr::Float(f) => {
-                            if f.fract() == 0.0 {
-                                Some((*f as i64).to_string())
-                            } else {
-                                Some(f.to_string())
-                            }
-                        }
-                        _ => None,
-                    }
-                }
-                let mut const_cap = 0usize;
-                let mut non_const = 0usize;
-                let mut generic = 0usize;
-                for p in parts {
-                    if let Some(s) = const_part_text(p) {
-                        const_cap += s.len();
-                    } else {
-                        non_const += 1;
-                        match p {
-                            Expr::Bool(_)
-                            | Expr::Int(_)
-                            | Expr::Float(_)
-                            | Expr::Str(_) => {}
-                            _ => generic += 1,
-                        }
-                    }
-                }
-                let use_builder =
-                    parts.len() >= 8 || const_cap >= 128 || generic >= 3 || non_const >= 6;
-                if use_builder {
-                    self.bc.ops.push(Op::BuilderNewCap(const_cap));
-                    for p in parts {
-                        self.compile_expr(p)?;
-                        self.bc.ops.push(Op::BuilderAppend);
-                    }
-                    self.bc.ops.push(Op::BuilderFinalize);
-                    return Some(());
-                }
-                if parts.iter().all(|p| const_part_text(p).is_some()) {
-                    let mut s = String::new();
-                    for p in parts {
-                        s.push_str(&const_part_text(p).unwrap());
-                    }
-                    let s_idx = self.add_constant(xu_ir::Constant::Str(s));
-                    self.bc.ops.push(Op::Const(s_idx));
-                    return Some(());
-                }
-                if let Some(Expr::Str(first)) = parts.first() {
-                    let f_idx = self.add_constant(xu_ir::Constant::Str(first.clone()));
-                    self.bc.ops.push(Op::Const(f_idx));
-                    for p in &parts[1..] {
-                        self.compile_interp_part(p)?;
-                    }
-                    return Some(());
-                }
-                let empty_idx = self.add_constant(xu_ir::Constant::Str(String::new()));
-                self.bc.ops.push(Op::Const(empty_idx));
-                for p in parts {
-                    self.compile_interp_part(p)?;
-                }
-                Some(())
-            }
-            Expr::List(items) => {
-                for e in items {
-                    self.compile_expr(e)?;
-                }
-                self.bc.ops.push(Op::ListNew(items.len()));
-                Some(())
-            }
-            Expr::Tuple(items) => {
-                for e in items {
-                    self.compile_expr(e)?;
-                }
-                self.bc.ops.push(Op::TupleNew(items.len()));
-                Some(())
-            }
-            Expr::Dict(entries) => {
-                for (k, v) in entries {
-                    let k_idx = self.add_constant(xu_ir::Constant::Str(k.clone()));
-                    self.bc.ops.push(Op::Const(k_idx));
-                    self.compile_expr(v)?;
-                }
-                self.bc.ops.push(Op::DictNew(entries.len()));
-                Some(())
-            }
-            Expr::Range(r) => {
-                self.compile_expr(&r.start)?;
-                self.compile_expr(&r.end)?;
-                self.bc.ops.push(Op::MakeRange(r.inclusive));
-                Some(())
-            }
-            Expr::IfExpr(e) => {
-                self.compile_expr(&e.cond)?;
-                let j_if = self.bc.ops.len();
-                self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
-                self.compile_expr(&e.then_expr)?;
-                let j_end = self.bc.ops.len();
-                self.bc.ops.push(Op::Jump(usize::MAX));
-                let else_ip = self.bc.ops.len();
-                match self.bc.ops[j_if] {
-                    Op::JumpIfFalse(ref mut to) => *to = else_ip,
-                    _ => return None,
-                }
-                self.compile_expr(&e.else_expr)?;
-                let end_ip = self.bc.ops.len();
-                match self.bc.ops[j_end] {
-                    Op::Jump(ref mut to) => *to = end_ip,
-                    _ => return None,
-                }
-                Some(())
-            }
-            Expr::Match(m) => {
-                // Compile the match expression
-                self.compile_expr(&m.expr)?;
-
-                let mut arm_end_jumps: Vec<usize> = Vec::new();
-
-                for (i, (pat, body)) in m.arms.iter().enumerate() {
-                    let is_last = i == m.arms.len() - 1 && m.else_expr.is_none();
-
-                    // Handle pattern matching
-                    if !matches!(pat, xu_ir::Pattern::Wildcard) {
-                        // Add pattern to constants and emit match instruction
-                        // MatchPattern peeks the value and pushes bool result
-                        let pat_idx = self.add_constant(xu_ir::Constant::Pattern(pat.clone()));
-                        self.bc.ops.push(Op::MatchPattern(pat_idx));
-
-                        // Jump to next arm if pattern doesn't match
-                        let jump_pos = self.bc.ops.len();
-                        self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
-
-                        // Get bindings from pattern
-                        let bindings = collect_pattern_bindings(pat);
-                        if !bindings.is_empty() {
-                            // Push env frame for bindings
-                            self.bc.ops.push(Op::EnvPush);
-
-                            // Emit MatchBindings to pop value and push binding values onto stack
-                            self.bc.ops.push(Op::MatchBindings(pat_idx));
-
-                            // Store bindings in env (in reverse order since they're on stack)
-                            for name in bindings.iter().rev() {
-                                let name_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
-                                self.bc.ops.push(Op::StoreName(name_idx));
-                            }
-
-                            // Compile body expression
-                            self.compile_expr(body)?;
-
-                            // Pop env frame
-                            self.bc.ops.push(Op::EnvPop);
-                        } else {
-                            // No bindings, just pop the original value
-                            self.bc.ops.push(Op::Pop);
-
-                            // Compile body expression
-                            self.compile_expr(body)?;
-                        }
-
-                        // Jump to end of match
-                        let end_jump = self.bc.ops.len();
-                        self.bc.ops.push(Op::Jump(usize::MAX));
-                        arm_end_jumps.push(end_jump);
-
-                        // Patch the conditional jump to point here (next arm)
-                        let next_arm_ip = self.bc.ops.len();
-                        match self.bc.ops[jump_pos] {
-                            Op::JumpIfFalse(ref mut to) => *to = next_arm_ip,
-                            _ => return None,
-                        }
-                    } else {
-                        // Wildcard pattern - always matches
-                        // Pop the original value
-                        self.bc.ops.push(Op::Pop);
-
-                        // Compile body expression
-                        self.compile_expr(body)?;
-
-                        // Jump to end (unless this is the last arm)
-                        if !is_last {
-                            let end_jump = self.bc.ops.len();
-                            self.bc.ops.push(Op::Jump(usize::MAX));
-                            arm_end_jumps.push(end_jump);
-                        }
-                    }
-                }
-
-                // Compile else expression if present
-                if let Some(else_expr) = &m.else_expr {
-                    // Pop the original value
-                    self.bc.ops.push(Op::Pop);
-                    self.compile_expr(else_expr)?;
-                }
-
-                // Patch all end jumps to point here
-                let end_ip = self.bc.ops.len();
-                for jump_pos in arm_end_jumps {
-                    match self.bc.ops[jump_pos] {
-                        Op::Jump(ref mut to) => *to = end_ip,
-                        _ => return None,
-                    }
-                }
-
-                Some(())
-            }
-            Expr::FuncLit(def) => {
-                let f_idx = self.compile_func_body(def)?;
-                self.bc.ops.push(Op::MakeFunction(f_idx));
-                Some(())
-            }
-            Expr::StructInit(s) => {
-                // Cross-module struct init: compile module expr and discard (types are globally registered)
-                if let Some(mod_expr) = &s.module {
-                    self.compile_expr(mod_expr)?;
-                    self.bc.ops.push(Op::Pop);
-                }
-                // Check if there's a spread item
-                let spread_expr = s.items.iter().find_map(|item| {
-                    if let xu_ir::StructInitItem::Spread(e) = item {
-                        Some(e)
-                    } else {
-                        None
-                    }
-                });
-
-                if let Some(spread_e) = spread_expr {
-                    // Compile spread source first (will be at bottom of stack)
-                    self.compile_expr(spread_e)?;
-                    // Then compile explicit field values
-                    let mut names: Vec<String> = Vec::new();
-                    for item in s.items.iter() {
-                        if let xu_ir::StructInitItem::Field(k, v) = item {
-                            names.push(k.clone());
-                            self.compile_expr(v)?;
-                        }
-                    }
-                    let t_idx = self.add_constant(xu_ir::Constant::Str(s.ty.clone()));
-                    let n_idx = self.add_constant(xu_ir::Constant::Names(names));
-                    self.bc.ops.push(Op::StructInitSpread(t_idx, n_idx));
-                } else {
-                    // No spread - use regular StructInit
-                    let mut names: Vec<String> = Vec::with_capacity(s.items.len());
-                    for item in s.items.iter() {
-                        if let xu_ir::StructInitItem::Field(k, v) = item {
-                            names.push(k.clone());
-                            self.compile_expr(v)?;
-                        }
-                    }
-                    let t_idx = self.add_constant(xu_ir::Constant::Str(s.ty.clone()));
-                    let n_idx = self.add_constant(xu_ir::Constant::Names(names));
-                    self.bc.ops.push(Op::StructInit(t_idx, n_idx));
-                }
-                Some(())
-            }
+            // 字面量表达式
+            Expr::Ident(name, _) => self.compile_expr_ident(name),
+            Expr::Int(v) => self.compile_expr_int(*v),
+            Expr::Float(v) => self.compile_expr_float(*v),
+            Expr::Bool(v) => self.compile_expr_bool(*v),
+            Expr::Str(s) => self.compile_expr_str(s),
+            // 一元和二元运算
+            Expr::Unary { op, expr } => self.compile_expr_unary(*op, expr),
+            Expr::Binary { op, left, right } => self.compile_expr_binary(*op, left, right),
+            // 字符串插值
+            Expr::InterpolatedString(parts) => self.compile_expr_interpolated_string(parts),
+            // 集合类型
+            Expr::List(items) => self.compile_expr_list(items),
+            Expr::Tuple(items) => self.compile_expr_tuple(items),
+            Expr::Dict(entries) => self.compile_expr_dict(entries),
+            Expr::Range(r) => self.compile_expr_range(r),
+            // 控制流表达式
+            Expr::IfExpr(e) => self.compile_expr_if(e),
+            Expr::Match(m) => self.compile_expr_match(m),
+            // 函数相关
+            Expr::FuncLit(def) => self.compile_expr_func_lit(def),
+            Expr::Call(c) => self.compile_expr_call(c),
+            Expr::MethodCall(m) => self.compile_expr_method_call(m),
+            // 访问表达式
+            Expr::StructInit(s) => self.compile_expr_struct_init(s),
             Expr::EnumCtor { module, ty, variant, args } => {
-                if let Some(mod_expr) = module {
-                    // Cross-module enum: module.Type#variant
-                    // Compile module expression and discard (types are globally registered)
-                    self.compile_expr(mod_expr)?;
-                    self.bc.ops.push(Op::Pop);
-                }
-                // Compile arguments
-                for a in args.iter() {
-                    self.compile_expr(a)?;
-                }
-                let t_idx = self.add_constant(xu_ir::Constant::Str(ty.clone()));
-                let v_idx = self.add_constant(xu_ir::Constant::Str(variant.clone()));
-                if args.is_empty() {
-                    self.bc.ops.push(Op::EnumCtor(t_idx, v_idx));
-                } else {
-                    self.bc.ops.push(Op::EnumCtorN(t_idx, v_idx, args.len()));
-                }
-                Some(())
+                self.compile_expr_enum_ctor(module.as_deref(), ty, variant, args)
             }
-            Expr::Member(m) => {
-                // Check if this is a static field access (Type.field)
-                if let Expr::Ident(name, _) = m.object.as_ref() {
-                    // Check if this identifier is a known local variable
-                    let is_local = self.resolve_local(name).is_some();
-                    if !is_local {
-                        // Could be a static field access - generate GetStaticField
-                        // The runtime will check if it's actually a static field
-                        let t_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
-                        let f_idx = self.add_constant(xu_ir::Constant::Str(m.field.clone()));
-                        self.bc.ops.push(Op::GetStaticField(t_idx, f_idx));
-                        return Some(());
-                    }
-                }
-                self.compile_expr(&m.object)?;
-                let slot = self.alloc_ic_slot();
-                let n_idx = self.add_constant(xu_ir::Constant::Str(m.field.clone()));
-                self.bc.ops.push(Op::GetMember(n_idx, Some(slot)));
-                Some(())
-            }
-            Expr::Index(ix) => {
-                self.compile_expr(&ix.object)?;
-                self.compile_expr(&ix.index)?;
-                let slot = self.alloc_ic_slot();
-                self.bc.ops.push(Op::GetIndex(Some(slot)));
-                Some(())
-            }
-            Expr::Call(c) => {
-                // Special case: builder_push(b, x) -> BuilderAppend
-                if let Expr::Ident(name, _) = c.callee.as_ref() {
-                    if name == "builder_push" && c.args.len() == 2 {
-                        self.compile_expr(&c.args[0])?;
-                        self.compile_expr(&c.args[1])?;
-                        self.bc.ops.push(Op::BuilderAppend);
-                        // BuilderAppend pops both args and pushes nothing
-                        // builder_push returns void, so push null
-                        self.bc.ops.push(Op::ConstNull);
-                        return Some(());
-                    }
-                }
-                self.compile_expr(&c.callee)?;
-                for a in c.args.iter() {
-                    self.compile_expr(a)?;
-                }
-                self.bc.ops.push(Op::Call(c.args.len()));
-                Some(())
-            }
-            Expr::MethodCall(m) => {
-                let mname = m.method.as_str();
-                let recv_ty = m.receiver_ty.get();
+            Expr::Member(m) => self.compile_expr_member(m),
+            Expr::Index(ix) => self.compile_expr_index(ix),
+            Expr::Group(e) => self.compile_expr(e),
+        }
+    }
 
-                // Only generate ListAppend when receiver is confirmed to be a list
-                if mname == "add" && recv_ty == Some(ReceiverType::List) {
+    // ==================== 字面量表达式编译 ====================
+
+    /// 编译标识符表达式
+    #[inline]
+    fn compile_expr_ident(&mut self, name: &str) -> Option<()> {
+        if let Some(idx) = self.resolve_local(name) {
+            self.bc.ops.push(Op::LoadLocal(idx));
+        } else {
+            let n_idx = self.add_constant(xu_ir::Constant::Str(name.to_string()));
+            self.bc.ops.push(Op::LoadName(n_idx));
+        }
+        Some(())
+    }
+
+    /// 编译整数字面量
+    #[inline]
+    fn compile_expr_int(&mut self, v: i64) -> Option<()> {
+        self.bc.ops.push(Op::ConstInt(v));
+        Some(())
+    }
+
+    /// 编译浮点数字面量
+    #[inline]
+    fn compile_expr_float(&mut self, v: f64) -> Option<()> {
+        self.bc.ops.push(Op::ConstFloat(v));
+        Some(())
+    }
+
+    /// 编译布尔字面量
+    #[inline]
+    fn compile_expr_bool(&mut self, v: bool) -> Option<()> {
+        self.bc.ops.push(Op::ConstBool(v));
+        Some(())
+    }
+
+    /// 编译字符串字面量
+    #[inline]
+    fn compile_expr_str(&mut self, s: &str) -> Option<()> {
+        let s_idx = self.add_constant(xu_ir::Constant::Str(s.to_string()));
+        self.bc.ops.push(Op::Const(s_idx));
+        Some(())
+    }
+
+    // ==================== 一元和二元运算编译 ====================
+
+    /// 编译一元运算表达式
+    fn compile_expr_unary(&mut self, op: UnaryOp, expr: &Expr) -> Option<()> {
+        if let Some(folded) = self.try_fold_unary(op, expr) {
+            self.bc.ops.push(folded);
+            return Some(());
+        }
+        match op {
+            UnaryOp::Not => {
+                self.compile_expr(expr)?;
+                self.bc.ops.push(Op::Not);
+                Some(())
+            }
+            UnaryOp::Neg => {
+                self.bc.ops.push(Op::ConstInt(0));
+                self.compile_expr(expr)?;
+                self.bc.ops.push(Op::Sub);
+                Some(())
+            }
+        }
+    }
+
+    /// 编译二元运算表达式
+    fn compile_expr_binary(&mut self, op: BinaryOp, left: &Expr, right: &Expr) -> Option<()> {
+        if let Some(folded) = self.try_fold_binary(op, left, right) {
+            self.bc.ops.push(folded);
+            return Some(());
+        }
+        // 优化 "string_literal" + to_text(var) 模式
+        if op == BinaryOp::Add {
+            if let Expr::Str(_) = left {
+                if let Some(inner) = extract_to_text_arg(right) {
+                    self.compile_expr(left)?;
+                    self.compile_expr(inner)?;
+                    self.bc.ops.push(Op::StrAppend);
+                    return Some(());
+                }
+            }
+        }
+        // 短路求值 && 和 ||
+        if op == BinaryOp::And {
+            return self.compile_short_circuit_and(left, right);
+        }
+        if op == BinaryOp::Or {
+            return self.compile_short_circuit_or(left, right);
+        }
+        self.compile_expr(left)?;
+        self.compile_expr(right)?;
+        self.bc.ops.push(match op {
+            BinaryOp::Add => Op::Add,
+            BinaryOp::Sub => Op::Sub,
+            BinaryOp::Mul => Op::Mul,
+            BinaryOp::Div => Op::Div,
+            BinaryOp::Mod => Op::Mod,
+            BinaryOp::Eq => Op::Eq,
+            BinaryOp::Ne => Op::Ne,
+            BinaryOp::And => Op::And,  // 由于上面的短路求值，不会到达这里
+            BinaryOp::Or => Op::Or,    // 由于上面的短路求值，不会到达这里
+            BinaryOp::Gt => Op::Gt,
+            BinaryOp::Lt => Op::Lt,
+            BinaryOp::Ge => Op::Ge,
+            BinaryOp::Le => Op::Le,
+        });
+        Some(())
+    }
+
+    /// 编译短路与运算 (&&)
+    fn compile_short_circuit_and(&mut self, left: &Expr, right: &Expr) -> Option<()> {
+        // a && b:
+        // 1. 编译 a
+        // 2. Dup (保留一份用于短路结果)
+        // 3. JumpIfFalse 到 end (如果 a 为 false，结果为 false)
+        // 4. Pop (移除副本)
+        // 5. 编译 b (结果为 b)
+        // end:
+        self.compile_expr(left)?;
+        self.bc.ops.push(Op::Dup);
+        let jump_idx = self.bc.ops.len();
+        self.bc.ops.push(Op::JumpIfFalse(0)); // 占位符
+        self.bc.ops.push(Op::Pop);
+        self.compile_expr(right)?;
+        let end_idx = self.bc.ops.len();
+        self.bc.ops[jump_idx] = Op::JumpIfFalse(end_idx);
+        Some(())
+    }
+
+    /// 编译短路或运算 (||)
+    fn compile_short_circuit_or(&mut self, left: &Expr, right: &Expr) -> Option<()> {
+        // a || b:
+        // 1. 编译 a
+        // 2. Dup (保留一份用于短路结果)
+        // 3. JumpIfTrue 到 end (如果 a 为 true，结果为 true)
+        // 4. Pop (移除副本)
+        // 5. 编译 b (结果为 b)
+        // end:
+        self.compile_expr(left)?;
+        self.bc.ops.push(Op::Dup);
+        let jump_idx = self.bc.ops.len();
+        self.bc.ops.push(Op::JumpIfTrue(0)); // 占位符
+        self.bc.ops.push(Op::Pop);
+        self.compile_expr(right)?;
+        let end_idx = self.bc.ops.len();
+        self.bc.ops[jump_idx] = Op::JumpIfTrue(end_idx);
+        Some(())
+    }
+
+    // ==================== 字符串插值编译 ====================
+
+    /// 获取常量部分的文本表示
+    fn const_part_text(e: &Expr) -> Option<String> {
+        match e {
+            Expr::Str(s) => Some(s.clone()),
+            Expr::Bool(b) => Some(if *b { "true".to_string() } else { "false".to_string() }),
+            Expr::Int(i) => Some((*i).to_string()),
+            Expr::Float(f) => {
+                if f.fract() == 0.0 {
+                    Some((*f as i64).to_string())
+                } else {
+                    Some(f.to_string())
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// 编译字符串插值表达式
+    fn compile_expr_interpolated_string(&mut self, parts: &[Expr]) -> Option<()> {
+        let mut const_cap = 0usize;
+        let mut non_const = 0usize;
+        let mut generic = 0usize;
+        for p in parts {
+            if let Some(s) = Self::const_part_text(p) {
+                const_cap += s.len();
+            } else {
+                non_const += 1;
+                match p {
+                    Expr::Bool(_) | Expr::Int(_) | Expr::Float(_) | Expr::Str(_) => {}
+                    _ => generic += 1,
+                }
+            }
+        }
+        let use_builder = parts.len() >= 8 || const_cap >= 128 || generic >= 3 || non_const >= 6;
+        if use_builder {
+            self.bc.ops.push(Op::BuilderNewCap(const_cap));
+            for p in parts {
+                self.compile_expr(p)?;
+                self.bc.ops.push(Op::BuilderAppend);
+            }
+            self.bc.ops.push(Op::BuilderFinalize);
+            return Some(());
+        }
+        if parts.iter().all(|p| Self::const_part_text(p).is_some()) {
+            let mut s = String::new();
+            for p in parts {
+                // SAFETY: We just checked all parts have const text above
+                if let Some(text) = Self::const_part_text(p) {
+                    s.push_str(&text);
+                }
+            }
+            let s_idx = self.add_constant(xu_ir::Constant::Str(s));
+            self.bc.ops.push(Op::Const(s_idx));
+            return Some(());
+        }
+        if let Some(Expr::Str(first)) = parts.first() {
+            let f_idx = self.add_constant(xu_ir::Constant::Str(first.clone()));
+            self.bc.ops.push(Op::Const(f_idx));
+            for p in &parts[1..] {
+                self.compile_interp_part(p)?;
+            }
+            return Some(());
+        }
+        let empty_idx = self.add_constant(xu_ir::Constant::Str(String::new()));
+        self.bc.ops.push(Op::Const(empty_idx));
+        for p in parts {
+            self.compile_interp_part(p)?;
+        }
+        Some(())
+    }
+
+    // ==================== 集合类型编译 ====================
+
+    /// 编译列表表达式
+    fn compile_expr_list(&mut self, items: &[Expr]) -> Option<()> {
+        for e in items {
+            self.compile_expr(e)?;
+        }
+        self.bc.ops.push(Op::ListNew(items.len()));
+        Some(())
+    }
+
+    /// 编译元组表达式
+    fn compile_expr_tuple(&mut self, items: &[Expr]) -> Option<()> {
+        for e in items {
+            self.compile_expr(e)?;
+        }
+        self.bc.ops.push(Op::TupleNew(items.len()));
+        Some(())
+    }
+
+    /// 编译字典表达式
+    fn compile_expr_dict(&mut self, entries: &[(String, Expr)]) -> Option<()> {
+        for (k, v) in entries {
+            let k_idx = self.add_constant(xu_ir::Constant::Str(k.clone()));
+            self.bc.ops.push(Op::Const(k_idx));
+            self.compile_expr(v)?;
+        }
+        self.bc.ops.push(Op::DictNew(entries.len()));
+        Some(())
+    }
+
+    /// 编译范围表达式
+    fn compile_expr_range(&mut self, r: &xu_ir::RangeExpr) -> Option<()> {
+        self.compile_expr(&r.start)?;
+        self.compile_expr(&r.end)?;
+        self.bc.ops.push(Op::MakeRange(r.inclusive));
+        Some(())
+    }
+
+    // ==================== 控制流表达式编译 ====================
+
+    /// 编译 if 表达式
+    fn compile_expr_if(&mut self, e: &xu_ir::IfExpr) -> Option<()> {
+        self.compile_expr(&e.cond)?;
+        let j_if = self.bc.ops.len();
+        self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
+        self.compile_expr(&e.then_expr)?;
+        let j_end = self.bc.ops.len();
+        self.bc.ops.push(Op::Jump(usize::MAX));
+        let else_ip = self.bc.ops.len();
+        match self.bc.ops[j_if] {
+            Op::JumpIfFalse(ref mut to) => *to = else_ip,
+            _ => return None,
+        }
+        self.compile_expr(&e.else_expr)?;
+        let end_ip = self.bc.ops.len();
+        match self.bc.ops[j_end] {
+            Op::Jump(ref mut to) => *to = end_ip,
+            _ => return None,
+        }
+        Some(())
+    }
+
+    /// 编译 match 表达式
+    fn compile_expr_match(&mut self, m: &xu_ir::MatchExpr) -> Option<()> {
+        // 编译 match 表达式
+        self.compile_expr(&m.expr)?;
+
+        let mut arm_end_jumps: Vec<usize> = Vec::new();
+
+        for (i, (pat, body)) in m.arms.iter().enumerate() {
+            let is_last = i == m.arms.len() - 1 && m.else_expr.is_none();
+
+            // 处理模式匹配
+            if !matches!(pat, xu_ir::Pattern::Wildcard) {
+                // 添加模式到常量池并发出匹配指令
+                // MatchPattern 窥视值并推送布尔结果
+                let pat_idx = self.add_constant(xu_ir::Constant::Pattern(pat.clone()));
+                self.bc.ops.push(Op::MatchPattern(pat_idx));
+
+                // 如果模式不匹配则跳转到下一个分支
+                let jump_pos = self.bc.ops.len();
+                self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
+
+                // 从模式中获取绑定
+                let bindings = collect_pattern_bindings(pat);
+                if !bindings.is_empty() {
+                    // 为绑定推送环境帧
+                    self.bc.ops.push(Op::EnvPush);
+
+                    // 发出 MatchBindings 弹出值并将绑定值推送到栈上
+                    self.bc.ops.push(Op::MatchBindings(pat_idx));
+
+                    // 以相反顺序存储绑定到环境中（因为它们在栈上）
+                    for name in bindings.iter().rev() {
+                        let name_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
+                        self.bc.ops.push(Op::StoreName(name_idx));
+                    }
+
+                    // 编译主体表达式
+                    self.compile_expr(body)?;
+
+                    // 弹出环境帧
+                    self.bc.ops.push(Op::EnvPop);
+                } else {
+                    // 没有绑定，只弹出原始值
+                    self.bc.ops.push(Op::Pop);
+
+                    // 编译主体表达式
+                    self.compile_expr(body)?;
+                }
+
+                // 跳转到 match 结束
+                let end_jump = self.bc.ops.len();
+                self.bc.ops.push(Op::Jump(usize::MAX));
+                arm_end_jumps.push(end_jump);
+
+                // 修补条件跳转指向这里（下一个分支）
+                let next_arm_ip = self.bc.ops.len();
+                match self.bc.ops[jump_pos] {
+                    Op::JumpIfFalse(ref mut to) => *to = next_arm_ip,
+                    _ => return None,
+                }
+            } else {
+                // 通配符模式 - 总是匹配
+                // 弹出原始值
+                self.bc.ops.push(Op::Pop);
+
+                // 编译主体表达式
+                self.compile_expr(body)?;
+
+                // 跳转到结束（除非这是最后一个分支）
+                if !is_last {
+                    let end_jump = self.bc.ops.len();
+                    self.bc.ops.push(Op::Jump(usize::MAX));
+                    arm_end_jumps.push(end_jump);
+                }
+            }
+        }
+
+        // 如果存在 else 表达式则编译
+        if let Some(else_expr) = &m.else_expr {
+            // 弹出原始值
+            self.bc.ops.push(Op::Pop);
+            self.compile_expr(else_expr)?;
+        }
+
+        // 修补所有结束跳转指向这里
+        let end_ip = self.bc.ops.len();
+        for jump_pos in arm_end_jumps {
+            match self.bc.ops[jump_pos] {
+                Op::Jump(ref mut to) => *to = end_ip,
+                _ => return None,
+            }
+        }
+
+        Some(())
+    }
+
+    // ==================== 函数相关编译 ====================
+
+    /// 编译函数字面量表达式
+    fn compile_expr_func_lit(&mut self, def: &xu_ir::FuncDef) -> Option<()> {
+        let f_idx = self.compile_func_body(def)?;
+        self.bc.ops.push(Op::MakeFunction(f_idx));
+        Some(())
+    }
+
+    /// 编译函数调用表达式
+    fn compile_expr_call(&mut self, c: &xu_ir::CallExpr) -> Option<()> {
+        // 特殊情况: builder_push(b, x) -> BuilderAppend
+        if let Expr::Ident(name, _) = c.callee.as_ref() {
+            if name == "builder_push" && c.args.len() == 2 {
+                self.compile_expr(&c.args[0])?;
+                self.compile_expr(&c.args[1])?;
+                self.bc.ops.push(Op::BuilderAppend);
+                // BuilderAppend 弹出两个参数且不推送任何东西
+                // builder_push 返回 void，所以推送 null
+                self.bc.ops.push(Op::ConstNull);
+                return Some(());
+            }
+        }
+        self.compile_expr(&c.callee)?;
+        for a in c.args.iter() {
+            self.compile_expr(a)?;
+        }
+        self.bc.ops.push(Op::Call(c.args.len()));
+        Some(())
+    }
+
+    /// 编译方法调用表达式
+    fn compile_expr_method_call(&mut self, m: &xu_ir::MethodCallExpr) -> Option<()> {
+        let mname = m.method.as_str();
+        let recv_ty = m.receiver_ty.get();
+
+        // 只有当接收者确认为列表时才生成 ListAppend
+        if mname == "add" && recv_ty == Some(ReceiverType::List) {
+            self.compile_expr(&m.receiver)?;
+            for a in m.args.iter() {
+                self.compile_expr(a)?;
+            }
+            self.bc.ops.push(Op::ListAppend(m.args.len()));
+        }
+        // 只有当接收者确认为字典时才生成 DictMerge
+        else if mname == "merge" && m.args.len() == 1 && recv_ty == Some(ReceiverType::Dict) {
+            self.compile_expr(&m.receiver)?;
+            self.compile_expr(&m.args[0])?;
+            self.bc.ops.push(Op::DictMerge);
+        }
+        // 只有当接收者确认为字典时才生成 DictInsert
+        else if mname == "insert_int" && m.args.len() == 2 && recv_ty == Some(ReceiverType::Dict) {
+            self.compile_expr(&m.receiver)?;
+            self.compile_expr(&m.args[0])?;
+            self.compile_expr(&m.args[1])?;
+            self.bc.ops.push(Op::DictInsert);
+        }
+        // 所有其他情况：生成通用的 CallMethod 或 CallStaticOrMethod
+        else {
+            // 检查接收者是否为标识符 - 可能是静态方法调用
+            if let Expr::Ident(name, _) = m.receiver.as_ref() {
+                // 检查此标识符是否为已知的局部变量
+                let is_local = self.resolve_local(name).is_some();
+
+                if is_local {
+                    // 它是局部变量 - 使用常规 CallMethod
                     self.compile_expr(&m.receiver)?;
                     for a in m.args.iter() {
                         self.compile_expr(a)?;
                     }
-                    self.bc.ops.push(Op::ListAppend(m.args.len()));
-                }
-                // Only generate DictMerge when receiver is confirmed to be a dict
-                else if mname == "merge" && m.args.len() == 1 && recv_ty == Some(ReceiverType::Dict)
-                {
-                    self.compile_expr(&m.receiver)?;
-                    self.compile_expr(&m.args[0])?;
-                    self.bc.ops.push(Op::DictMerge);
-                }
-                // Only generate DictInsert when receiver is confirmed to be a dict
-                else if mname == "insert_int"
-                    && m.args.len() == 2
-                    && recv_ty == Some(ReceiverType::Dict)
-                {
-                    self.compile_expr(&m.receiver)?;
-                    self.compile_expr(&m.args[0])?;
-                    self.compile_expr(&m.args[1])?;
-                    self.bc.ops.push(Op::DictInsert);
-                }
-                // All other cases: generate generic CallMethod or CallStaticOrMethod
-                else {
-                    // Check if receiver is an Ident - might be a static method call
-                    if let Expr::Ident(name, _) = m.receiver.as_ref() {
-                        // Check if this identifier is a known local variable
-                        let is_local = self.resolve_local(name).is_some();
-
-                        if is_local {
-                            // It's a local variable - use regular CallMethod
-                            self.compile_expr(&m.receiver)?;
-                            for a in m.args.iter() {
-                                self.compile_expr(a)?;
-                            }
-                            let slot = self.alloc_ic_slot();
-                            let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
-                            self.bc.ops.push(Op::CallMethod(
-                                m_idx,
-                                xu_ir::stable_hash64(m.method.as_str()),
-                                m.args.len(),
-                                Some(slot),
-                            ));
-                        } else {
-                            // Not a local - could be a global variable or a type name
-                            // Generate CallStaticOrMethod to try static method first
-                            // Stack layout: [args...] - no receiver on stack for static methods
-                            for a in m.args.iter() {
-                                self.compile_expr(a)?;
-                            }
-                            let slot = self.alloc_ic_slot();
-                            let type_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
-                            let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
-                            self.bc.ops.push(Op::CallStaticOrMethod(
-                                type_idx,
-                                m_idx,
-                                xu_ir::stable_hash64(m.method.as_str()),
-                                m.args.len(),
-                                Some(slot),
-                            ));
-                        }
-                    } else {
-                        self.compile_expr(&m.receiver)?;
-                        for a in m.args.iter() {
-                            self.compile_expr(a)?;
-                        }
-                        let slot = self.alloc_ic_slot();
-                        let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
-                        self.bc.ops.push(Op::CallMethod(
-                            m_idx,
-                            xu_ir::stable_hash64(m.method.as_str()),
-                            m.args.len(),
-                            Some(slot),
-                        ));
+                    let slot = self.alloc_ic_slot();
+                    let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
+                    self.bc.ops.push(Op::CallMethod(
+                        m_idx,
+                        xu_ir::stable_hash64(m.method.as_str()),
+                        m.args.len(),
+                        Some(slot),
+                    ));
+                } else {
+                    // 不是局部变量 - 可能是全局变量或类型名
+                    // 生成 CallStaticOrMethod 先尝试静态方法
+                    // 栈布局: [args...] - 静态方法栈上没有接收者
+                    for a in m.args.iter() {
+                        self.compile_expr(a)?;
                     }
+                    let slot = self.alloc_ic_slot();
+                    let type_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
+                    let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
+                    self.bc.ops.push(Op::CallStaticOrMethod(
+                        type_idx,
+                        m_idx,
+                        xu_ir::stable_hash64(m.method.as_str()),
+                        m.args.len(),
+                        Some(slot),
+                    ));
                 }
-                Some(())
+            } else {
+                self.compile_expr(&m.receiver)?;
+                for a in m.args.iter() {
+                    self.compile_expr(a)?;
+                }
+                let slot = self.alloc_ic_slot();
+                let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
+                self.bc.ops.push(Op::CallMethod(
+                    m_idx,
+                    xu_ir::stable_hash64(m.method.as_str()),
+                    m.args.len(),
+                    Some(slot),
+                ));
             }
-            Expr::Group(e) => self.compile_expr(e),
         }
+        Some(())
+    }
+
+    // ==================== 访问表达式编译 ====================
+
+    /// 编译结构体初始化表达式
+    fn compile_expr_struct_init(&mut self, s: &xu_ir::StructInitExpr) -> Option<()> {
+        // 跨模块结构体初始化：编译模块表达式并丢弃（类型是全局注册的）
+        if let Some(mod_expr) = &s.module {
+            self.compile_expr(mod_expr)?;
+            self.bc.ops.push(Op::Pop);
+        }
+        // 检查是否有展开项
+        let spread_expr = s.items.iter().find_map(|item| {
+            if let xu_ir::StructInitItem::Spread(e) = item {
+                Some(e)
+            } else {
+                None
+            }
+        });
+
+        if let Some(spread_e) = spread_expr {
+            // 首先编译展开源（将在栈底）
+            self.compile_expr(spread_e)?;
+            // 然后编译显式字段值
+            let mut names: Vec<String> = Vec::new();
+            for item in s.items.iter() {
+                if let xu_ir::StructInitItem::Field(k, v) = item {
+                    names.push(k.clone());
+                    self.compile_expr(v)?;
+                }
+            }
+            let t_idx = self.add_constant(xu_ir::Constant::Str(s.ty.clone()));
+            let n_idx = self.add_constant(xu_ir::Constant::Names(names));
+            self.bc.ops.push(Op::StructInitSpread(t_idx, n_idx));
+        } else {
+            // 没有展开 - 使用常规 StructInit
+            let mut names: Vec<String> = Vec::with_capacity(s.items.len());
+            for item in s.items.iter() {
+                if let xu_ir::StructInitItem::Field(k, v) = item {
+                    names.push(k.clone());
+                    self.compile_expr(v)?;
+                }
+            }
+            let t_idx = self.add_constant(xu_ir::Constant::Str(s.ty.clone()));
+            let n_idx = self.add_constant(xu_ir::Constant::Names(names));
+            self.bc.ops.push(Op::StructInit(t_idx, n_idx));
+        }
+        Some(())
+    }
+
+    /// 编译枚举构造器表达式
+    fn compile_expr_enum_ctor(
+        &mut self,
+        module: Option<&Expr>,
+        ty: &str,
+        variant: &str,
+        args: &[Expr],
+    ) -> Option<()> {
+        if let Some(mod_expr) = module {
+            // 跨模块枚举: module.Type#variant
+            // 编译模块表达式并丢弃（类型是全局注册的）
+            self.compile_expr(mod_expr)?;
+            self.bc.ops.push(Op::Pop);
+        }
+        // 编译参数
+        for a in args.iter() {
+            self.compile_expr(a)?;
+        }
+        let t_idx = self.add_constant(xu_ir::Constant::Str(ty.to_string()));
+        let v_idx = self.add_constant(xu_ir::Constant::Str(variant.to_string()));
+        if args.is_empty() {
+            self.bc.ops.push(Op::EnumCtor(t_idx, v_idx));
+        } else {
+            self.bc.ops.push(Op::EnumCtorN(t_idx, v_idx, args.len()));
+        }
+        Some(())
+    }
+
+    /// 编译成员访问表达式
+    fn compile_expr_member(&mut self, m: &xu_ir::MemberExpr) -> Option<()> {
+        // 检查是否为静态字段访问 (Type.field)
+        if let Expr::Ident(name, _) = m.object.as_ref() {
+            // 检查此标识符是否为已知的局部变量
+            let is_local = self.resolve_local(name).is_some();
+            if !is_local {
+                // 可能是静态字段访问 - 生成 GetStaticField
+                // 运行时会检查它是否真的是静态字段
+                let t_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
+                let f_idx = self.add_constant(xu_ir::Constant::Str(m.field.clone()));
+                self.bc.ops.push(Op::GetStaticField(t_idx, f_idx));
+                return Some(());
+            }
+        }
+        self.compile_expr(&m.object)?;
+        let slot = self.alloc_ic_slot();
+        let n_idx = self.add_constant(xu_ir::Constant::Str(m.field.clone()));
+        self.bc.ops.push(Op::GetMember(n_idx, Some(slot)));
+        Some(())
+    }
+
+    /// 编译索引访问表达式
+    fn compile_expr_index(&mut self, ix: &xu_ir::IndexExpr) -> Option<()> {
+        self.compile_expr(&ix.object)?;
+        self.compile_expr(&ix.index)?;
+        let slot = self.alloc_ic_slot();
+        self.bc.ops.push(Op::GetIndex(Some(slot)));
+        Some(())
     }
 }

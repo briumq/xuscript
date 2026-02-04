@@ -43,5 +43,6 @@ pub(crate) fn throw_value(
         *ip = next_ip;
         return None;
     }
-    Some(Flow::Throw(thrown.take().unwrap()))
+    // SAFETY: We just set *thrown = Some(v) above, so take() will return Some
+    Some(Flow::Throw(thrown.take().expect("thrown value was just set")))
 }

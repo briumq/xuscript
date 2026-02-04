@@ -67,8 +67,8 @@ pub(crate) fn op_define_struct(rt: &mut Runtime, bc: &Bytecode, idx: u32) {
     let c = rt.get_constant(idx, &bc.constants);
     if let xu_ir::Constant::Struct(def) = c {
         let layout: std::rc::Rc<[String]> = def.fields.iter().map(|f| f.name.clone()).collect();
-        rt.struct_layouts.insert(def.name.clone(), layout);
-        rt.structs.insert(def.name.clone(), def.clone());
+        rt.types.struct_layouts.insert(def.name.clone(), layout);
+        rt.types.structs.insert(def.name.clone(), def.clone());
     }
 }
 
@@ -77,7 +77,7 @@ pub(crate) fn op_define_struct(rt: &mut Runtime, bc: &Bytecode, idx: u32) {
 pub(crate) fn op_define_enum(rt: &mut Runtime, bc: &Bytecode, idx: u32) {
     let c = rt.get_constant(idx, &bc.constants);
     if let xu_ir::Constant::Enum(def) = c {
-        rt.enums.insert(def.name.clone(), def.variants.to_vec());
+        rt.types.enums.insert(def.name.clone(), def.variants.to_vec());
     }
 }
 
@@ -97,7 +97,7 @@ pub(crate) fn op_struct_init(
 ) -> Result<Option<Flow>, String> {
     let ty = rt.get_const_str(t_idx, &bc.constants).to_string();
     let fields = rt.get_const_names(n_idx, &bc.constants).to_vec();
-    let layout = if let Some(l) = rt.struct_layouts.get(&ty).cloned() {
+    let layout = if let Some(l) = rt.types.struct_layouts.get(&ty).cloned() {
         l
     } else {
         return throw_unknown_struct(rt, stack, ip, handlers, iters, pending, thrown, &ty);
@@ -106,7 +106,7 @@ pub(crate) fn op_struct_init(
     let mut values = vec![Value::VOID; layout.len()];
 
     // Apply default values from struct definition
-    if let Some(def) = rt.structs.get(&ty).cloned() {
+    if let Some(def) = rt.types.structs.get(&ty).cloned() {
         for (i, field) in def.fields.iter().enumerate() {
             if let Some(ref default_expr) = field.default {
                 if i < values.len() {
@@ -156,7 +156,7 @@ pub(crate) fn op_struct_init_spread(
 ) -> Result<Option<Flow>, String> {
     let ty = rt.get_const_str(t_idx, &bc.constants).to_string();
     let explicit_fields = rt.get_const_names(n_idx, &bc.constants).to_vec();
-    let layout = if let Some(l) = rt.struct_layouts.get(&ty).cloned() {
+    let layout = if let Some(l) = rt.types.struct_layouts.get(&ty).cloned() {
         l
     } else {
         return throw_unknown_struct(rt, stack, ip, handlers, iters, pending, thrown, &ty);

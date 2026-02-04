@@ -409,7 +409,8 @@ impl Env {
 
     // Helper to access global frame directly (compatibility)
     pub(crate) fn global_frame(&self) -> Rc<RefCell<Scope>> {
-        self.frames.first().unwrap().scope.clone()
+        // SAFETY: Env::new() always creates a global frame, so frames is never empty
+        self.frames.first().expect("Env must have at least one frame").scope.clone()
     }
 
     // Helper for debugging/inspection

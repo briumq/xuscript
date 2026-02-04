@@ -47,7 +47,7 @@ pub(super) fn dispatch(
             
             if changed {
                 me.ver += 1;
-                rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
+                rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
             }
             Ok(Value::VOID)
         }
@@ -71,7 +71,7 @@ pub(super) fn dispatch(
                     me.elements[idx] = value;
                     if was_void {
                         me.ver += 1;
-                        rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
+                        rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                     }
                     return Ok(Value::VOID);
                 }
@@ -106,7 +106,7 @@ pub(super) fn dispatch(
                         let key = DictKey::from_str(key_str);
                         vac.insert(key, value);
                         me.ver += 1;
-                        rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
+                        rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                     }
                 }
                 return Ok(Value::VOID);
@@ -129,7 +129,7 @@ pub(super) fn dispatch(
                     // 新 key - 增加版本号
                     vac.insert(key, value);
                     me.ver += 1;
-                    rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
+                    rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                 }
             }
             Ok(Value::VOID)
@@ -153,7 +153,7 @@ pub(super) fn dispatch(
                 me.elements[idx] = value;
                 if was_void {
                     me.ver += 1;
-                    rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
+                    rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                 }
                 return Ok(Value::VOID);
             }
@@ -172,7 +172,7 @@ pub(super) fn dispatch(
                     // 新 key - 增加版本号
                     vac.insert(key, value);
                     me.ver += 1;
-                    rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
+                    rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
                 }
             }
             Ok(Value::VOID)
@@ -187,7 +187,7 @@ pub(super) fn dispatch(
             let key_str = expect_str(rt, args[0])?.as_str();
 
             // Check cache first (before computing hash)
-            if let Some(c) = rt.dict_cache_last.as_ref() {
+            if let Some(c) = rt.caches.dict_cache_last.as_ref() {
                 if c.id == id {
                     let me = expect_dict(rt, recv)?;
                     if c.ver == me.ver && c.key.as_str() == key_str {
@@ -204,7 +204,7 @@ pub(super) fn dispatch(
                 (v, cur_ver)
             };
 
-            rt.dict_version_last = Some((id, cur_ver));
+            rt.caches.dict_version_last = Some((id, cur_ver));
 
             let Some(v) = v else {
                 return Ok(rt.option_none());
@@ -212,7 +212,7 @@ pub(super) fn dispatch(
 
             // Only clone the key when we need to cache it
             let key_text = expect_str(rt, args[0])?.clone();
-            rt.dict_cache_last = Some(DictCacheLast {
+            rt.caches.dict_cache_last = Some(DictCacheLast {
                 id,
                 ver: cur_ver,
                 key: key_text,
@@ -227,7 +227,7 @@ pub(super) fn dispatch(
             let id = recv.as_obj_id().0;
 
             // Check cache first
-            if let Some(c) = rt.dict_cache_int_last.as_ref() {
+            if let Some(c) = rt.caches.dict_cache_int_last.as_ref() {
                 if c.id == id && c.key == i {
                     let me = expect_dict(rt, recv)?;
                     if c.ver == me.ver {
@@ -260,13 +260,13 @@ pub(super) fn dispatch(
                 (v, cur_ver)
             };
 
-            rt.dict_version_last = Some((id, cur_ver));
+            rt.caches.dict_version_last = Some((id, cur_ver));
 
             let Some(v) = v else {
                 return Ok(rt.option_none());
             };
 
-            rt.dict_cache_int_last = Some(DictCacheIntLast {
+            rt.caches.dict_cache_int_last = Some(DictCacheIntLast {
                 id,
                 key: i,
                 ver: cur_ver,
@@ -351,7 +351,7 @@ pub(super) fn dispatch(
             
             if had_key {
                 me.ver += 1;
-                rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
+                rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
             }
             Ok(Value::from_bool(had_key))
         }
@@ -363,14 +363,18 @@ pub(super) fn dispatch(
             me.elements.clear();
             me.prop_values.clear();
             me.ver += 1;
-            rt.dict_version_last = Some((recv.as_obj_id().0, me.ver));
+            rt.caches.dict_version_last = Some((recv.as_obj_id().0, me.ver));
 
             Ok(Value::VOID)
         }
         MethodKind::DictKeys => {
             validate_arity(rt, method, args.len(), 0, 0)?;
 
-            let mut keys: Vec<(bool, Rc<String>)> = Vec::new();
+            enum KeyData {
+                Str(Rc<String>),
+                Int(i64),
+            }
+            let mut keys: Vec<KeyData> = Vec::new();
 
             {
                 let me = expect_dict(rt, recv)?;
@@ -379,28 +383,27 @@ pub(super) fn dispatch(
                 // Include keys from elements array
                 for (i, ev) in me.elements.iter().enumerate() {
                     if ev.get_tag() != crate::core::value::TAG_VOID {
-                        keys.push((false, Rc::new(i.to_string())));
+                        keys.push(KeyData::Int(i as i64));
                     }
                 }
 
                 for k in me.map.keys() {
                 match k {
                     DictKey::StrInline { .. } | DictKey::Str { .. } => {
-                        keys.push((true, Rc::new(k.as_str().to_string())));
+                        keys.push(KeyData::Str(Rc::new(k.as_str().to_string())));
                     }
                     DictKey::Int(i) => {
-                        keys.push((false, Rc::new(i.to_string())));
+                        keys.push(KeyData::Int(*i));
                     }
                 }
             }
             }
 
             let mut result = Vec::with_capacity(keys.len());
-            for (is_str, data) in keys {
-                if is_str {
-                    result.push(create_str_value(rt, &data));
-                } else {
-                    result.push(Value::from_i64(data.parse().unwrap()));
+            for key in keys {
+                match key {
+                    KeyData::Str(s) => result.push(create_str_value(rt, &s)),
+                    KeyData::Int(i) => result.push(Value::from_i64(i)),
                 }
             }
 
@@ -435,7 +438,11 @@ pub(super) fn dispatch(
         MethodKind::DictItems => {
             validate_arity(rt, method, args.len(), 0, 0)?;
 
-            let mut items_data: Vec<(bool, Rc<String>, Value)> = Vec::new();
+            enum ItemKey {
+                Str(Rc<String>),
+                Int(i64),
+            }
+            let mut items_data: Vec<(ItemKey, Value)> = Vec::new();
 
             {
                 let me = expect_dict(rt, recv)?;
@@ -444,28 +451,27 @@ pub(super) fn dispatch(
                 // Include items from elements array
                 for (i, ev) in me.elements.iter().enumerate() {
                     if ev.get_tag() != crate::core::value::TAG_VOID {
-                        items_data.push((false, Rc::new(i.to_string()), *ev));
+                        items_data.push((ItemKey::Int(i as i64), *ev));
                     }
                 }
 
                 for (k, v) in me.map.iter() {
                 match k {
                     DictKey::StrInline { .. } | DictKey::Str { .. } => {
-                        items_data.push((true, Rc::new(k.as_str().to_string()), v.clone()));
+                        items_data.push((ItemKey::Str(Rc::new(k.as_str().to_string())), v.clone()));
                     }
                     DictKey::Int(i) => {
-                        items_data.push((false, Rc::new(i.to_string()), v.clone()));
+                        items_data.push((ItemKey::Int(*i), v.clone()));
                     }
                 }
             }
             }
-            
+
             let mut items = Vec::with_capacity(items_data.len());
-            for (is_str, data, v) in items_data {
-                let key_val = if is_str {
-                    create_str_value(rt, &data)
-                } else {
-                    Value::from_i64(data.parse().unwrap())
+            for (key, v) in items_data {
+                let key_val = match key {
+                    ItemKey::Str(s) => create_str_value(rt, &s),
+                    ItemKey::Int(i) => Value::from_i64(i),
                 };
                 let entry = create_list_value(rt, vec![key_val, v]);
                 items.push(entry);

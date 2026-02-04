@@ -312,11 +312,11 @@ impl Runtime {
                 Ok(Value::dict(self.heap.alloc(crate::core::heap::ManagedObject::Dict(map))))
             }
             Expr::StructInit(s) => {
-                let layout = self.struct_layouts.get(&s.ty).cloned().ok_or_else(|| {
+                let layout = self.types.struct_layouts.get(&s.ty).cloned().ok_or_else(|| {
                     self.error(xu_syntax::DiagnosticKind::UnknownStruct(s.ty.clone()))
                 })?;
                 let mut values = vec![Value::VOID; layout.len()];
-                if let Some(def) = self.structs.get(&s.ty) {
+                if let Some(def) = self.types.structs.get(&s.ty) {
                     let defaults = def
                         .fields
                         .iter()
@@ -418,7 +418,7 @@ impl Runtime {
                 if let Expr::Ident(type_name, _) = m.object.as_ref() {
                     // First check if it's a static field
                     let key = (type_name.clone(), m.field.clone());
-                    if let Some(value) = self.static_fields.get(&key) {
+                    if let Some(value) = self.types.static_fields.get(&key) {
                         return Ok(*value);
                     }
                 }
@@ -472,7 +472,7 @@ impl Runtime {
                 let slot_idx = if let Some(idx) = m.ic_slot.get() {
                     Some(idx)
                 } else {
-                    let idx = self.ic_method_slots.len();
+                    let idx = self.caches.ic_method_slots.len();
                     m.ic_slot.set(Some(idx));
                     Some(idx)
                 };
