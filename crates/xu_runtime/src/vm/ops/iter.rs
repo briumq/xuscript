@@ -59,7 +59,7 @@ pub(crate) fn op_foreach_init(
             return Ok(true); // Signal to continue (skip loop)
         }
         let first = match rt.heap.get(id) {
-            ManagedObject::List(v) => v.get(0).cloned().unwrap_or(Value::UNIT),
+            ManagedObject::List(v) => v.first().copied().unwrap_or(Value::UNIT),
             _ => {
                 return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_LIST.into())));
             }

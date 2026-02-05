@@ -168,7 +168,7 @@ pub fn validate_dict_param(rt: &Runtime, param: &Value, _param_name: &str) -> Re
 }
 
 /// 安全地从列表中获取元素
-pub fn safe_get_from_list(_rt: &Runtime, list: &Vec<Value>, index: i64) -> Option<Value> {
+pub fn safe_get_from_list(_rt: &Runtime, list: &[Value], index: i64) -> Option<Value> {
     if index < 0 || (index as usize) >= list.len() {
         None
     } else {

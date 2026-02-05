@@ -34,14 +34,54 @@ impl Runtime {
     #[inline]
     fn set_loop_var(&mut self, var: &str, local_idx: Option<usize>, use_local: bool, value: Value) {
         if use_local {
-            if let Some(idx) = local_idx {
-                let _ = self.set_local_by_index(idx, value);
-            } else {
-                let _ = self.set_local(var, value);
-            }
-        } else {
-            self.env.define(var.to_string(), value);
+            if let Some(idx) = local_idx { let _ = self.set_local_by_index(idx, value); }
+            else { let _ = self.set_local(var, value); }
+        } else { self.env.define(var.to_string(), value); }
+    }
+
+    /// 执行循环体并处理 flow
+    #[inline]
+    fn exec_loop_body(&mut self, body: &[Stmt]) -> Option<Flow> {
+        match self.exec_stmts(body) {
+            Flow::None | Flow::Continue => None,
+            Flow::Break => Some(Flow::Break),
+            other => Some(other),
         }
+    }
+
+    /// 在作用域中定义变量
+    #[inline]
+    fn define_in_scope(&mut self, name: String, val: Value) {
+        if self.locals.is_active() { self.define_local(name, val); }
+        else { self.env.define(name, val); }
+    }
+
+    /// 在新作用域中执行闭包
+    #[inline]
+    fn with_scope<F: FnOnce(&mut Self) -> Flow>(&mut self, f: F) -> Flow {
+        if self.locals.is_active() {
+            self.push_locals();
+            let flow = f(self);
+            self.pop_locals();
+            flow
+        } else {
+            self.env.push();
+            let flow = f(self);
+            self.env.pop();
+            flow
+        }
+    }
+
+    /// 执行函数定义列表
+    #[inline]
+    fn exec_func_defs(&mut self, funcs: &[xu_ir::FuncDef]) -> Flow {
+        for f in funcs {
+            let s = Stmt::FuncDef(Box::new(f.clone()));
+            if let other @ (Flow::Return(_) | Flow::Throw(_) | Flow::Break | Flow::Continue) = self.exec_stmt(&s) {
+                return other;
+            }
+        }
+        Flow::None
     }
 
     pub(crate) fn exec_stmts(&mut self, stmts: &[Stmt]) -> Flow {
@@ -68,14 +108,7 @@ impl Runtime {
                     };
                     self.types.static_fields.insert((def.name.clone(), sf.name.clone()), value);
                 }
-
-                for f in def.methods.iter() {
-                    let s = Stmt::FuncDef(Box::new(f.clone()));
-                    if let other @ (Flow::Return(_) | Flow::Throw(_) | Flow::Break | Flow::Continue) = self.exec_stmt(&s) {
-                        return other;
-                    }
-                }
-                Flow::None
+                self.exec_func_defs(&def.methods)
             }
             Stmt::EnumDef(def) => {
                 self.types.enums.insert(def.name.clone(), def.variants.to_vec());
@@ -132,15 +165,7 @@ impl Runtime {
                 self.env.define(def.name.clone(), func_val);
                 Flow::None
             }
-            Stmt::DoesBlock(def) => {
-                for f in def.funcs.iter() {
-                    let s = Stmt::FuncDef(Box::new(f.clone()));
-                    if let other @ (Flow::Return(_) | Flow::Throw(_) | Flow::Break | Flow::Continue) = self.exec_stmt(&s) {
-                        return other;
-                    }
-                }
-                Flow::None
-            }
+            Stmt::DoesBlock(def) => self.exec_func_defs(&def.funcs),
             Stmt::Use(u) => match crate::modules::import_path(self, &u.path) {
                 Ok(module_obj) => {
                     let alias = u.alias.clone().unwrap_or_else(|| crate::modules::infer_module_alias(&u.path));
@@ -153,7 +178,7 @@ impl Runtime {
                 Ok(()) => Flow::None,
                 Err(e) => self.throw_err(e),
             },
-            Stmt::If(s) => self.exec_if_branches(s.branches.as_ref(), s.else_branch.as_ref()),
+            Stmt::If(s) => self.exec_if_branches(s.branches.as_ref(), s.else_branch.as_deref()),
             Stmt::Match(s) => {
                 let v = match self.eval_expr(&s.expr) {
                     Ok(v) => v,
@@ -161,19 +186,10 @@ impl Runtime {
                 };
                 for (pat, body) in s.arms.iter() {
                     if let Some(bindings) = crate::util::match_pattern(self, pat, &v) {
-                        if self.locals.is_active() {
-                            self.push_locals();
-                            for (name, val) in bindings { self.define_local(name, val); }
-                            let flow = self.exec_stmts(body);
-                            self.pop_locals();
-                            return flow;
-                        } else {
-                            self.env.push();
-                            for (name, val) in bindings { self.env.define(name, val); }
-                            let flow = self.exec_stmts(body);
-                            self.env.pop();
-                            return flow;
-                        }
+                        return self.with_scope(|rt| {
+                            for (name, val) in bindings { rt.define_in_scope(name, val); }
+                            rt.exec_stmts(body)
+                        });
                     }
                 }
                 s.else_branch.as_ref().map_or(Flow::None, |body| self.exec_stmts(body))
@@ -204,10 +220,9 @@ impl Runtime {
                     };
                     for item in items {
                         self.set_loop_var(&s.var, local_idx, use_local, item);
-                        match self.exec_stmts(&s.body) {
-                            Flow::None | Flow::Continue => {}
-                            Flow::Break => break,
-                            other => return other,
+                        if let Some(flow) = self.exec_loop_body(&s.body) {
+                            if matches!(flow, Flow::Break) { break; }
+                            return flow;
                         }
                     }
                 } else if tag == crate::core::value::TAG_DICT {
@@ -232,10 +247,9 @@ impl Runtime {
                                     self.env.define(key_var.to_string(), key_val);
                                     self.env.define(value_var.to_string(), v);
                                 }
-                                match self.exec_stmts(&s.body) {
-                                    Flow::None | Flow::Continue => {}
-                                    Flow::Break => break,
-                                    other => return other,
+                                if let Some(flow) = self.exec_loop_body(&s.body) {
+                                    if matches!(flow, Flow::Break) { break; }
+                                    return flow;
                                 }
                             }
                         }
@@ -260,10 +274,9 @@ impl Runtime {
                         for k in raw_keys {
                             let item = dict_key_to_value(self, &k);
                             self.set_loop_var(&s.var, local_idx, use_local, item);
-                            match self.exec_stmts(&s.body) {
-                                Flow::None | Flow::Continue => {}
-                                Flow::Break => break,
-                                other => return other,
+                            if let Some(flow) = self.exec_loop_body(&s.body) {
+                                if matches!(flow, Flow::Break) { break; }
+                                return flow;
                             }
                         }
                     }
@@ -279,10 +292,9 @@ impl Runtime {
                     loop {
                         if !inclusive && i == end { break; }
                         self.set_loop_var(&s.var, local_idx, use_local, Value::from_i64(i));
-                        match self.exec_stmts(&s.body) {
-                            Flow::None | Flow::Continue => {}
-                            Flow::Break => break,
-                            other => return other,
+                        if let Some(flow) = self.exec_loop_body(&s.body) {
+                            if matches!(flow, Flow::Break) { break; }
+                            return flow;
                         }
                         if i == end { break; }
                         i = i.saturating_add(step);
@@ -309,19 +321,7 @@ impl Runtime {
                 Ok(_) => Flow::None,
                 Err(e) => self.throw_err(e),
             },
-            Stmt::Block(stmts) => {
-                if self.locals.is_active() {
-                    self.push_locals();
-                    let flow = self.exec_stmts(stmts);
-                    self.pop_locals();
-                    flow
-                } else {
-                    self.env.push();
-                    let flow = self.exec_stmts(stmts);
-                    self.env.pop();
-                    flow
-                }
-            }
+            Stmt::Block(stmts) => self.with_scope(|rt| rt.exec_stmts(stmts)),
             Stmt::Error(_) => Flow::None,
         }
     }
@@ -357,7 +357,7 @@ impl Runtime {
         let mut pairs = Vec::new();
         if let crate::core::heap::ManagedObject::Dict(dict) = self.heap.get(id) {
             for (k, v) in dict.map.iter() {
-                pairs.push((k.clone(), v.clone()));
+                pairs.push((k.clone(), *v));
             }
             if include_all {
                 if let Some(sid) = dict.shape {
@@ -394,9 +394,8 @@ impl Runtime {
                     }
                     let immutable = matches!(stmt.decl, Some(xu_ir::DeclKind::Let));
                     if self.locals.is_active() {
-                        if !self.set_local(name, rhs.clone()) {
-                            self.define_local_with_mutability(name.clone(), rhs, immutable);
-                        } else if immutable {
+                        // 如果变量不存在或者是不可变声明，都需要定义新变量
+                        if !self.set_local(name, rhs) || immutable {
                             self.define_local_with_mutability(name.clone(), rhs, immutable);
                         }
                     } else {
@@ -672,7 +671,7 @@ impl Runtime {
     pub(crate) fn exec_if_branches(
         &mut self,
         branches: &[(Expr, Box<[Stmt]>)],
-        else_branch: Option<&Box<[Stmt]>>,
+        else_branch: Option<&[Stmt]>,
     ) -> Flow {
         for (cond, body) in branches {
             match self.eval_expr(cond) {
@@ -682,10 +681,10 @@ impl Runtime {
                 Err(e) => return self.throw_err(e),
             }
         }
-        else_branch.map_or(Flow::None, |body| self.exec_stmts(body.as_ref()))
+        else_branch.map_or(Flow::None, |body| self.exec_stmts(body))
     }
 
-    pub(crate) fn exec_while_loop(&mut self, cond: &Expr, body: &Box<[Stmt]>) -> Flow {
+    pub(crate) fn exec_while_loop(&mut self, cond: &Expr, body: &[Stmt]) -> Flow {
         loop {
             let cond_v = match self.eval_expr(cond) {
                 Ok(v) if v.is_bool() => v.as_bool(),
@@ -693,10 +692,9 @@ impl Runtime {
                 Err(e) => return self.throw_err(e),
             };
             if !cond_v { break; }
-            match self.exec_stmts(body.as_ref()) {
-                Flow::None | Flow::Continue => {}
-                Flow::Break => break,
-                other => return other,
+            if let Some(flow) = self.exec_loop_body(body.as_ref()) {
+                if matches!(flow, Flow::Break) { break; }
+                return flow;
             }
         }
         Flow::None

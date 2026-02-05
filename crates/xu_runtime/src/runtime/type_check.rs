@@ -17,7 +17,7 @@ pub const FNV_PRIME: u64 = 1099511628211;
 pub fn compute_type_signature(args: &[Value], heap: &Heap) -> u64 {
     let mut type_sig = TYPE_SIG_INIT;
     for v in args {
-        let mut x = v.get_tag() as u64;
+        let mut x = v.get_tag();
         if v.get_tag() == TAG_STRUCT {
             let id = v.as_obj_id();
             if let ManagedObject::Struct(si) = heap.get(id) {

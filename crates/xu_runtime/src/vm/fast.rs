@@ -361,9 +361,7 @@ pub(crate) fn run_bytecode_fast_params_only(
                         break;
                     }
                 }
-                let Some(v) = found else {
-                    return None;
-                };
+                let v = found?;
                 stack[sp] = v;
                 sp += 1;
             }

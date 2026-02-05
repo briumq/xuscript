@@ -118,7 +118,7 @@ pub fn builtin_process_rss(_rt: &mut Runtime, _args: &[Value]) -> Result<Value, 
     unsafe {
         let _ = getrusage(RUSAGE_SELF, &mut usage);
     }
-    let rss = usage.ru_maxrss as i64;
+    let rss = usage.ru_maxrss;
     Ok(Value::from_i64(rss))
 }
 
@@ -138,7 +138,7 @@ pub fn builtin_heap_stats(rt: &mut Runtime, _args: &[Value]) -> Result<Value, St
 }
 
 pub fn builtin_assert(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
-    if args.len() < 1 || args.len() > 2 {
+    if args.is_empty() || args.len() > 2 {
         return Err("__builtin_assert expects 1 or 2 arguments".into());
     }
     let cond = &args[0];

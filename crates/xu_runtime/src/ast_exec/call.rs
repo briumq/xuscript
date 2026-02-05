@@ -20,7 +20,7 @@ struct CallContext {
 
 impl CallContext {
     fn save(rt: &mut Runtime, fun_env: &crate::Env) -> Self {
-        let mut call_env = rt.pools.env_pool.pop().unwrap_or_else(crate::Env::new);
+        let mut call_env = rt.pools.env_pool.pop().unwrap_or_default();
         call_env.reset_for_call_from(fun_env);
         let saved_env = std::mem::replace(&mut rt.env, call_env);
         Self {

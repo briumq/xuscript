@@ -16,7 +16,7 @@ use crate::core::value::{TAG_DICT, TAG_LIST, TAG_STR, TAG_TUPLE, ELEMENTS_MAX};
 use crate::core::Value;
 use crate::errors::messages::NOT_A_LIST;
 use crate::runtime::{DictCacheIntLast, DictCacheLast};
-use crate::vm::ops::helpers::{pop_stack, pop2_stack, try_throw_error};
+use crate::vm::ops::helpers::{pop_stack, pop2_stack, try_throw_error, handle_result, handle_result_push};
 use crate::vm::stack::{Handler, IterState, Pending};
 use crate::{Flow, Runtime};
 
@@ -42,54 +42,28 @@ pub(crate) fn op_get_member(
         let id = obj.as_obj_id();
         if let ManagedObject::Struct(s) = rt.heap.get(id) {
             let field_hash = xu_ir::stable_hash64(field);
-            // IC check
-            let mut val = None;
+            // IC check - fast path
             if let Some(idx_slot) = slot_idx {
                 if idx_slot < rt.caches.ic_slots.len() {
                     let c = &rt.caches.ic_slots[idx_slot];
                     if c.struct_ty_hash == s.ty_hash && c.key_hash == field_hash {
                         if let Some(offset) = c.field_offset {
-                            val = Some(s.fields[offset]);
+                            stack.push(s.fields[offset]);
+                            return Ok(None);
                         }
                     }
                 }
             }
-
-            if let Some(v) = val {
-                stack.push(v);
-            } else {
-                // Slow path
-                match rt.get_member_with_ic_raw(obj, field, slot_idx) {
-                    Ok(v) => stack.push(v),
-                    Err(e) => {
-                        if let Some(flow) = try_throw_error(
-                            rt, ip, handlers, stack, iters, pending, thrown, e,
-                        ) {
-                            return Ok(Some(flow));
-                        }
-                        *ip += 1;
-                        return Ok(None);
-                    }
-                }
-            }
-            return Ok(None);
+            // Slow path
+            let result = rt.get_member_with_ic_raw(obj, field, slot_idx);
+            return handle_result_push(rt, ip, handlers, stack, iters, pending, thrown, result);
         } else {
             return Err("Not a struct".into());
         }
-    } else {
-        match rt.get_member_with_ic_raw(obj, field, slot_idx) {
-            Ok(v) => stack.push(v),
-            Err(e) => {
-                if let Some(flow) = try_throw_error(
-                    rt, ip, handlers, stack, iters, pending, thrown, e,
-                ) {
-                    return Ok(Some(flow));
-                }
-                return Ok(None);
-            }
-        }
     }
-    Ok(None)
+
+    let result = rt.get_member_with_ic_raw(obj, field, slot_idx);
+    handle_result_push(rt, ip, handlers, stack, iters, pending, thrown, result)
 }
 
 /// Execute Op::GetIndex - array/dict indexing
@@ -277,15 +251,8 @@ pub(crate) fn op_assign_member(
 ) -> Result<Option<Flow>, String> {
     let (rhs, obj) = pop2_stack(stack)?;
     let field = rt.get_const_str(idx, &bc.constants);
-    if let Err(e) = rt.assign_member(obj, field, op_type, rhs) {
-        if let Some(flow) = try_throw_error(
-            rt, ip, handlers, stack, iters, pending, thrown, e,
-        ) {
-            return Ok(Some(flow));
-        }
-        return Ok(None);
-    }
-    Ok(None)
+    let result = rt.assign_member(obj, field, op_type, rhs);
+    handle_result(rt, ip, handlers, stack, iters, pending, thrown, result)
 }
 
 /// Execute Op::AssignIndex - assign to array/dict element
@@ -303,15 +270,8 @@ pub(crate) fn op_assign_index(
     let idxv = pop_stack(stack)?;
     let obj = pop_stack(stack)?;
     let rhs = pop_stack(stack)?;
-    if let Err(e) = rt.assign_index(obj, idxv, op, rhs) {
-        if let Some(flow) = try_throw_error(
-            rt, ip, handlers, stack, iters, pending, thrown, e,
-        ) {
-            return Ok(Some(flow));
-        }
-        return Ok(None);
-    }
-    Ok(None)
+    let result = rt.assign_index(obj, idxv, op, rhs);
+    handle_result(rt, ip, handlers, stack, iters, pending, thrown, result)
 }
 
 /// Execute Op::GetStaticField - get a static field value
@@ -341,24 +301,13 @@ pub(crate) fn op_get_static_field(
 
     // Not a static field - try as instance member access on a global variable
     if let Some(obj) = rt.env.get(type_name) {
-        match rt.get_member_with_ic_raw(obj, field_name, None) {
-            Ok(v) => stack.push(v),
-            Err(e) => {
-                if let Some(flow) = try_throw_error(
-                    rt, ip, handlers, stack, iters, pending, thrown, e,
-                ) {
-                    return Ok(Some(flow));
-                }
-            }
-        }
-        return Ok(None);
+        let result = rt.get_member_with_ic_raw(obj, field_name, None);
+        return handle_result_push(rt, ip, handlers, stack, iters, pending, thrown, result);
     }
 
     // Neither static field nor global variable found
     let err_msg = format!("Undefined static field: {}.{}", type_name, field_name);
-    if let Some(flow) = try_throw_error(
-        rt, ip, handlers, stack, iters, pending, thrown, err_msg,
-    ) {
+    if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, err_msg) {
         return Ok(Some(flow));
     }
     Ok(None)
@@ -392,21 +341,13 @@ pub(crate) fn op_set_static_field(
 
     // Not a static field - try as instance member assignment on a global variable
     if let Some(obj) = rt.env.get(type_name) {
-        if let Err(e) = rt.assign_member(obj, field_name, xu_ir::AssignOp::Set, value) {
-            if let Some(flow) = try_throw_error(
-                rt, ip, handlers, stack, iters, pending, thrown, e,
-            ) {
-                return Ok(Some(flow));
-            }
-        }
-        return Ok(None);
+        let result = rt.assign_member(obj, field_name, xu_ir::AssignOp::Set, value);
+        return handle_result(rt, ip, handlers, stack, iters, pending, thrown, result);
     }
 
     // Neither static field nor global variable found
     let err_msg = format!("Undefined static field: {}.{}", type_name, field_name);
-    if let Some(flow) = try_throw_error(
-        rt, ip, handlers, stack, iters, pending, thrown, err_msg,
-    ) {
+    if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, err_msg) {
         return Ok(Some(flow));
     }
     Ok(None)

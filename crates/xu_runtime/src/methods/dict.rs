@@ -45,7 +45,7 @@ pub(super) fn dispatch(
 
             let entries: Vec<_> = {
                 let other = expect_dict(rt, args[0])?;
-                other.map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+                other.map.iter().map(|(k, v)| (k.clone(), *v)).collect()
             };
 
             let id = recv.as_obj_id().0;
@@ -54,9 +54,7 @@ pub(super) fn dispatch(
             me.map.reserve(entries.len());
 
             for (k, v) in entries {
-                let mut hasher = me.map.hasher().build_hasher();
-                k.hash(&mut hasher);
-                let h = hasher.finish();
+                let h = me.map.hasher().hash_one(&k);
                 match me.map.raw_entry_mut().from_hash(h, |kk| kk == &k) {
                     RawEntryMut::Occupied(mut o) => { *o.get_mut() = v; }
                     RawEntryMut::Vacant(vac) => { vac.insert(k, v); changed = true; }
@@ -71,7 +69,7 @@ pub(super) fn dispatch(
         }
         MethodKind::Insert => {
             validate_arity(rt, method, args.len(), 2, 2)?;
-            let value = args[1].clone();
+            let value = args[1];
             let id = recv.as_obj_id().0;
 
             // 小整数键快速路径
@@ -118,9 +116,7 @@ pub(super) fn dispatch(
             // 慢速路径
             let key = get_dict_key_from_value(rt, &args[0])?;
             let me = expect_dict_mut(rt, recv)?;
-            let mut hasher = me.map.hasher().build_hasher();
-            key.hash(&mut hasher);
-            let h = hasher.finish();
+            let h = me.map.hasher().hash_one(&key);
 
             match me.map.raw_entry_mut().from_hash(h, |kk| kk == &key) {
                 RawEntryMut::Occupied(mut o) => { *o.get_mut() = value; }
@@ -135,7 +131,7 @@ pub(super) fn dispatch(
         MethodKind::DictInsertInt => {
             validate_arity(rt, method, args.len(), 2, 2)?;
             let i = to_i64(&args[0])?;
-            let value = args[1].clone();
+            let value = args[1];
             let id = recv.as_obj_id().0;
 
             // 小整数键快速路径
@@ -181,7 +177,7 @@ pub(super) fn dispatch(
                 if c.id == id {
                     let me = expect_dict(rt, recv)?;
                     if c.ver == me.ver && c.key.as_str() == key_str {
-                        return Ok(rt.option_some(c.value.clone()));
+                        return Ok(rt.option_some(c.value));
                     }
                 }
             }
@@ -197,7 +193,7 @@ pub(super) fn dispatch(
             let Some(v) = v else { return Ok(rt.option_none()); };
 
             let key_text = expect_str(rt, args[0])?.clone();
-            rt.caches.dict_cache_last = Some(DictCacheLast { id, ver: cur_ver, key: key_text, value: v.clone() });
+            rt.caches.dict_cache_last = Some(DictCacheLast { id, ver: cur_ver, key: key_text, value: v });
             Ok(rt.option_some(v))
         }
         MethodKind::GetInt => {
@@ -210,7 +206,7 @@ pub(super) fn dispatch(
                 if c.id == id && c.key == i {
                     let me = expect_dict(rt, recv)?;
                     if c.ver == me.ver {
-                        return Ok(rt.option_some(c.value.clone()));
+                        return Ok(rt.option_some(c.value));
                     }
                 }
             }
@@ -222,10 +218,10 @@ pub(super) fn dispatch(
                     if idx < me.elements.len() && me.elements[idx].get_tag() != crate::core::value::TAG_UNIT {
                         Some(me.elements[idx])
                     } else {
-                        me.map.get(&DictKey::Int(i)).cloned()
+                        me.map.get(&DictKey::Int(i)).copied()
                     }
                 } else {
-                    me.map.get(&DictKey::Int(i)).cloned()
+                    me.map.get(&DictKey::Int(i)).copied()
                 };
                 (v, me.ver)
             };
@@ -234,7 +230,7 @@ pub(super) fn dispatch(
 
             let Some(v) = v else { return Ok(rt.option_none()); };
 
-            rt.caches.dict_cache_int_last = Some(DictCacheIntLast { id, key: i, ver: cur_ver, value: v.clone() });
+            rt.caches.dict_cache_int_last = Some(DictCacheIntLast { id, key: i, ver: cur_ver, value: v });
             Ok(rt.option_some(v))
         }
         MethodKind::Has | MethodKind::Contains => {
@@ -311,14 +307,14 @@ pub(super) fn dispatch(
                     values.push(*ev);
                 }
             }
-            values.extend(me.map.values().cloned());
+            values.extend(me.map.values().copied());
             Ok(create_list_value(rt, values))
         }
         MethodKind::GetOrDefault => {
             validate_arity(rt, method, args.len(), 2, 2)?;
             let key = get_dict_key_from_value(rt, &args[0])?;
             let me = expect_dict(rt, recv)?;
-            Ok(me.map.get(&key).cloned().unwrap_or_else(|| args[1].clone()))
+            Ok(me.map.get(&key).copied().unwrap_or(args[1]))
         }
         MethodKind::DictItems => {
             validate_arity(rt, method, args.len(), 0, 0)?;
@@ -374,9 +370,9 @@ fn collect_dict_items(rt: &Runtime, recv: Value) -> Result<Vec<(TempKey, Value)>
     for (k, v) in me.map.iter() {
         match k {
             DictKey::StrInline { .. } | DictKey::Str { .. } => {
-                items.push((TempKey::Str(Rc::new(k.as_str().to_string())), v.clone()));
+                items.push((TempKey::Str(Rc::new(k.as_str().to_string())), *v));
             }
-            DictKey::Int(i) => items.push((TempKey::Int(*i), v.clone())),
+            DictKey::Int(i) => items.push((TempKey::Int(*i), *v)),
         }
     }
     Ok(items)

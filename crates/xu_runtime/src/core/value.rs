@@ -56,14 +56,31 @@ impl PartialEq for DictKey {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (DictKey::StrInline { hash: h1, len: l1, buf: b1 }, DictKey::StrInline { hash: h2, len: l2, buf: b2 }) => {
-                h1 == h2 && l1 == l2 && b1[..*l1 as usize] == b2[..*l2 as usize]
+                // Fast path: compare hash first
+                if h1 != h2 {
+                    return false;
+                }
+                // Compare length and content
+                l1 == l2 && b1[..*l1 as usize] == b2[..*l2 as usize]
             }
             (DictKey::StrInline { hash: h1, len, buf }, DictKey::Str { hash: h2, data }) |
             (DictKey::Str { hash: h2, data }, DictKey::StrInline { hash: h1, len, buf }) => {
-                h1 == h2 && Self::inline_str(*len, buf) == data.as_str()
+                if h1 != h2 {
+                    return false;
+                }
+                Self::inline_str(*len, buf) == data.as_str()
             }
             (DictKey::Str { hash: h1, data: d1 }, DictKey::Str { hash: h2, data: d2 }) => {
-                h1 == h2 && (Rc::ptr_eq(d1, d2) || d1.as_str() == d2.as_str())
+                // Fast path: compare hash first
+                if h1 != h2 {
+                    return false;
+                }
+                // Fast path: same Rc pointer means same string
+                if Rc::ptr_eq(d1, d2) {
+                    return true;
+                }
+                // Slow path: compare string content (hash collision)
+                d1.as_str() == d2.as_str()
             }
             (DictKey::Int(a), DictKey::Int(b)) => a == b,
             _ => false,
@@ -165,7 +182,7 @@ impl Clone for DictInstance {
     fn clone(&self) -> Self {
         let mut map = fast_map_with_capacity(self.map.len());
         for (k, v) in self.map.iter() {
-            map.insert(k.clone(), v.clone());
+            map.insert(k.clone(), *v);
         }
         Self {
             map,
@@ -195,7 +212,7 @@ impl Clone for DictStrInstance {
     fn clone(&self) -> Self {
         let mut map = fast_map_with_capacity(self.map.len());
         for (k, v) in self.map.iter() {
-            map.insert(k.clone(), v.clone());
+            map.insert(k.clone(), *v);
         }
         Self { map, ver: self.ver }
     }

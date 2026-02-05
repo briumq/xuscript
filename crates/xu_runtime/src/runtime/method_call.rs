@@ -146,12 +146,12 @@ impl Runtime {
                     .from_hash(hash, |(t, m)| t == ty && m == method)
                 {
                     RawEntryMut::Occupied(o) => {
-                        Ok(o.get().clone())
+                        Ok(*o.get())
                     }
                     RawEntryMut::Vacant(vac) => {
-                        let name = format!("__method__{}__{}", ty, method);
+                        let name = format!("__method__{ty}__{method}");
                         if let Some(v) = self.env.get_cached(&name) {
-                            vac.insert((s.ty.clone(), method.to_string()), v.clone());
+                            vac.insert((s.ty.clone(), method.to_string()), v);
                             Ok(v)
                         } else {
                             // Search in loaded modules for cross-module method calls
@@ -162,14 +162,14 @@ impl Runtime {
                                         self.heap.get(module_val.as_obj_id())
                                     {
                                         if let Some(v) = m.exports.map.get(&name) {
-                                            found = Some(v.clone());
+                                            found = Some(*v);
                                             break;
                                         }
                                     }
                                 }
                             }
                             if let Some(v) = found {
-                                vac.insert((s.ty.clone(), method.to_string()), v.clone());
+                                vac.insert((s.ty.clone(), method.to_string()), v);
                                 Ok(v)
                             } else {
                                 Err(xu_syntax::DiagnosticKind::UnknownMember(method.to_string()))
@@ -241,11 +241,11 @@ impl Runtime {
                         .raw_entry_mut()
                         .from_hash(hash, |(t, m)| t == ty_str && m == method)
                     {
-                        RawEntryMut::Occupied(o) => Ok((o.get().clone(), xu_ir::stable_hash64(ty_str))),
+                        RawEntryMut::Occupied(o) => Ok((*o.get(), xu_ir::stable_hash64(ty_str))),
                         RawEntryMut::Vacant(vac) => {
-                            let name = format!("__method__{}__{}", ty_str, method);
+                            let name = format!("__method__{ty_str}__{method}");
                             if let Some(v) = self.env.get_cached(&name) {
-                                vac.insert((ty.to_string(), method.to_string()), v.clone());
+                                vac.insert((ty.to_string(), method.to_string()), v);
                                 Ok((v, xu_ir::stable_hash64(ty_str)))
                             } else {
                                 // Search in loaded modules for cross-module method calls
@@ -256,14 +256,14 @@ impl Runtime {
                                             self.heap.get(module_val.as_obj_id())
                                         {
                                             if let Some(v) = m.exports.map.get(&name) {
-                                                found = Some(v.clone());
+                                                found = Some(*v);
                                                 break;
                                             }
                                         }
                                     }
                                 }
                                 if let Some(v) = found {
-                                    vac.insert((ty.to_string(), method.to_string()), v.clone());
+                                    vac.insert((ty.to_string(), method.to_string()), v);
                                     Ok((v, xu_ir::stable_hash64(ty_str)))
                                 } else {
                                     Err(())

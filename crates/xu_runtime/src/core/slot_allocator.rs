@@ -35,7 +35,7 @@ impl LocalSlots {
     pub fn push(&mut self) {
         let mut map = self.free_maps.pop().unwrap_or_else(fast_map_new);
         map.clear();
-        let mut values = self.free_values.pop().unwrap_or_else(Vec::new);
+        let mut values = self.free_values.pop().unwrap_or_default();
         values.clear();
         self.maps.push(map);
         self.values.push(values);

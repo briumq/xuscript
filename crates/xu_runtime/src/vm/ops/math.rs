@@ -11,10 +11,9 @@
 //! - Not: Logical NOT
 
 use crate::core::heap::ManagedObject;
-use crate::core::value::ValueExt;
 use crate::core::Value;
 use crate::vm::exception::throw_value;
-use crate::vm::ops::helpers::{peek_last_mut, pop_stack, try_throw_error};
+use crate::vm::ops::helpers::{exec_binary_op, peek_last_mut, pop_stack, try_throw_error};
 use crate::vm::stack::{add_with_heap, Handler, IterState, Pending};
 use crate::{Flow, Runtime};
 use xu_ir::BinaryOp;
@@ -59,18 +58,7 @@ pub(crate) fn op_sub(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = pop_stack(stack)?;
-    let a = peek_last_mut(stack)?;
-    match a.bin_op(BinaryOp::Sub, b) {
-        Ok(r) => *a = r,
-        Err(e) => {
-            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
-                return Ok(Some(flow));
-            }
-            return Ok(None);
-        }
-    }
-    Ok(None)
+    exec_binary_op(rt, stack, ip, handlers, iters, pending, thrown, BinaryOp::Sub)
 }
 
 /// Execute Op::Mul - multiplication
@@ -84,18 +72,7 @@ pub(crate) fn op_mul(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = pop_stack(stack)?;
-    let a = peek_last_mut(stack)?;
-    match a.bin_op(BinaryOp::Mul, b) {
-        Ok(r) => *a = r,
-        Err(e) => {
-            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
-                return Ok(Some(flow));
-            }
-            return Ok(None);
-        }
-    }
-    Ok(None)
+    exec_binary_op(rt, stack, ip, handlers, iters, pending, thrown, BinaryOp::Mul)
 }
 
 /// Execute Op::Div - division
@@ -109,18 +86,7 @@ pub(crate) fn op_div(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = pop_stack(stack)?;
-    let a = peek_last_mut(stack)?;
-    match a.bin_op(BinaryOp::Div, b) {
-        Ok(r) => *a = r,
-        Err(e) => {
-            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
-                return Ok(Some(flow));
-            }
-            return Ok(None);
-        }
-    }
-    Ok(None)
+    exec_binary_op(rt, stack, ip, handlers, iters, pending, thrown, BinaryOp::Div)
 }
 
 /// Execute Op::Mod - modulo
@@ -142,23 +108,12 @@ pub(crate) fn op_mod(
         if bv != 0 {
             *a = Value::from_i64(a.as_i64() % bv);
             return Ok(None);
-        } else {
-            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, "Division by zero".to_string()) {
-                return Ok(Some(flow));
-            }
-            return Ok(None);
         }
+        // Division by zero - fall through to general path which will error
     }
-    match a.bin_op(BinaryOp::Mod, b) {
-        Ok(r) => *a = r,
-        Err(e) => {
-            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
-                return Ok(Some(flow));
-            }
-            return Ok(None);
-        }
-    }
-    Ok(None)
+    // Put b back and use general binary op
+    stack.push(b);
+    exec_binary_op(rt, stack, ip, handlers, iters, pending, thrown, BinaryOp::Mod)
 }
 
 /// Execute Op::And - logical AND
@@ -172,18 +127,7 @@ pub(crate) fn op_and(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = pop_stack(stack)?;
-    let a = peek_last_mut(stack)?;
-    match a.bin_op(BinaryOp::And, b) {
-        Ok(r) => *a = r,
-        Err(e) => {
-            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
-                return Ok(Some(flow));
-            }
-            return Ok(None);
-        }
-    }
-    Ok(None)
+    exec_binary_op(rt, stack, ip, handlers, iters, pending, thrown, BinaryOp::And)
 }
 
 /// Execute Op::Or - logical OR
@@ -197,18 +141,7 @@ pub(crate) fn op_or(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = pop_stack(stack)?;
-    let a = peek_last_mut(stack)?;
-    match a.bin_op(BinaryOp::Or, b) {
-        Ok(r) => *a = r,
-        Err(e) => {
-            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
-                return Ok(Some(flow));
-            }
-            return Ok(None);
-        }
-    }
-    Ok(None)
+    exec_binary_op(rt, stack, ip, handlers, iters, pending, thrown, BinaryOp::Or)
 }
 
 /// Execute Op::Not - logical NOT

@@ -8,7 +8,7 @@ use super::{StructMap, infer_module_alias};
 
 /// 获取类型环境的最后一个作用域
 #[inline]
-fn env_last(type_env: &mut Vec<HashMap<String, TypeId>>) -> &mut HashMap<String, TypeId> {
+fn env_last(type_env: &mut [HashMap<String, TypeId>]) -> &mut HashMap<String, TypeId> {
     type_env.last_mut().expect("type_env should not be empty")
 }
 

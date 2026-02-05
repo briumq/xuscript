@@ -12,7 +12,7 @@ pub(crate) fn match_pattern(
 ) -> Option<Vec<(String, Value)>> {
     match pat {
         Pattern::Wildcard => Some(Vec::new()),
-        Pattern::Bind(name) => Some(vec![(name.clone(), v.clone())]),
+        Pattern::Bind(name) => Some(vec![(name.clone(), *v)]),
         Pattern::Tuple(items) => {
             if v.get_tag() != TAG_TUPLE {
                 return None;
@@ -22,7 +22,7 @@ pub(crate) fn match_pattern(
                     if xs.len() != items.len() {
                         return None;
                     }
-                    xs.iter().cloned().collect()
+                    xs.to_vec()
                 } else {
                     return None;
                 };
@@ -41,13 +41,8 @@ pub(crate) fn match_pattern(
             }
         }
         Pattern::Float(f) => {
-            if v.is_f64() && v.as_f64() == *f {
-                Some(Vec::new())
-            } else if v.is_int() && (v.as_i64() as f64) == *f {
-                Some(Vec::new())
-            } else {
-                None
-            }
+            let matches = (v.is_f64() && v.as_f64() == *f) || (v.is_int() && (v.as_i64() as f64) == *f);
+            if matches { Some(Vec::new()) } else { None }
         }
         Pattern::Str(s) => {
             if v.get_tag() != TAG_STR {
@@ -95,7 +90,7 @@ pub(crate) fn match_pattern(
                     if payload.len() != args.len() {
                         return None;
                     }
-                    payload.iter().cloned().collect()
+                    payload.to_vec()
                 } else {
                     return None;
                 };

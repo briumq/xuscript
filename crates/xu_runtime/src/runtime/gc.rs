@@ -39,21 +39,21 @@ impl Runtime {
 
         // Add stack values as roots
         for val in &self.env.stack {
-            roots.push(val.clone());
+            roots.push(*val);
         }
 
         // Add all frame values as roots (not just global frame)
         for frame in &self.env.frames {
             let scope = frame.scope.borrow();
             for val in &scope.values {
-                roots.push(val.clone());
+                roots.push(*val);
             }
         }
 
         // Add local slot values as roots
         for frame_values in &self.locals.values {
             for val in frame_values {
-                roots.push(val.clone());
+                roots.push(*val);
             }
         }
 

@@ -1,10 +1,4 @@
 //! Function call operations for the VM.
-//!
-//! This module contains operations for:
-//! - Call: Direct function calls
-//! - CallMethod: Method calls with IC caching
-//! - MakeFunction: Creating function values
-//! - Return: Returning from functions
 
 use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
@@ -16,6 +10,30 @@ use crate::vm::ops::helpers::{pop_stack, try_throw_error};
 use crate::vm::fast::run_bytecode_fast_params_only;
 use crate::vm::stack::{Handler, IterState, Pending};
 use crate::{Flow, Runtime};
+
+/// 处理调用结果，成功时推入栈，失败时尝试抛出错误
+#[inline(always)]
+fn handle_call_result(
+    rt: &mut Runtime,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    result: Result<Value, String>,
+) -> Result<Option<Flow>, String> {
+    match result {
+        Ok(v) => { stack.push(v); Ok(None) }
+        Err(e) => {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
+                Ok(Some(flow))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+}
 
 /// Execute Op::Call - direct function call
 #[inline(always)]
@@ -30,7 +48,7 @@ pub(crate) fn op_call(
     n: usize,
 ) -> Result<Option<Flow>, String> {
     if stack.len() < n + 1 {
-        return Err(format!("Stack underflow in Call"));
+        return Err("Stack underflow in Call".to_string());
     }
     let args_start = stack.len() - n;
     let callee = stack[args_start - 1];
@@ -57,35 +75,16 @@ pub(crate) fn op_call(
         }
     }
 
-    if let Some(res) = fast_res {
+    let result = if let Some(res) = fast_res {
         stack.truncate(args_start - 1);
-        match res {
-            Ok(v) => stack.push(v),
-            Err(e) => {
-                if let Some(flow) = try_throw_error(
-                    rt, ip, handlers, stack, iters, pending, thrown, e,
-                ) {
-                    return Ok(Some(flow));
-                }
-                return Ok(None);
-            }
-        }
+        res
     } else {
         let args: SmallVec<[Value; 8]> = stack.drain(args_start..).collect();
         let callee = stack.pop().expect("Stack underflow in Call (callee)");
-        match rt.call_function(callee, &args) {
-            Ok(v) => stack.push(v),
-            Err(e) => {
-                if let Some(flow) = try_throw_error(
-                    rt, ip, handlers, stack, iters, pending, thrown, e,
-                ) {
-                    return Ok(Some(flow));
-                }
-                return Ok(None);
-            }
-        }
-    }
-    Ok(None)
+        stack.truncate(args_start - 1);
+        rt.call_function(callee, &args)
+    };
+    handle_call_result(rt, stack, ip, handlers, iters, pending, thrown, result)
 }
 
 /// Execute Op::CallMethod - method call with IC caching
@@ -105,7 +104,7 @@ pub(crate) fn op_call_method(
     slot_idx: Option<usize>,
 ) -> Result<Option<Flow>, String> {
     if stack.len() < n + 1 {
-        return Err(format!("Stack underflow in CallMethod"));
+        return Err("Stack underflow in CallMethod".to_string());
     }
     let args_start = stack.len() - n;
     let recv = stack[args_start - 1];
@@ -177,40 +176,16 @@ pub(crate) fn op_call_method(
         }
     }
 
-    if let Some(res) = fast_res {
+    let result = if let Some(res) = fast_res {
         stack.truncate(args_start - 1);
-        match res {
-            Ok(v) => stack.push(v),
-            Err(e) => {
-                if let Some(flow) = try_throw_error(
-                    rt, ip, handlers, stack, iters, pending, thrown, e,
-                ) {
-                    return Ok(Some(flow));
-                }
-            }
-        }
+        res
     } else {
         let method = rt.get_const_str(m_idx, &bc.constants);
-        let res = rt.call_method_with_ic_raw(
-            recv,
-            method,
-            method_hash,
-            &stack[args_start..],
-            slot_idx.clone(),
-        );
+        let res = rt.call_method_with_ic_raw(recv, method, method_hash, &stack[args_start..], slot_idx);
         stack.truncate(args_start - 1);
-        match res {
-            Ok(v) => stack.push(v),
-            Err(e) => {
-                if let Some(flow) = try_throw_error(
-                    rt, ip, handlers, stack, iters, pending, thrown, e,
-                ) {
-                    return Ok(Some(flow));
-                }
-            }
-        }
-    }
-    Ok(None)
+        res
+    };
+    handle_call_result(rt, stack, ip, handlers, iters, pending, thrown, result)
 }
 
 /// Try fast path for dict.get with string key
@@ -591,25 +566,15 @@ pub(crate) fn op_call_static_or_method(
     let method = rt.get_const_str(m_idx, &bc.constants);
 
     // First try static method: __static__{type_name}__{method}
-    let static_name = format!("__static__{}__{}", type_name, method);
+    let static_name = format!("__static__{type_name}__{method}");
     if let Some(func) = rt.env.get(&static_name) {
         // Static method found - call it directly
         if stack.len() < n {
-            return Err(format!("Stack underflow in CallStaticOrMethod"));
+            return Err("Stack underflow in CallStaticOrMethod".to_string());
         }
         let args: smallvec::SmallVec<[Value; 8]> = stack.drain(stack.len() - n..).collect();
-        match rt.call_function(func, &args) {
-            Ok(v) => stack.push(v),
-            Err(e) => {
-                if let Some(flow) = try_throw_error(
-                    rt, ip, handlers, stack, iters, pending, thrown, e,
-                ) {
-                    return Ok(Some(flow));
-                }
-                return Ok(None);
-            }
-        }
-        return Ok(None);
+        let result = rt.call_function(func, &args);
+        return handle_call_result(rt, stack, ip, handlers, iters, pending, thrown, result);
     }
 
     // Static method not found - try as instance method
@@ -622,35 +587,17 @@ pub(crate) fn op_call_static_or_method(
 
     if let Some(recv) = recv {
         if stack.len() < n {
-            return Err(format!("Stack underflow in CallStaticOrMethod"));
+            return Err("Stack underflow in CallStaticOrMethod".to_string());
         }
         let args_start = stack.len() - n;
-        let res = rt.call_method_with_ic_raw(
-            recv,
-            method,
-            method_hash,
-            &stack[args_start..],
-            slot_idx,
-        );
+        let res = rt.call_method_with_ic_raw(recv, method, method_hash, &stack[args_start..], slot_idx);
         stack.truncate(args_start);
-        match res {
-            Ok(v) => stack.push(v),
-            Err(e) => {
-                if let Some(flow) = try_throw_error(
-                    rt, ip, handlers, stack, iters, pending, thrown, e,
-                ) {
-                    return Ok(Some(flow));
-                }
-            }
-        }
-        return Ok(None);
+        return handle_call_result(rt, stack, ip, handlers, iters, pending, thrown, res);
     }
 
     // Neither static method nor variable found - error
-    if let Some(flow) = try_throw_error(
-        rt, ip, handlers, stack, iters, pending, thrown,
-        format!("Undefined identifier: {}", type_name),
-    ) {
+    let err = format!("Undefined identifier: {type_name}");
+    if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, err) {
         return Ok(Some(flow));
     }
     Ok(None)

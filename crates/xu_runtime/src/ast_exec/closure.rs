@@ -103,7 +103,7 @@ pub(super) fn params_all_slotted(stmts: &[Stmt], params: &[xu_ir::Param]) -> boo
             }
             Expr::Dict(entries) => entries.iter().all(|(_, v)| check_expr(v, names)),
             Expr::StructInit(s) => {
-                s.module.as_ref().map_or(true, |m| check_expr(m, names))
+                s.module.as_ref().is_none_or(|m| check_expr(m, names))
                     && s.items.iter().all(|it| match it {
                         xu_ir::StructInitItem::Spread(e) => check_expr(e, names),
                         xu_ir::StructInitItem::Field(_, v) => check_expr(v, names),

@@ -22,9 +22,9 @@ pub(super) fn dispatch(
         }
         MethodKind::ListPush => {
             validate_arity(rt, method, args.len(), 1, 1)?;
-            
+
             let list = expect_list_mut(rt, recv)?;
-            list.push(args[0].clone());
+            list.push(args[0]);
             Ok(Value::UNIT)
         }
         MethodKind::Remove => {
@@ -131,11 +131,11 @@ pub(super) fn dispatch(
         }
         MethodKind::Insert => {
             validate_arity(rt, method, args.len(), 2, 2)?;
-            
+
             let i = to_i64(&args[0])?;
-            let value = args[1].clone();
+            let value = args[1];
             let list = expect_list_mut(rt, recv)?;
-            
+
             if i < 0 || (i as usize) > list.len() {
                 return Err(rt.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
             }
@@ -162,12 +162,12 @@ pub(super) fn dispatch(
         }
         MethodKind::ListReduce => {
             validate_arity(rt, method, args.len(), 2, 2)?;
-            
+
             let f = args[0];
-            let mut acc = args[1].clone();
+            let mut acc = args[1];
             let list = expect_list(rt, recv)?;
             let items = list.to_vec();
-            
+
             for item in items {
                 acc = rt.call_function(f, &[acc, item])?;
             }

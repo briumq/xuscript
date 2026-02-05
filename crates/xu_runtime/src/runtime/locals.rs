@@ -25,9 +25,7 @@ impl Runtime {
     }
 
     pub(crate) fn set_local(&mut self, name: &str, value: Value) -> bool {
-        let value_for_env = value.clone();
         if self.locals.set(name, value) {
-            let _ = value_for_env; // skip env updates for local fast path
             return true;
         }
         false

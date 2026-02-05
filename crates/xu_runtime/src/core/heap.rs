@@ -163,7 +163,7 @@ impl Heap {
         let bit = id.0 & 63;
         self.marks
             .get(word)
-            .map_or(false, |w| (w & (1 << bit)) != 0)
+            .is_some_and(|w| (w & (1 << bit)) != 0)
     }
 
     fn set_mark(&mut self, id: ObjectId) -> bool {
@@ -205,7 +205,7 @@ impl Heap {
         // Process environment stack values
         for env in envs {
             for val in &env.stack {
-                pending_values.push(val.clone());
+                pending_values.push(*val);
             }
         }
 
@@ -213,7 +213,7 @@ impl Heap {
         for ls in locals {
             for frame_values in &ls.values {
                 for val in frame_values {
-                    pending_values.push(val.clone());
+                    pending_values.push(*val);
                 }
             }
         }
@@ -230,38 +230,38 @@ impl Heap {
                                 match obj {
                                     ManagedObject::List(list) => {
                                         for item in list {
-                                            pending_values.push(item.clone());
+                                            pending_values.push(*item);
                                         }
                                     }
                                     ManagedObject::Tuple(list) => {
                                         for item in list {
-                                            pending_values.push(item.clone());
+                                            pending_values.push(*item);
                                         }
                                     }
                                     ManagedObject::Dict(dict) => {
                                         for value in dict.map.values() {
-                                            pending_values.push(value.clone());
+                                            pending_values.push(*value);
                                         }
                                     }
                                     ManagedObject::DictStr(dict) => {
                                         for value in dict.map.values() {
-                                            pending_values.push(value.clone());
+                                            pending_values.push(*value);
                                         }
                                     }
                                     ManagedObject::Struct(s) => {
                                         for field in &s.fields {
-                                            pending_values.push(field.clone());
+                                            pending_values.push(*field);
                                         }
                                     }
                                     ManagedObject::Module(m) => {
                                         for value in m.exports.map.values() {
-                                            pending_values.push(value.clone());
+                                            pending_values.push(*value);
                                         }
                                     }
                                     ManagedObject::Enum(e) => {
                                         let (_, _, payload) = e.as_ref();
                                         for item in payload.iter() {
-                                            pending_values.push(item.clone());
+                                            pending_values.push(*item);
                                         }
                                     }
                                     ManagedObject::Function(func) => {
@@ -270,24 +270,24 @@ impl Heap {
                                             Function::User(uf) => {
                                                 // Mark values in the captured environment
                                                 for val in &uf.env.stack {
-                                                    pending_values.push(val.clone());
+                                                    pending_values.push(*val);
                                                 }
                                                 for frame in &uf.env.frames {
                                                     let scope = frame.scope.borrow();
                                                     for val in &scope.values {
-                                                        pending_values.push(val.clone());
+                                                        pending_values.push(*val);
                                                     }
                                                 }
                                             }
                                             Function::Bytecode(bf) => {
                                                 // Mark values in the captured environment
                                                 for val in &bf.env.stack {
-                                                    pending_values.push(val.clone());
+                                                    pending_values.push(*val);
                                                 }
                                                 for frame in &bf.env.frames {
                                                     let scope = frame.scope.borrow();
                                                     for val in &scope.values {
-                                                        pending_values.push(val.clone());
+                                                        pending_values.push(*val);
                                                     }
                                                 }
                                             }
@@ -331,7 +331,7 @@ impl Heap {
         }
 
         // Truncate trailing empty slots to reduce memory usage
-        while self.objects.last().map_or(false, |o| o.is_none()) {
+        while self.objects.last().is_some_and(|o| o.is_none()) {
             self.objects.pop();
         }
         // Remove truncated indices from free_list

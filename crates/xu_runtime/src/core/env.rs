@@ -74,7 +74,7 @@ impl Env {
                 // Move values from stack to scope.values
                 // After this, both the original env and the closure will use scope.values
                 // through the shared Rc<RefCell<Scope>>.
-                let max_idx = scope.names.values().max().map(|&i| i).unwrap_or(0);
+                let max_idx = scope.names.values().copied().max().unwrap_or(0);
                 let count = if scope.names.is_empty() {
                     0
                 } else {
@@ -275,7 +275,7 @@ impl Env {
             }
         }
 
-        for (_depth, frame) in self.frames.iter().rev().enumerate() {
+        for frame in self.frames.iter().rev() {
             let scope = frame.scope.borrow();
             if let Some(&idx) = scope.names.get(name) {
                 let val = if frame.attached {

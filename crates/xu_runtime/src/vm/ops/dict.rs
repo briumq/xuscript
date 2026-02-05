@@ -98,9 +98,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
     if k.is_int() {
         let key = DictKey::Int(k.as_i64());
         if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
-            let mut hasher = d.map.hasher().build_hasher();
-            key.hash(&mut hasher);
-            let h = hasher.finish();
+            let h = d.map.hasher().hash_one(&key);
             match d.map.raw_entry_mut().from_hash(h, |kk| kk == &key) {
                 hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
                     *o.get_mut() = v;

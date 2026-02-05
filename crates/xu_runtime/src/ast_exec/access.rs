@@ -225,7 +225,7 @@ impl Runtime {
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::Module(m) = self.heap.get(id) {
                 if let Some(v) = m.exports.map.get(field) {
-                    Ok(v.clone())
+                    Ok(*v)
                 } else {
                     Err(self.error(xu_syntax::DiagnosticKind::UnknownMember(
                         field.to_string(),

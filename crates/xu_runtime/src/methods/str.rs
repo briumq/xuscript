@@ -69,7 +69,7 @@ pub(super) fn dispatch(
                 }
             }
             
-            Ok(create_str_value(rt, &out.as_str()))
+            Ok(create_str_value(rt, out.as_str()))
         }
         MethodKind::StrSplit => {
             validate_arity(rt, method, args.len(), 1, 1)?;

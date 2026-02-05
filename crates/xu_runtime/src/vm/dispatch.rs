@@ -265,12 +265,12 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 }
             }
             Op::CallMethod(m_idx, method_hash, n, slot_idx) => {
-                if let Some(flow) = call::op_call_method(rt, bc, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown, *m_idx, *method_hash, *n, slot_idx.clone())? {
+                if let Some(flow) = call::op_call_method(rt, bc, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown, *m_idx, *method_hash, *n, *slot_idx)? {
                     return Ok(flow);
                 }
             }
             Op::CallStaticOrMethod(type_idx, m_idx, method_hash, n, slot_idx) => {
-                if let Some(flow) = call::op_call_static_or_method(rt, bc, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown, *type_idx, *m_idx, *method_hash, *n, slot_idx.clone())? {
+                if let Some(flow) = call::op_call_static_or_method(rt, bc, &mut stack, &mut ip, &mut handlers, &mut iters, &mut pending, &mut thrown, *type_idx, *m_idx, *method_hash, *n, *slot_idx)? {
                     return Ok(flow);
                 }
             }

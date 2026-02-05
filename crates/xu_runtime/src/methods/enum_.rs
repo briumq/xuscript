@@ -22,9 +22,9 @@ fn unsupported_method(rt: &Runtime, method: &str, ty: &Text) -> String {
 }
 
 fn get_payload(rt: &Runtime, payload: &[Value], ty: &str, variant: &str) -> Result<Value, String> {
-    payload.first().cloned().ok_or_else(|| {
+    payload.first().copied().ok_or_else(|| {
         rt.error(xu_syntax::DiagnosticKind::Raw(
-            format!("{}#{} missing value", ty, variant).into(),
+            format!("{ty}#{variant} missing value"),
         ))
     })
 }
@@ -195,7 +195,7 @@ pub(super) fn dispatch(
                 get_payload(rt, &payload, "Option", "some")
             } else if var == "none" {
                 Err(rt.error(xu_syntax::DiagnosticKind::Raw(
-                    format!("Called {}() on None value", method).into(),
+                    format!("Called {method}() on None value"),
                 )))
             } else {
                 Err(unsupported_method(rt, method, &ty))

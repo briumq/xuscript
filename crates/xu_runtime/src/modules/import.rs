@@ -177,14 +177,14 @@ pub(crate) fn import_path(rt: &mut Runtime, path: &str) -> Result<Value, String>
                 continue;
             }
             if let Some(v) = frame0.values.get(*idx) {
-                exports.map.insert(k.clone(), v.clone());
+                exports.map.insert(k.clone(), *v);
             }
         }
         let module_obj = Value::module(
             rt.heap
                 .alloc(crate::core::heap::ManagedObject::Module(Box::new(ModuleInstance { exports }))),
         );
-        rt.loaded_modules.insert(key.clone(), module_obj.clone());
+        rt.loaded_modules.insert(key.clone(), module_obj);
         if trace_import {
             eprintln!("import_done: {}", key);
         }

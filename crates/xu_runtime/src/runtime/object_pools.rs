@@ -47,7 +47,7 @@ impl ObjectPools {
     /// 从栈池获取或创建新栈
     #[inline]
     pub fn get_stack(&mut self) -> Vec<Value> {
-        self.vm_stack_pool.pop().unwrap_or_else(Vec::new)
+        self.vm_stack_pool.pop().unwrap_or_default()
     }
 
     /// 将栈返回到池中
@@ -62,7 +62,7 @@ impl ObjectPools {
     /// 从迭代器池获取或创建新迭代器向量
     #[inline]
     pub fn get_iters(&mut self) -> Vec<IterState> {
-        self.vm_iters_pool.pop().unwrap_or_else(Vec::new)
+        self.vm_iters_pool.pop().unwrap_or_default()
     }
 
     /// 将迭代器向量返回到池中
@@ -75,7 +75,7 @@ impl ObjectPools {
     /// 从处理器池获取或创建新处理器向量
     #[inline]
     pub fn get_handlers(&mut self) -> Vec<Handler> {
-        self.vm_handlers_pool.pop().unwrap_or_else(Vec::new)
+        self.vm_handlers_pool.pop().unwrap_or_default()
     }
 
     /// 将处理器向量返回到池中

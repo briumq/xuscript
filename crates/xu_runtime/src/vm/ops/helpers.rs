@@ -4,10 +4,12 @@
 //! across the ops modules, particularly for stack operations and error handling.
 
 use crate::core::heap::ManagedObject;
+use crate::core::value::ValueExt;
 use crate::core::Value;
 use crate::vm::exception::throw_value;
 use crate::vm::stack::{Handler, IterState, Pending};
 use crate::{Flow, Runtime};
+use xu_ir::BinaryOp;
 
 /// Pop a single value from the stack.
 #[inline(always)]
@@ -25,7 +27,7 @@ pub(crate) fn pop2_stack(stack: &mut Vec<Value>) -> Result<(Value, Value), Strin
 
 /// Get a mutable reference to the last element on the stack.
 #[inline(always)]
-pub(crate) fn peek_last_mut(stack: &mut Vec<Value>) -> Result<&mut Value, String> {
+pub(crate) fn peek_last_mut(stack: &mut [Value]) -> Result<&mut Value, String> {
     stack.last_mut().ok_or_else(|| "Stack underflow".to_string())
 }
 
@@ -50,4 +52,83 @@ pub(crate) fn try_throw_error(
 ) -> Option<Flow> {
     let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(err.into())));
     throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val)
+}
+
+/// Execute a binary operation on the top two stack values.
+/// Pops b, peeks a (in-place), applies op, stores result in a.
+#[inline(always)]
+pub(crate) fn exec_binary_op(
+    rt: &mut Runtime,
+    stack: &mut Vec<Value>,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    op: BinaryOp,
+) -> Result<Option<Flow>, String> {
+    let b = pop_stack(stack)?;
+    let a = peek_last_mut(stack)?;
+    match a.bin_op(op, b) {
+        Ok(r) => {
+            *a = r;
+            Ok(None)
+        }
+        Err(e) => {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
+                return Ok(Some(flow));
+            }
+            Ok(None)
+        }
+    }
+}
+
+/// Handle a Result from an operation: on error, try to throw and return flow.
+/// Returns Ok(Some(flow)) if exception propagates, Ok(None) if caught or success.
+#[inline(always)]
+pub(crate) fn handle_result<T>(
+    rt: &mut Runtime,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    stack: &mut Vec<Value>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    result: Result<T, String>,
+) -> Result<Option<Flow>, String> {
+    match result {
+        Ok(_) => Ok(None),
+        Err(e) => {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
+                return Ok(Some(flow));
+            }
+            Ok(None)
+        }
+    }
+}
+
+/// Handle a Result and push value on success.
+#[inline(always)]
+pub(crate) fn handle_result_push(
+    rt: &mut Runtime,
+    ip: &mut usize,
+    handlers: &mut Vec<Handler>,
+    stack: &mut Vec<Value>,
+    iters: &mut Vec<IterState>,
+    pending: &mut Option<Pending>,
+    thrown: &mut Option<Value>,
+    result: Result<Value, String>,
+) -> Result<Option<Flow>, String> {
+    match result {
+        Ok(v) => {
+            stack.push(v);
+            Ok(None)
+        }
+        Err(e) => {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
+                return Ok(Some(flow));
+            }
+            Ok(None)
+        }
+    }
 }

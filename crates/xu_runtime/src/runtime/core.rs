@@ -160,7 +160,7 @@ impl Runtime {
         let text = self.intern_string(s);
         let val = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(text)));
 
-        let cache = self.caches.bytecode_string_cache.entry(bc_ptr).or_insert_with(Vec::new);
+        let cache = self.caches.bytecode_string_cache.entry(bc_ptr).or_default();
         let idx_usize = idx as usize;
         if cache.len() <= idx_usize {
             cache.resize(idx_usize + 1, None);
@@ -246,7 +246,7 @@ impl Runtime {
         me.map
             .raw_entry()
             .from_hash(hash, |k| k.is_str() && k.as_str() == key)
-            .map(|(_, v)| v.clone())
+            .map(|(_, v)| *v)
     }
 
     pub(crate) fn enum_new_checked(
@@ -288,11 +288,7 @@ impl Runtime {
                 Ok((
                     ty.clone(),
                     variant.clone(),
-                    payload
-                        .iter()
-                        .cloned()
-                        .collect::<Vec<_>>()
-                        .into_boxed_slice(),
+                    payload.to_vec().into_boxed_slice(),
                 ))
             }
             _ => Err(self.error(xu_syntax::DiagnosticKind::Raw("Non-enum object".into()))),
@@ -349,11 +345,6 @@ impl Runtime {
 
     pub(crate) fn canonicalize_import_checked(&self, path: &str) -> Result<String, String> {
         let p = std::path::Path::new(path);
-        let p = if p.is_relative() {
-            p.to_path_buf()
-        } else {
-            p.to_path_buf()
-        };
 
         if !p.exists() {
             return Err(format!("File not found: {path}"));
@@ -426,29 +417,28 @@ impl Runtime {
         }
     }
 
+    // ==================== 辅助方法 ====================
+
+    /// 处理执行流程结果
+    fn handle_exec_flow(&mut self, flow: Flow) -> Result<ExecResult, String> {
+        match flow {
+            Flow::None => {
+                self.invoke_main_if_present()?;
+                Ok(ExecResult { value: None, output: std::mem::take(&mut self.output) })
+            }
+            Flow::Return(v) => Ok(ExecResult { value: Some(v), output: std::mem::take(&mut self.output) }),
+            Flow::Throw(v) => Err(self.format_throw(&v)),
+            Flow::Break | Flow::Continue => Err(self.error(xu_syntax::DiagnosticKind::TopLevelBreakContinue)),
+        }
+    }
+
     pub fn exec_module(&mut self, module: &Module) -> Result<ExecResult, String> {
         self.reset_for_entry_execution();
         self.compiled_locals = Self::collect_func_locals(module);
         self.compiled_locals_idx = Self::index_func_locals(&self.compiled_locals);
         Self::precompile_module(module)?;
         let flow = self.exec_stmts(&module.stmts);
-        match flow {
-            Flow::None => {
-                self.invoke_main_if_present()?;
-                Ok(ExecResult {
-                    value: None,
-                    output: std::mem::take(&mut self.output),
-                })
-            }
-            Flow::Return(v) => Ok(ExecResult {
-                value: Some(v),
-                output: std::mem::take(&mut self.output),
-            }),
-            Flow::Throw(v) => Err(self.format_throw(&v)),
-            Flow::Break | Flow::Continue => {
-                Err(self.error(xu_syntax::DiagnosticKind::TopLevelBreakContinue))
-            }
-        }
+        self.handle_exec_flow(flow)
     }
 
     pub fn exec_executable(&mut self, executable: &Executable) -> Result<ExecResult, String> {
@@ -464,12 +454,8 @@ impl Runtime {
         self.compiled_locals_idx = Self::index_func_locals(&self.compiled_locals);
         for s in &program.module.stmts {
             match s {
-                Stmt::StructDef(def) => {
-                    self.types.structs.insert(def.name.clone(), (**def).clone());
-                }
-                Stmt::EnumDef(def) => {
-                    self.types.enums.insert(def.name.clone(), def.variants.to_vec());
-                }
+                Stmt::StructDef(def) => { self.types.structs.insert(def.name.clone(), (**def).clone()); }
+                Stmt::EnumDef(def) => { self.types.enums.insert(def.name.clone(), def.variants.to_vec()); }
                 _ => {}
             }
         }
@@ -479,23 +465,7 @@ impl Runtime {
         } else {
             self.exec_stmts(&program.module.stmts)
         };
-        match flow {
-            Flow::None => {
-                self.invoke_main_if_present()?;
-                Ok(ExecResult {
-                    value: None,
-                    output: std::mem::take(&mut self.output),
-                })
-            }
-            Flow::Return(v) => Ok(ExecResult {
-                value: Some(v),
-                output: std::mem::take(&mut self.output),
-            }),
-            Flow::Throw(v) => Err(self.format_throw(&v)),
-            Flow::Break | Flow::Continue => {
-                Err(self.error(xu_syntax::DiagnosticKind::TopLevelBreakContinue))
-            }
-        }
+        self.handle_exec_flow(flow)
     }
 
     pub(crate) fn reset_for_entry_execution(&mut self) {
@@ -545,48 +515,25 @@ impl Runtime {
         registry.install_into(&mut self.env, &mut self.heap);
     }
 
-    pub(crate) fn clock_unix_secs(&self) -> i64 {
-        self.caps.clock.unix_secs()
-    }
-
-    pub(crate) fn clock_unix_millis(&self) -> i64 {
-        self.caps.clock.unix_millis()
-    }
-
-    pub(crate) fn clock_mono_micros(&self) -> i64 {
-        self.caps.clock.mono_micros()
-    }
-
-    pub(crate) fn clock_mono_nanos(&self) -> i64 {
-        self.caps.clock.mono_nanos()
-    }
+    pub(crate) fn clock_unix_secs(&self) -> i64 { self.caps.clock.unix_secs() }
+    pub(crate) fn clock_unix_millis(&self) -> i64 { self.caps.clock.unix_millis() }
+    pub(crate) fn clock_mono_micros(&self) -> i64 { self.caps.clock.mono_micros() }
+    pub(crate) fn clock_mono_nanos(&self) -> i64 { self.caps.clock.mono_nanos() }
 
     pub(crate) fn fs_metadata(&self, path: &str) -> Result<(), String> {
-        self.caps
-            .fs
-            .metadata(path)
-            .map_err(|e| format!("Open failed: {e}"))
+        self.caps.fs.metadata(path).map_err(|e| format!("Open failed: {e}"))
     }
 
     pub(crate) fn fs_read_to_string(&self, path: &str) -> Result<String, String> {
-        self.caps
-            .fs
-            .read_to_string(path)
-            .map_err(|e| format!("Read failed: {e}"))
+        self.caps.fs.read_to_string(path).map_err(|e| format!("Read failed: {e}"))
     }
 
     pub(crate) fn fs_read_to_string_import(&self, path: &str) -> Result<String, String> {
-        self.caps
-            .fs
-            .read_to_string(path)
-            .map_err(|e| format!("Import failed: {e}"))
+        self.caps.fs.read_to_string(path).map_err(|e| format!("Import failed: {e}"))
     }
 
     pub(crate) fn fs_stat(&self, path: &str) -> Result<capabilities::FileStat, String> {
-        self.caps
-            .fs
-            .stat(path)
-            .map_err(|e| format!("Import failed: {e}"))
+        self.caps.fs.stat(path).map_err(|e| format!("Import failed: {e}"))
     }
 
     pub(crate) fn rng_next_u64(&mut self) -> u64 {
