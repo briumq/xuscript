@@ -1,5 +1,5 @@
-inner var (a, b) = (1, 2)
+var (a, b) = (1, 2)
 
-func get_a() {
+pub func get_a() {
     return a
 }

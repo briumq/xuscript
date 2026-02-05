@@ -39,7 +39,7 @@ println(dep.value);
         "unexpected error: {err1}"
     );
 
-    fs::write(&dep, "value = 1;").unwrap();
+    fs::write(&dep, "pub let value = 1;").unwrap();
 
     let res2 = rt.exec_module(&module).unwrap();
     assert_eq!(res2.output.trim_end(), "1");

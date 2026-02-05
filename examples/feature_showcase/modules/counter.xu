@@ -37,18 +37,18 @@ Counter does {
     }
 
     // Inner helper method (not exported)
-    inner func _validate_step() -> bool {
+    func _validate_step() -> bool {
         return self.step > 0
     }
 }
 
 // Inner helper function (not exported)
-inner func _log_debug(msg: string) {
+func _log_debug(msg: string) {
     println("[DEBUG] {msg}")
 }
 
 // Public utility function - returns two counters
-func create_counters(name1: string, name2: string) -> [Counter] {
+pub func create_counters(name1: string, name2: string) -> [Counter] {
     let result: [Counter] = []
     result.push(Counter.create(name1))
     result.push(Counter.create(name2))

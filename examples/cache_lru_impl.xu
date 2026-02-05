@@ -28,11 +28,11 @@ func unwrap_or(opt: Option[int], default: int) -> int {
 
 Lru does {
     // 获取当前时间戳 (毫秒)
-    inner func now() -> int {
+    func now() -> int {
         return time_millis()
     }
 
-    func put(k: string, v: int, ttl_ms: int = 0) {
+    pub func put(k: string, v: int, ttl_ms: int = 0) {
         let exp = if ttl_ms > 0 { self.now() + ttl_ms } else { 0 }
 
         // 1. 查找已存在
@@ -55,7 +55,7 @@ Lru does {
         }
     }
 
-    func get(k: string) -> Option[int] {
+    pub func get(k: string) -> Option[int] {
         for i in 0..self.data.length() {
             if self.data[i].k == k {
                 let e = self.data[i]
@@ -80,7 +80,7 @@ Lru does {
         return Option#none
     }
 
-    func stats_info() -> string {
+    pub func stats_info() -> string {
         let total = self.stats.hits + self.stats.misses
         let hits_f = self.stats.hits * 1.0
         let total_f = total * 1.0

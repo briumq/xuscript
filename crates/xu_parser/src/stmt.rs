@@ -14,10 +14,10 @@ impl<'a, 'b> Parser<'a, 'b> {
     /// Parse a single statement.
     pub(super) fn parse_stmt(&mut self) -> Option<Stmt> {
         self.skip_trivia();
-        let mut vis = Visibility::Public;
-        if self.at(TokenKind::KwInner) {
+        let mut vis = Visibility::Inner;
+        if self.at(TokenKind::KwPub) {
             self.bump();
-            vis = Visibility::Inner;
+            vis = Visibility::Public;
             self.skip_trivia();
         }
         match self.peek_kind() {
@@ -233,10 +233,10 @@ impl<'a, 'b> Parser<'a, 'b> {
                 break;
             }
 
-            let mut item_vis = Visibility::Public;
-            if self.at(TokenKind::KwInner) {
+            let mut item_vis = Visibility::Inner;
+            if self.at(TokenKind::KwPub) {
                 self.bump();
-                item_vis = Visibility::Inner;
+                item_vis = Visibility::Public;
                 self.skip_trivia();
             }
 
@@ -472,10 +472,10 @@ impl<'a, 'b> Parser<'a, 'b> {
             if self.at(TokenKind::RBrace) {
                 break;
             }
-            let mut fvis = Visibility::Public;
-            if self.at(TokenKind::KwInner) {
+            let mut fvis = Visibility::Inner;
+            if self.at(TokenKind::KwPub) {
                 self.bump();
-                fvis = Visibility::Inner;
+                fvis = Visibility::Public;
                 self.skip_trivia();
             }
 

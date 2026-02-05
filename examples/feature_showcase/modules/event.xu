@@ -81,12 +81,12 @@ Event does {
 }
 
 // Inner validation function
-inner func _validate_event_name(name: string) -> bool {
+func _validate_event_name(name: string) -> bool {
     return name.length() > 0 && name.length() <= 100
 }
 
 // Public function to process event - returns tuple (success: bool, message: string)
-func process_event(event: Event) -> (bool, string) {
+pub func process_event(event: Event) -> (bool, string) {
     if !_validate_event_name(event.name) {
         return (false, "Invalid event name")
     }

@@ -109,6 +109,7 @@ pub enum TokenKind {
     KwContinue,
     KwDoes,
     KwInner,
+    KwPub,
     KwStatic,
     KwSelf,
     KwUse,
@@ -174,6 +175,7 @@ impl TokenKind {
                 | TokenKind::KwContinue
                 | TokenKind::KwDoes
                 | TokenKind::KwInner
+                | TokenKind::KwPub
                 | TokenKind::KwStatic
                 | TokenKind::KwSelf
                 | TokenKind::KwUse

@@ -66,12 +66,12 @@ Storage does {
 }
 
 // Inner helper for key validation
-inner func _is_valid_key(key: string) -> bool {
+func _is_valid_key(key: string) -> bool {
     return key.length() > 0 && key.length() <= 256
 }
 
 // Public batch operations
-func batch_put(storage: Storage, pairs: [(string, string)]) -> int {
+pub func batch_put(storage: Storage, pairs: [(string, string)]) -> int {
     var success_count = 0
     for pair in pairs {
         let (key, value) = pair
@@ -85,7 +85,7 @@ func batch_put(storage: Storage, pairs: [(string, string)]) -> int {
     return success_count
 }
 
-func batch_get(storage: Storage, keys: [string]) -> {string: string} {
+pub func batch_get(storage: Storage, keys: [string]) -> {string: string} {
     let result: {string: string} = {}
     for key in keys {
         let (found, value) = storage.get_value(key)

@@ -257,7 +257,7 @@ BankService does {
 // Helper Functions
 // ============================================
 
-inner func _section(title: string) {
+func _section(title: string) {
     println("")
     println("--- {title} ---")
 }

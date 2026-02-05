@@ -131,28 +131,28 @@ pub(crate) fn import_path(rt: &mut Runtime, path: &str) -> Result<Value, String>
         rt.env = saved_env;
         exec_result?;
 
-        let mut inner_names: HashSet<String> = HashSet::new();
+        let mut public_names: HashSet<String> = HashSet::new();
         for s in module.stmts.iter() {
             match s {
                 xu_ir::Stmt::FuncDef(def) => {
-                    if def.vis == xu_ir::Visibility::Inner {
-                        inner_names.insert(def.name.clone());
+                    if def.vis == xu_ir::Visibility::Public {
+                        public_names.insert(def.name.clone());
                     }
                 }
                 xu_ir::Stmt::StructDef(def) => {
-                    if def.vis == xu_ir::Visibility::Inner {
-                        inner_names.insert(def.name.clone());
+                    if def.vis == xu_ir::Visibility::Public {
+                        public_names.insert(def.name.clone());
                     }
                 }
                 xu_ir::Stmt::EnumDef(def) => {
-                    if def.vis == xu_ir::Visibility::Inner {
-                        inner_names.insert(def.name.clone());
+                    if def.vis == xu_ir::Visibility::Public {
+                        public_names.insert(def.name.clone());
                     }
                 }
                 xu_ir::Stmt::Assign(a) => {
-                    if a.decl.is_some() && a.vis == xu_ir::Visibility::Inner {
+                    if a.decl.is_some() && a.vis == xu_ir::Visibility::Public {
                         if let xu_ir::Expr::Ident(name, _) = &a.target {
-                            inner_names.insert(name.clone());
+                            public_names.insert(name.clone());
                         }
                     }
                 }
@@ -173,7 +173,7 @@ pub(crate) fn import_path(rt: &mut Runtime, path: &str) -> Result<Value, String>
             {
                 continue;
             }
-            if inner_names.contains(k) {
+            if !public_names.contains(k) {
                 continue;
             }
             if let Some(v) = frame0.values.get(*idx) {

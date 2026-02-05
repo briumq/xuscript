@@ -33,7 +33,7 @@ User does {
     }
 
     // 内部方法
-    inner func validate() -> bool {
+    func validate() -> bool {
         return self.name.length() > 0 && self.age >= 0
     }
 }

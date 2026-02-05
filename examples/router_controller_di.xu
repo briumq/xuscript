@@ -1,4 +1,4 @@
-inner func not_found() { println("404") }
+func not_found() { println("404") }
 
 func public_handle(path: string) {
     match path {

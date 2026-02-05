@@ -7,7 +7,7 @@ use "examples/bank_system/models/customer.xu" as customer_mod
 use "examples/bank_system/services/bank_service.xu" as bank_svc_mod
 
 // Helper function for section headers
-inner func _section(title: string) {
+func _section(title: string) {
     println("")
     println("--- {title} ---")
 }

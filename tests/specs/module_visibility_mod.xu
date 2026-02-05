@@ -1,9 +1,9 @@
-inner var counter = 0
+var counter = 0
 
-func public() {
+pub func public() {
     __builtin_assert(true)
 }
 
-inner func internal() {
+func internal() {
     __builtin_assert(true)
 }

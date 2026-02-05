@@ -9,7 +9,7 @@ use "examples/feature_showcase/modules/storage.xu" as storage_mod
 DemoStatus with [ running | passed | failed(reason: string) ]
 
 // Inner helper function
-inner func _print_section(title: string) {
+func _print_section(title: string) {
     println("")
     println("=== {title} ===")
 }

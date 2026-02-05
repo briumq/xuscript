@@ -120,9 +120,9 @@ fn import_does_not_merge_exports_into_env_and_returns_dict() {
     let imported = dir.join("lib.xu");
 
     let imported_src = r#"
-value = 7;
+pub let value = 7;
 
-func add_one(n) {
+pub func add_one(n) {
   return n + 1;
 }
 "#;
@@ -186,7 +186,7 @@ fn relative_import_resolves_against_entry_file_dir() {
     let dep = dir.join("dep.xu");
 
     fs::write(&main_file, "println(\"main\");").unwrap();
-    fs::write(&dep, "value = 1;").unwrap();
+    fs::write(&dep, "pub let value = 1;").unwrap();
 
     let main_src = r#"
 use "dep.xu" as dep;
@@ -220,7 +220,7 @@ println(inn.sub_value);
 "#,
     )
     .unwrap();
-    fs::write(&inner, "sub_value = 2;").unwrap();
+    fs::write(&inner, "pub let sub_value = 2;").unwrap();
 
     let main_src = format!(
         r#"
@@ -247,7 +247,7 @@ fn underscore_prefixed_names_are_not_exported() {
         &imported,
         r#"
 _private = 1;
-public = 2;
+pub let public = 2;
 "#,
     )
     .unwrap();

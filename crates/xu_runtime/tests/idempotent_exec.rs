@@ -34,11 +34,11 @@ fn exec_module_is_idempotent_across_runs() {
         r#"
 internal = [1];
 
-func get() {
+pub func get() {
   return internal[0];
 }
 
-func clear() {
+pub func clear() {
   internal = [];
 }
 "#
