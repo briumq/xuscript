@@ -11,7 +11,9 @@ pub enum Type {
     Int,
     Float,
     Text,
-    Function,
+    /// Function type with parameter types and optional return type.
+    /// (params, return_type) - None return means unknown/any return type.
+    Function(Box<[TypeId]>, Option<TypeId>),
     Range,
     List(TypeId),
     Dict(TypeId, TypeId),
@@ -47,7 +49,7 @@ impl TypeInterner {
             Type::Int,
             Type::Float,
             Type::Text,
-            Type::Function,
+            Type::Function(Box::new([]), None),
         ] {
             this.intern(ty);
         }
@@ -76,7 +78,20 @@ impl TypeInterner {
             Type::Int => "int".to_string(),
             Type::Float => "float".to_string(),
             Type::Text => "text".to_string(),
-            Type::Function => "func".to_string(),
+            Type::Function(params, ret) => {
+                let params_str = params
+                    .iter()
+                    .map(|p| self.name(*p))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if let Some(r) = ret {
+                    format!("func({}) -> {}", params_str, self.name(*r))
+                } else if params.is_empty() {
+                    "func".to_string()
+                } else {
+                    format!("func({})", params_str)
+                }
+            }
             Type::Range => "range".to_string(),
             Type::List(elem) => format!("list[{}]", self.name(*elem)),
             Type::Dict(k, v) => format!("dict[{}, {}]", self.name(*k), self.name(*v)),
@@ -100,7 +115,7 @@ impl TypeInterner {
             "int" => Some(self.intern(Type::Int)),
             "float" => Some(self.intern(Type::Float)),
             "text" | "str" | "string" => Some(self.intern(Type::Text)),
-            "func" => Some(self.intern(Type::Function)),
+            "func" => Some(self.intern(Type::Function(Box::new([]), None))),
             "range" => Some(self.intern(Type::Range)),
             _ => None,
         }

@@ -368,6 +368,8 @@ fn analyze_type_stmts(
             }
             Stmt::Expr(e) => {
                 let _ = infer_type(e, func_sigs, structs, type_env, interner);
+                // Check closure call argument types
+                check_closure_call_args(e, func_sigs, structs, type_env, finder, interner, out);
             }
             Stmt::Error(_) => {}
             // Removed Try/Throw cases
@@ -436,7 +438,19 @@ pub fn infer_type(
             }
             out
         }
-        Expr::FuncLit(_) => Some(interner.intern(Type::Function)),
+        Expr::FuncLit(f) => {
+            let param_tys: Box<[TypeId]> = f
+                .params
+                .iter()
+                .map(|p| {
+                    p.ty.as_ref()
+                        .map(|t| typeref_to_typeid(interner, t))
+                        .unwrap_or_else(|| interner.intern(Type::Any))
+                })
+                .collect();
+            let ret_ty = f.return_ty.as_ref().map(|t| typeref_to_typeid(interner, t));
+            Some(interner.intern(Type::Function(param_tys, ret_ty)))
+        }
         Expr::Dict(entries) => {
             if entries.is_empty() {
                 let text = interner.intern(Type::Text);
@@ -603,7 +617,15 @@ pub fn infer_type(
                     return None;
                 }
             }
-            infer_type(&c.callee, func_sigs, structs, type_env, interner)
+            // If callee is a function type (closure variable), use its return type if available
+            let callee_ty = infer_type(&c.callee, func_sigs, structs, type_env, interner);
+            if let Some(tid) = callee_ty {
+                if let Type::Function(_, ret_ty) = interner.get(tid) {
+                    // Return the closure's return type, or None if not specified
+                    return *ret_ty;
+                }
+            }
+            callee_ty
         }
         Expr::MethodCall(m) => {
             let ot = infer_type(&m.receiver, func_sigs, structs, type_env, interner);
@@ -703,6 +725,98 @@ fn typeref_to_typeid(interner: &mut TypeInterner, t: &TypeRef) -> TypeId {
         interner.intern(Type::Any)
     } else {
         interner.intern(Type::Struct(t.name.clone()))
+    }
+}
+
+/// Check closure call argument types and report mismatches.
+#[allow(clippy::too_many_arguments)]
+fn check_closure_call_args(
+    expr: &Expr,
+    func_sigs: &HashMap<String, (Vec<Option<TypeId>>, Option<TypeId>)>,
+    structs: &StructMap,
+    type_env: &Vec<HashMap<String, TypeId>>,
+    finder: &mut Finder<'_>,
+    interner: &mut TypeInterner,
+    out: &mut Vec<Diagnostic>,
+) {
+    match expr {
+        Expr::Call(c) => {
+            // First check nested expressions
+            check_closure_call_args(&c.callee, func_sigs, structs, type_env, finder, interner, out);
+            for arg in c.args.iter() {
+                check_closure_call_args(arg, func_sigs, structs, type_env, finder, interner, out);
+            }
+
+            // Check if callee is a closure variable
+            if let Some(callee_tid) = infer_type(&c.callee, func_sigs, structs, type_env, interner) {
+                if let Type::Function(param_tys, _) = interner.get(callee_tid).clone() {
+                    // Check each argument against expected parameter type
+                    for (idx, arg) in c.args.iter().enumerate() {
+                        if idx >= param_tys.len() {
+                            break;
+                        }
+                        let expected = param_tys[idx];
+                        // Skip if expected is Any (untyped parameter)
+                        if matches!(interner.get(expected), Type::Any) {
+                            continue;
+                        }
+                        if let Some(actual) = infer_type(arg, func_sigs, structs, type_env, interner) {
+                            if type_mismatch_id(interner, expected, actual) {
+                                let en = interner.name(expected);
+                                let an = interner.name(actual);
+                                let d = Diagnostic::error_kind(
+                                    DiagnosticKind::TypeMismatch {
+                                        expected: en,
+                                        actual: an,
+                                    },
+                                    finder.next_significant_span(),
+                                )
+                                .with_code(codes::TYPE_MISMATCH)
+                                .with_help(format!("Argument {} has wrong type", idx + 1));
+                                out.push(d);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Recursively check other expression types
+        Expr::Binary { left, right, .. } => {
+            check_closure_call_args(left, func_sigs, structs, type_env, finder, interner, out);
+            check_closure_call_args(right, func_sigs, structs, type_env, finder, interner, out);
+        }
+        Expr::Unary { expr, .. } => {
+            check_closure_call_args(expr, func_sigs, structs, type_env, finder, interner, out);
+        }
+        Expr::Member(m) => {
+            check_closure_call_args(&m.object, func_sigs, structs, type_env, finder, interner, out);
+        }
+        Expr::Index(i) => {
+            check_closure_call_args(&i.object, func_sigs, structs, type_env, finder, interner, out);
+            check_closure_call_args(&i.index, func_sigs, structs, type_env, finder, interner, out);
+        }
+        Expr::MethodCall(m) => {
+            check_closure_call_args(&m.receiver, func_sigs, structs, type_env, finder, interner, out);
+            for arg in m.args.iter() {
+                check_closure_call_args(arg, func_sigs, structs, type_env, finder, interner, out);
+            }
+        }
+        Expr::List(items) => {
+            for item in items.iter() {
+                check_closure_call_args(item, func_sigs, structs, type_env, finder, interner, out);
+            }
+        }
+        Expr::Dict(entries) => {
+            for (_, v) in entries.iter() {
+                check_closure_call_args(v, func_sigs, structs, type_env, finder, interner, out);
+            }
+        }
+        Expr::IfExpr(i) => {
+            check_closure_call_args(&i.cond, func_sigs, structs, type_env, finder, interner, out);
+            check_closure_call_args(&i.then_expr, func_sigs, structs, type_env, finder, interner, out);
+            check_closure_call_args(&i.else_expr, func_sigs, structs, type_env, finder, interner, out);
+        }
+        _ => {}
     }
 }
 
