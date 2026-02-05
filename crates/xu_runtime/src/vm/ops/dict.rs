@@ -4,13 +4,14 @@ use crate::core::Value;
 use crate::core::heap::ManagedObject;
 use crate::core::value::{DictKey, TAG_DICT, TAG_STR, TAG_UNIT, ELEMENTS_MAX};
 use crate::errors::messages::{NOT_A_DICT, NOT_A_STRING};
+use crate::vm::ops::helpers::pop_stack;
 
 use crate::Runtime;
 
 pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), String> {
-    let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let k = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let recv = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let v = pop_stack(stack)?;
+    let k = pop_stack(stack)?;
+    let recv = pop_stack(stack)?;
 
     if recv.get_tag() != TAG_DICT {
         return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
@@ -119,8 +120,8 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
 }
 
 pub(crate) fn op_dict_merge(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), String> {
-    let other = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let recv = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let other = pop_stack(stack)?;
+    let recv = pop_stack(stack)?;
 
     if recv.get_tag() != TAG_DICT {
         return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {

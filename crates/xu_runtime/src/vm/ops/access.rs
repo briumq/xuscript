@@ -16,7 +16,7 @@ use crate::core::value::{TAG_DICT, TAG_LIST, TAG_STR, TAG_TUPLE, ELEMENTS_MAX};
 use crate::core::Value;
 use crate::errors::messages::NOT_A_LIST;
 use crate::runtime::{DictCacheIntLast, DictCacheLast};
-use crate::vm::exception::throw_value;
+use crate::vm::ops::helpers::{pop_stack, pop2_stack, try_throw_error};
 use crate::vm::stack::{Handler, IterState, Pending};
 use crate::{Flow, Runtime};
 
@@ -34,7 +34,7 @@ pub(crate) fn op_get_member(
     idx: u32,
     slot_idx: Option<usize>,
 ) -> Result<Option<Flow>, String> {
-    let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let obj = pop_stack(stack)?;
     let tag = obj.get_tag();
     let field = rt.get_const_str(idx, &bc.constants);
 
@@ -62,9 +62,8 @@ pub(crate) fn op_get_member(
                 match rt.get_member_with_ic_raw(obj, field, slot_idx) {
                     Ok(v) => stack.push(v),
                     Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                        if let Some(flow) = try_throw_error(
+                            rt, ip, handlers, stack, iters, pending, thrown, e,
                         ) {
                             return Ok(Some(flow));
                         }
@@ -81,9 +80,8 @@ pub(crate) fn op_get_member(
         match rt.get_member_with_ic_raw(obj, field, slot_idx) {
             Ok(v) => stack.push(v),
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -106,8 +104,7 @@ pub(crate) fn op_get_index(
     thrown: &mut Option<Value>,
     slot_cell: Option<usize>,
 ) -> Result<Option<Flow>, String> {
-    let idx = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let (obj, idx) = pop2_stack(stack)?;
     let tag = obj.get_tag();
 
     if tag == TAG_DICT {
@@ -197,9 +194,8 @@ pub(crate) fn op_get_index(
         match rt.get_index_with_ic_raw(obj, idx, slot_cell) {
             Ok(v) => stack.push(v),
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -217,9 +213,8 @@ pub(crate) fn op_get_index(
                 match rt.get_index_with_ic_raw(obj, idx, slot_cell) {
                     Ok(v) => stack.push(v),
                     Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                        if let Some(flow) = throw_value(
-                            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                        if let Some(flow) = try_throw_error(
+                            rt, ip, handlers, stack, iters, pending, thrown, e,
                         ) {
                             return Ok(Some(flow));
                         }
@@ -243,9 +238,8 @@ pub(crate) fn op_get_index(
         match rt.get_index_with_ic_raw(obj, idx, slot_cell) {
             Ok(v) => stack.push(v),
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -255,9 +249,8 @@ pub(crate) fn op_get_index(
         match rt.get_index_with_ic_raw(obj, idx, slot_cell) {
             Ok(v) => stack.push(v),
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -282,13 +275,11 @@ pub(crate) fn op_assign_member(
     idx: u32,
     op_type: xu_ir::AssignOp,
 ) -> Result<Option<Flow>, String> {
-    let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let rhs = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let (rhs, obj) = pop2_stack(stack)?;
     let field = rt.get_const_str(idx, &bc.constants);
     if let Err(e) = rt.assign_member(obj, field, op_type, rhs) {
-        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-        if let Some(flow) = throw_value(
-            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+        if let Some(flow) = try_throw_error(
+            rt, ip, handlers, stack, iters, pending, thrown, e,
         ) {
             return Ok(Some(flow));
         }
@@ -309,13 +300,12 @@ pub(crate) fn op_assign_index(
     thrown: &mut Option<Value>,
     op: xu_ir::AssignOp,
 ) -> Result<Option<Flow>, String> {
-    let idxv = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let obj = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let rhs = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let idxv = pop_stack(stack)?;
+    let obj = pop_stack(stack)?;
+    let rhs = pop_stack(stack)?;
     if let Err(e) = rt.assign_index(obj, idxv, op, rhs) {
-        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-        if let Some(flow) = throw_value(
-            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+        if let Some(flow) = try_throw_error(
+            rt, ip, handlers, stack, iters, pending, thrown, e,
         ) {
             return Ok(Some(flow));
         }
@@ -354,9 +344,8 @@ pub(crate) fn op_get_static_field(
         match rt.get_member_with_ic_raw(obj, field_name, None) {
             Ok(v) => stack.push(v),
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -367,9 +356,8 @@ pub(crate) fn op_get_static_field(
 
     // Neither static field nor global variable found
     let err_msg = format!("Undefined static field: {}.{}", type_name, field_name);
-    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(err_msg.into())));
-    if let Some(flow) = throw_value(
-        rt, ip, handlers, stack, iters, pending, thrown, err_val,
+    if let Some(flow) = try_throw_error(
+        rt, ip, handlers, stack, iters, pending, thrown, err_msg,
     ) {
         return Ok(Some(flow));
     }
@@ -393,7 +381,7 @@ pub(crate) fn op_set_static_field(
 ) -> Result<Option<Flow>, String> {
     let type_name = rt.get_const_str(type_idx, &bc.constants);
     let field_name = rt.get_const_str(field_idx, &bc.constants);
-    let value = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let value = pop_stack(stack)?;
 
     // First check if it's a static field
     let key = (type_name.to_string(), field_name.to_string());
@@ -405,9 +393,8 @@ pub(crate) fn op_set_static_field(
     // Not a static field - try as instance member assignment on a global variable
     if let Some(obj) = rt.env.get(type_name) {
         if let Err(e) = rt.assign_member(obj, field_name, xu_ir::AssignOp::Set, value) {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(
-                rt, ip, handlers, stack, iters, pending, thrown, err_val,
+            if let Some(flow) = try_throw_error(
+                rt, ip, handlers, stack, iters, pending, thrown, e,
             ) {
                 return Ok(Some(flow));
             }
@@ -417,9 +404,8 @@ pub(crate) fn op_set_static_field(
 
     // Neither static field nor global variable found
     let err_msg = format!("Undefined static field: {}.{}", type_name, field_name);
-    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(err_msg.into())));
-    if let Some(flow) = throw_value(
-        rt, ip, handlers, stack, iters, pending, thrown, err_val,
+    if let Some(flow) = try_throw_error(
+        rt, ip, handlers, stack, iters, pending, thrown, err_msg,
     ) {
         return Ok(Some(flow));
     }
@@ -437,7 +423,7 @@ pub(crate) fn op_init_static_field(
 ) -> Result<(), String> {
     let type_name = rt.get_const_str(type_idx, &bc.constants);
     let field_name = rt.get_const_str(field_idx, &bc.constants);
-    let value = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let value = pop_stack(stack)?;
 
     let key = (type_name.to_string(), field_name.to_string());
     rt.types.static_fields.insert(key, value);

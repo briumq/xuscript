@@ -11,6 +11,9 @@ pub mod type_check;
 mod type_system;
 mod cache_manager;
 mod object_pools;
+mod locals;
+mod precompile;
+mod method_call;
 
 // Re-export all public types
 pub use config::{ExecResult, Flow, RuntimeConfig};

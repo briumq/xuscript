@@ -14,6 +14,7 @@ use crate::core::heap::ManagedObject;
 use crate::core::value::ValueExt;
 use crate::core::Value;
 use crate::vm::exception::throw_value;
+use crate::vm::ops::helpers::{peek_last_mut, pop_stack, try_throw_error};
 use crate::vm::stack::{add_with_heap, Handler, IterState, Pending};
 use crate::{Flow, Runtime};
 use xu_ir::BinaryOp;
@@ -29,8 +30,8 @@ pub(crate) fn op_add(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack.last_mut().ok_or_else(|| "Stack underflow".to_string())?;
+    let b = pop_stack(stack)?;
+    let a = peek_last_mut(stack)?;
     if a.is_int() && b.is_int() {
         let res = a.as_i64().wrapping_add(b.as_i64());
         *a = Value::from_i64(res);
@@ -39,8 +40,7 @@ pub(crate) fn op_add(
     match add_with_heap(rt, *a, b) {
         Ok(r) => *a = r,
         Err(e) => {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
                 return Ok(Some(flow));
             }
         }
@@ -59,13 +59,12 @@ pub(crate) fn op_sub(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack.last_mut().ok_or_else(|| "Stack underflow".to_string())?;
+    let b = pop_stack(stack)?;
+    let a = peek_last_mut(stack)?;
     match a.bin_op(BinaryOp::Sub, b) {
         Ok(r) => *a = r,
         Err(e) => {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
                 return Ok(Some(flow));
             }
             return Ok(None);
@@ -85,13 +84,12 @@ pub(crate) fn op_mul(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack.last_mut().ok_or_else(|| "Stack underflow".to_string())?;
+    let b = pop_stack(stack)?;
+    let a = peek_last_mut(stack)?;
     match a.bin_op(BinaryOp::Mul, b) {
         Ok(r) => *a = r,
         Err(e) => {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
                 return Ok(Some(flow));
             }
             return Ok(None);
@@ -111,13 +109,12 @@ pub(crate) fn op_div(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack.last_mut().ok_or_else(|| "Stack underflow".to_string())?;
+    let b = pop_stack(stack)?;
+    let a = peek_last_mut(stack)?;
     match a.bin_op(BinaryOp::Div, b) {
         Ok(r) => *a = r,
         Err(e) => {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
                 return Ok(Some(flow));
             }
             return Ok(None);
@@ -137,8 +134,8 @@ pub(crate) fn op_mod(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack.last_mut().ok_or_else(|| "Stack underflow".to_string())?;
+    let b = pop_stack(stack)?;
+    let a = peek_last_mut(stack)?;
     // Fast path for integers
     if a.is_int() && b.is_int() {
         let bv = b.as_i64();
@@ -146,8 +143,7 @@ pub(crate) fn op_mod(
             *a = Value::from_i64(a.as_i64() % bv);
             return Ok(None);
         } else {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str("Division by zero".into())));
-            if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, "Division by zero".to_string()) {
                 return Ok(Some(flow));
             }
             return Ok(None);
@@ -156,8 +152,7 @@ pub(crate) fn op_mod(
     match a.bin_op(BinaryOp::Mod, b) {
         Ok(r) => *a = r,
         Err(e) => {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
                 return Ok(Some(flow));
             }
             return Ok(None);
@@ -177,13 +172,12 @@ pub(crate) fn op_and(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack.last_mut().ok_or_else(|| "Stack underflow".to_string())?;
+    let b = pop_stack(stack)?;
+    let a = peek_last_mut(stack)?;
     match a.bin_op(BinaryOp::And, b) {
         Ok(r) => *a = r,
         Err(e) => {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
                 return Ok(Some(flow));
             }
             return Ok(None);
@@ -203,13 +197,12 @@ pub(crate) fn op_or(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack.last_mut().ok_or_else(|| "Stack underflow".to_string())?;
+    let b = pop_stack(stack)?;
+    let a = peek_last_mut(stack)?;
     match a.bin_op(BinaryOp::Or, b) {
         Ok(r) => *a = r,
         Err(e) => {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
                 return Ok(Some(flow));
             }
             return Ok(None);
@@ -229,7 +222,7 @@ pub(crate) fn op_not(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let v = pop_stack(stack)?;
     if v.is_bool() {
         stack.push(Value::from_bool(!v.as_bool()));
         return Ok(None);

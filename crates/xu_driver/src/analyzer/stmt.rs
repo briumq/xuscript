@@ -39,10 +39,10 @@ impl<'a, 'b> AnalyzeContext<'a, 'b> {
             {
                 report_shadowing(&p.name, self.finder, self.out);
             }
-            let idx = self.scope.last().expect("Scope stack underflow").len();
-            self.scope.last_mut().expect("Scope stack underflow").insert(p.name.clone(), idx);
+            let idx = self.scope.last().expect("scope stack should not be empty").len();
+            self.scope.last_mut().expect("scope stack should not be empty").insert(p.name.clone(), idx);
             if let Some(sp) = self.finder.find_name_or_next(&p.name) {
-                self.def_spans.last_mut().expect("Def spans stack underflow").insert(p.name.clone(), sp);
+                self.def_spans.last_mut().expect("def_spans stack should not be empty").insert(p.name.clone(), sp);
             }
             if let Some(d) = &mut p.default {
                 analyze_expr(d, self.funcs, self.scope, self.finder, self.out);
@@ -52,8 +52,8 @@ impl<'a, 'b> AnalyzeContext<'a, 'b> {
 
     /// 分析函数定义（通用逻辑）
     fn analyze_func_def_common(&mut self, def: &mut FuncDef) {
-        let idx = self.scope.last().expect("Scope stack underflow").len();
-        self.scope.last_mut().expect("Scope stack underflow").insert(def.name.clone(), idx);
+        let idx = self.scope.last().expect("scope stack should not be empty").len();
+        self.scope.last_mut().expect("scope stack should not be empty").insert(def.name.clone(), idx);
         self.scope.push(HashMap::new());
         self.def_spans.push(HashMap::new());
         self.analyze_func_params(&mut def.params);
@@ -179,10 +179,10 @@ impl<'a, 'b> AnalyzeContext<'a, 'b> {
         {
             report_shadowing(&alias, self.finder, self.out);
         }
-        let idx = self.scope.last().expect("Scope stack underflow").len();
-        self.scope.last_mut().expect("Scope stack underflow").insert(alias.clone(), idx);
+        let idx = self.scope.last().expect("scope stack should not be empty").len();
+        self.scope.last_mut().expect("scope stack should not be empty").insert(alias.clone(), idx);
         if let Some(sp) = self.finder.find_name_or_next(&alias) {
-            self.def_spans.last_mut().expect("Def spans stack underflow").insert(alias, sp);
+            self.def_spans.last_mut().expect("def_spans stack should not be empty").insert(alias, sp);
         }
     }
 
@@ -248,14 +248,14 @@ impl<'a, 'b> AnalyzeContext<'a, 'b> {
         analyze_expr(&mut s.iter, self.funcs, self.scope, self.finder, self.out);
         // 注意：这里不检查遮蔽，因为 for 循环变量语义上有自己的作用域
         // 连续的 for 循环使用相同变量名是常见模式
-        let idx = if let Some(&existing_idx) = self.scope.last().expect("Scope stack underflow").get(&s.var) {
+        let idx = if let Some(&existing_idx) = self.scope.last().expect("scope stack should not be empty").get(&s.var) {
             existing_idx
         } else {
-            self.scope.last().expect("Scope stack underflow").len()
+            self.scope.last().expect("scope stack should not be empty").len()
         };
-        self.scope.last_mut().expect("Scope stack underflow").insert(s.var.clone(), idx);
+        self.scope.last_mut().expect("scope stack should not be empty").insert(s.var.clone(), idx);
         if let Some(sp) = self.finder.find_name_or_next(&s.var) {
-            self.def_spans.last_mut().expect("Def spans stack underflow").insert(s.var.clone(), sp);
+            self.def_spans.last_mut().expect("def_spans stack should not be empty").insert(s.var.clone(), sp);
         }
         self.analyze_stmts_impl(&mut s.body);
     }
@@ -336,13 +336,13 @@ impl<'a, 'b> AnalyzeContext<'a, 'b> {
                 slot.set(Some(r));
                 s.slot = Some(r);
             } else {
-                let idx = self.scope.last().expect("Scope stack underflow").len();
-                self.scope.last_mut().expect("Scope stack underflow").insert(name.clone(), idx);
+                let idx = self.scope.last().expect("scope stack should not be empty").len();
+                self.scope.last_mut().expect("scope stack should not be empty").insert(name.clone(), idx);
                 let r = (0, idx as u32);
                 slot.set(Some(r));
                 s.slot = Some(r);
                 if let Some(sp) = self.finder.find_name_or_next(name) {
-                    self.def_spans.last_mut().expect("Def spans stack underflow").insert(name.clone(), sp);
+                    self.def_spans.last_mut().expect("def_spans stack should not be empty").insert(name.clone(), sp);
                 }
             }
         } else {
@@ -458,10 +458,10 @@ pub(crate) fn analyze_local_stmts_shim(
                         }
                     }
                     if a.decl.is_some() || resolved.is_none() {
-                        let idx = scope.last().expect("Scope stack underflow").len();
+                        let idx = scope.last().expect("scope stack should not be empty").len();
                         scope
                             .last_mut()
-                            .expect("Scope stack underflow")
+                            .expect("scope stack should not be empty")
                             .insert(name.clone(), idx);
                         let r = (0, idx as u32);
                         slot.set(Some(r));

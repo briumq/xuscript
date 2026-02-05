@@ -12,7 +12,7 @@ use xu_ir::{Bytecode, Op};
 use crate::core::heap::ManagedObject;
 use crate::core::value::{DictKey, Function, TAG_DICT, TAG_STR};
 use crate::core::Value;
-use crate::vm::exception::throw_value;
+use crate::vm::ops::helpers::{pop_stack, try_throw_error};
 use crate::vm::fast::run_bytecode_fast_params_only;
 use crate::vm::stack::{Handler, IterState, Pending};
 use crate::{Flow, Runtime};
@@ -62,9 +62,8 @@ pub(crate) fn op_call(
         match res {
             Ok(v) => stack.push(v),
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -77,9 +76,8 @@ pub(crate) fn op_call(
         match rt.call_function(callee, &args) {
             Ok(v) => stack.push(v),
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -184,9 +182,8 @@ pub(crate) fn op_call_method(
         match res {
             Ok(v) => stack.push(v),
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -205,9 +202,8 @@ pub(crate) fn op_call_method(
         match res {
             Ok(v) => stack.push(v),
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -605,9 +601,8 @@ pub(crate) fn op_call_static_or_method(
         match rt.call_function(func, &args) {
             Ok(v) => stack.push(v),
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -641,9 +636,8 @@ pub(crate) fn op_call_static_or_method(
         match res {
             Ok(v) => stack.push(v),
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -653,11 +647,9 @@ pub(crate) fn op_call_static_or_method(
     }
 
     // Neither static method nor variable found - error
-    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(
-        format!("Undefined identifier: {}", type_name).into(),
-    )));
-    if let Some(flow) = throw_value(
-        rt, ip, handlers, stack, iters, pending, thrown, err_val,
+    if let Some(flow) = try_throw_error(
+        rt, ip, handlers, stack, iters, pending, thrown,
+        format!("Undefined identifier: {}", type_name),
     ) {
         return Ok(Some(flow));
     }
@@ -667,6 +659,6 @@ pub(crate) fn op_call_static_or_method(
 /// Execute Op::Return - return from function
 #[inline(always)]
 pub(crate) fn op_return(stack: &mut Vec<Value>) -> Result<Flow, String> {
-    let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let v = pop_stack(stack)?;
     Ok(Flow::Return(v))
 }

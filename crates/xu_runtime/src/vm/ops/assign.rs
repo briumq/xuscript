@@ -6,10 +6,9 @@
 
 use xu_ir::Bytecode;
 
-use crate::core::heap::ManagedObject;
 use crate::core::value::ValueExt;
 use crate::core::Value;
-use crate::vm::exception::throw_value;
+use crate::vm::ops::helpers::{pop_stack, try_throw_error};
 use crate::vm::stack::{Handler, IterState, Pending};
 use crate::{Flow, Runtime};
 
@@ -25,13 +24,8 @@ fn throw_undefined(
     thrown: &mut Option<Value>,
     name: &str,
 ) -> Result<Option<Flow>, String> {
-    let err_val = Value::str(
-        rt.heap.alloc(ManagedObject::Str(
-            rt.error(xu_syntax::DiagnosticKind::UndefinedIdentifier(name.to_string()))
-                .into(),
-        )),
-    );
-    if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+    let err_msg = rt.error(xu_syntax::DiagnosticKind::UndefinedIdentifier(name.to_string()));
+    if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, err_msg) {
         return Ok(Some(flow));
     }
     Ok(None)
@@ -51,8 +45,7 @@ fn do_add_assign(
     rhs: Value,
 ) -> Result<Option<Flow>, String> {
     if let Err(e) = cur.bin_op_assign(xu_ir::BinaryOp::Add, rhs, &mut rt.heap) {
-        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-        if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+        if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
             return Ok(Some(flow));
         }
         return Ok(None);
@@ -73,7 +66,7 @@ pub(crate) fn op_add_assign_name(
     thrown: &mut Option<Value>,
     idx: u32,
 ) -> Result<Option<Flow>, String> {
-    let rhs = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let rhs = pop_stack(stack)?;
     let name = rt.get_const_str(idx, &bc.constants);
     let mut handled = false;
 
@@ -146,7 +139,7 @@ pub(crate) fn op_add_assign_local(
     thrown: &mut Option<Value>,
     idx: usize,
 ) -> Result<Option<Flow>, String> {
-    let rhs = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let rhs = pop_stack(stack)?;
     let Some(mut cur) = rt.get_local_by_index(idx) else {
         return Err(format!("Undefined local variable index: {}", idx));
     };

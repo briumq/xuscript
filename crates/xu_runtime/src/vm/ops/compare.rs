@@ -8,17 +8,15 @@
 use crate::core::heap::ManagedObject;
 use crate::core::value::{ValueExt, TAG_STR};
 use crate::core::Value;
-use crate::vm::exception::throw_value;
+use crate::vm::ops::helpers::{pop_stack, peek_last_mut, try_throw_error};
 use crate::vm::stack::{Handler, IterState, Pending};
 use crate::{Flow, Runtime};
 
 /// Execute Op::Eq - equality comparison
 #[inline(always)]
 pub(crate) fn op_eq(rt: &Runtime, stack: &mut Vec<Value>) -> Result<(), String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack
-        .last_mut()
-        .ok_or_else(|| "Stack underflow".to_string())?;
+    let b = pop_stack(stack)?;
+    let a = peek_last_mut(stack)?;
     *a = Value::from_bool(rt.values_equal(a, &b));
     Ok(())
 }
@@ -26,10 +24,8 @@ pub(crate) fn op_eq(rt: &Runtime, stack: &mut Vec<Value>) -> Result<(), String> 
 /// Execute Op::Ne - inequality comparison
 #[inline(always)]
 pub(crate) fn op_ne(rt: &Runtime, stack: &mut Vec<Value>) -> Result<(), String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack
-        .last_mut()
-        .ok_or_else(|| "Stack underflow".to_string())?;
+    let b = pop_stack(stack)?;
+    let a = peek_last_mut(stack)?;
     *a = Value::from_bool(!rt.values_equal(a, &b));
     Ok(())
 }
@@ -77,10 +73,8 @@ pub(crate) fn op_cmp(
     thrown: &mut Option<Value>,
     kind: CmpKind,
 ) -> Result<Option<Flow>, String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack
-        .last_mut()
-        .ok_or_else(|| "Stack underflow".to_string())?;
+    let b = pop_stack(stack)?;
+    let a = peek_last_mut(stack)?;
 
     if a.get_tag() == TAG_STR && b.get_tag() == TAG_STR {
         let sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
@@ -98,9 +92,8 @@ pub(crate) fn op_cmp(
         match a.bin_op(kind.binary_op(), b) {
             Ok(r) => *a = r,
             Err(e) => {
-                let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, e,
                 ) {
                     return Ok(Some(flow));
                 }

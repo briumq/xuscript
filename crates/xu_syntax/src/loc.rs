@@ -16,6 +16,7 @@ pub enum DiagnosticKind {
     ExpectedImportPath,
     TrailingInterpolationTokens,
     KeywordAsIdentifier(String),
+    MissingMatchDefault,
 
     // Analyzer - Errors
     UnreachableCode,
@@ -137,6 +138,9 @@ impl DiagnosticsFormatter {
             }
             DiagnosticKind::KeywordAsIdentifier(kw) => {
                 format!("Keyword '{}' cannot be used as an identifier", kw)
+            }
+            DiagnosticKind::MissingMatchDefault => {
+                "Match statement requires a default branch '_'".into()
             }
 
             DiagnosticKind::UndefinedIdentifier(name) => format!("Undefined identifier: {}", name),

@@ -551,10 +551,10 @@ impl<'a, 'b> Parser<'a, 'b> {
             Some(body)
         } else {
             self.diagnostics.push(Diagnostic::error_kind(
-                DiagnosticKind::ExpectedToken("_".to_string()),
+                DiagnosticKind::MissingMatchDefault,
                 Some(self.cur_span()),
             ));
-            Some(Vec::new().into_boxed_slice())
+            return None;
         };
         self.expect(TokenKind::RBrace)?;
         self.expect_stmt_terminator()?;

@@ -11,4 +11,7 @@ mod stmt;
 mod types;
 
 pub use parser::{ParseResult, Parser};
+
+// Re-export all xu_ir types for internal use and public API
+// Note: This is intentional as xu_parser is the primary interface for AST types
 pub use xu_ir::*;

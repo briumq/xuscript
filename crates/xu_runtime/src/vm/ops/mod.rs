@@ -6,6 +6,7 @@ pub(crate) mod call;
 pub(crate) mod collection;
 pub(crate) mod compare;
 pub(crate) mod dict;
+pub(crate) mod helpers;
 pub(crate) mod iter;
 pub(crate) mod math;
 pub(crate) mod string;

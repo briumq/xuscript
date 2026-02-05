@@ -14,6 +14,7 @@ use crate::core::value::{DictKey, TAG_LIST, TAG_STR};
 use crate::core::Value;
 use crate::errors::messages::NOT_A_STRING;
 use crate::util::to_i64;
+use crate::vm::ops::helpers::{pop_stack, pop2_stack};
 use crate::Runtime;
 
 /// Execute Op::ListNew - create a new list
@@ -26,7 +27,7 @@ pub(crate) fn op_list_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) ->
         Vec::with_capacity(n)
     };
     for _ in 0..n {
-        items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
+        items.push(pop_stack(stack)?);
     }
     items.reverse();
     let id = rt.heap.alloc(ManagedObject::List(items));
@@ -48,7 +49,7 @@ pub(crate) fn op_tuple_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -
         Vec::with_capacity(n)
     };
     for _ in 0..n {
-        items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
+        items.push(pop_stack(stack)?);
     }
     items.reverse();
     let id = rt.heap.alloc(ManagedObject::Tuple(items));
@@ -61,8 +62,8 @@ pub(crate) fn op_tuple_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -
 pub(crate) fn op_dict_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -> Result<(), String> {
     let mut map = crate::core::value::dict_with_capacity(n);
     for _ in 0..n {
-        let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-        let k = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+        let v = pop_stack(stack)?;
+        let k = pop_stack(stack)?;
         let key = if k.get_tag() == TAG_STR {
             if let ManagedObject::Str(s) = rt.heap.get(k.as_obj_id()) {
                 DictKey::from_text(s)
@@ -90,10 +91,10 @@ pub(crate) fn op_list_append(
 ) -> Result<(), String> {
     let mut items: SmallVec<[Value; 8]> = SmallVec::with_capacity(n);
     for _ in 0..n {
-        items.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
+        items.push(pop_stack(stack)?);
     }
     items.reverse();
-    let recv = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let recv = pop_stack(stack)?;
 
     if recv.get_tag() != TAG_LIST {
         return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
@@ -120,8 +121,7 @@ pub(crate) fn op_make_range(
     stack: &mut Vec<Value>,
     inclusive: bool,
 ) -> Result<(), String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let (a, b) = pop2_stack(stack)?;
     let start = to_i64(&a)?;
     let end = to_i64(&b)?;
     let id = rt.heap.alloc(ManagedObject::Range(start, end, inclusive));

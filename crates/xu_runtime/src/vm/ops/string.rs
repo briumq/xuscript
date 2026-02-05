@@ -10,7 +10,7 @@ use crate::core::value::{TAG_BUILDER, TAG_STR};
 use crate::core::Value;
 use crate::errors::messages::NOT_A_STRING;
 use crate::util::Appendable;
-use crate::vm::exception::throw_value;
+use crate::vm::ops::helpers::{pop_stack, pop2_stack, try_throw_error};
 use crate::vm::stack::{add_with_heap, Handler, IterState, Pending};
 use crate::{Flow, Runtime};
 
@@ -34,8 +34,7 @@ fn handle_str_op_fallback(
             Ok(None)
         }
         Err(e) => {
-            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-            if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+            if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, e) {
                 return Ok(Some(flow));
             }
             Ok(None)
@@ -54,8 +53,7 @@ pub(crate) fn op_str_append(
     pending: &mut Option<Pending>,
     thrown: &mut Option<Value>,
 ) -> Result<Option<Flow>, String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let a = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let (a, b) = pop2_stack(stack)?;
     if a.get_tag() == TAG_STR {
         // Fast path: both operands are strings - use concat2
         if b.get_tag() == TAG_STR {
@@ -103,8 +101,8 @@ pub(crate) fn op_builder_append(
     rt: &mut Runtime,
     stack: &mut Vec<Value>,
 ) -> Result<(), String> {
-    let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let v = pop_stack(stack)?;
+    let b = pop_stack(stack)?;
     if b.get_tag() != TAG_BUILDER {
         return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
             method: "builder_push".to_string(),
@@ -175,7 +173,7 @@ pub(crate) fn op_builder_append(
 /// Execute Op::BuilderFinalize - finalize string builder to string
 #[inline(always)]
 pub(crate) fn op_builder_finalize(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<(), String> {
-    let b = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let b = pop_stack(stack)?;
     if b.get_tag() != TAG_BUILDER {
         return Err(rt.error(xu_syntax::DiagnosticKind::UnsupportedMethod {
             method: "builder_finalize".to_string(),

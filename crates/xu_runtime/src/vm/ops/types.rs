@@ -13,7 +13,7 @@ use xu_ir::Bytecode;
 use crate::core::heap::ManagedObject;
 use crate::core::Value;
 use crate::util::type_matches;
-use crate::vm::exception::throw_value;
+use crate::vm::ops::helpers::{pop_stack, peek_last, try_throw_error};
 use crate::vm::stack::{Handler, IterState, Pending};
 use crate::{Flow, Runtime};
 
@@ -49,13 +49,8 @@ fn throw_unknown_struct(
     thrown: &mut Option<Value>,
     ty: &str,
 ) -> Result<Option<Flow>, String> {
-    let err_val = Value::str(
-        rt.heap.alloc(ManagedObject::Str(
-            rt.error(xu_syntax::DiagnosticKind::UnknownStruct(ty.to_string()))
-                .into(),
-        )),
-    );
-    if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
+    let err_msg = rt.error(xu_syntax::DiagnosticKind::UnknownStruct(ty.to_string()));
+    if let Some(flow) = try_throw_error(rt, ip, handlers, stack, iters, pending, thrown, err_msg) {
         return Ok(Some(flow));
     }
     Ok(None)
@@ -113,9 +108,8 @@ pub(crate) fn op_struct_init(
                     match rt.eval_expr(default_expr) {
                         Ok(v) => values[i] = v,
                         Err(e) => {
-                            let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
-                            if let Some(flow) = throw_value(
-                                rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                            if let Some(flow) = try_throw_error(
+                                rt, ip, handlers, stack, iters, pending, thrown, e,
                             ) {
                                 return Ok(Some(flow));
                             }
@@ -129,7 +123,7 @@ pub(crate) fn op_struct_init(
 
     // Override with explicitly provided field values
     for k in fields.iter().rev() {
-        let v = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+        let v = pop_stack(stack)?;
         if let Some(pos) = layout.iter().position(|f| f == k) {
             values[pos] = v;
         }
@@ -167,12 +161,12 @@ pub(crate) fn op_struct_init_spread(
     // Pop explicit field values first (they're on top of stack)
     let mut explicit_values: Vec<Value> = Vec::with_capacity(explicit_fields.len());
     for _ in 0..explicit_fields.len() {
-        explicit_values.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
+        explicit_values.push(pop_stack(stack)?);
     }
     explicit_values.reverse();
 
     // Pop spread source (at bottom)
-    let spread_src = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let spread_src = pop_stack(stack)?;
 
     // Apply values from spread source
     let spread_tag = spread_src.get_tag();
@@ -180,17 +174,12 @@ pub(crate) fn op_struct_init_spread(
         let id = spread_src.as_obj_id();
         if let ManagedObject::Struct(si) = rt.heap.get(id) {
             if si.ty.as_str() != ty.as_str() {
-                let err_val = Value::str(
-                    rt.heap.alloc(ManagedObject::Str(
-                        rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
-                            expected: ty.clone(),
-                            actual: si.ty.as_str().to_string(),
-                        })
-                        .into(),
-                    )),
-                );
-                if let Some(flow) = throw_value(
-                    rt, ip, handlers, stack, iters, pending, thrown, err_val,
+                let err_msg = rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
+                    expected: ty.clone(),
+                    actual: si.ty.as_str().to_string(),
+                });
+                if let Some(flow) = try_throw_error(
+                    rt, ip, handlers, stack, iters, pending, thrown, err_msg,
                 ) {
                     return Ok(Some(flow));
                 }
@@ -267,7 +256,7 @@ pub(crate) fn op_enum_ctor_n(
     let variant = rt.get_const_str(v_idx, &bc.constants);
     let mut payload: Vec<Value> = Vec::with_capacity(argc);
     for _ in 0..argc {
-        payload.push(stack.pop().ok_or_else(|| "Stack underflow".to_string())?);
+        payload.push(pop_stack(stack)?);
     }
     payload.reverse();
     let v = rt.enum_new_checked(ty, variant, payload.into_boxed_slice())?;
@@ -289,15 +278,14 @@ pub(crate) fn op_assert_type(
     idx: u32,
 ) -> Result<Option<Flow>, String> {
     let name = rt.get_const_str(idx, &bc.constants);
-    let v = stack.last().ok_or_else(|| "Stack underflow".to_string())?;
+    let v = peek_last(stack)?;
     if !type_matches(name, v, &rt.heap) {
         let msg = rt.error(xu_syntax::DiagnosticKind::TypeMismatch {
             expected: name.to_string(),
             actual: v.type_name().to_string(),
         });
-        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(msg.into())));
-        if let Some(flow) = throw_value(
-            rt, ip, handlers, stack, iters, pending, thrown, err_val,
+        if let Some(flow) = try_throw_error(
+            rt, ip, handlers, stack, iters, pending, thrown, msg,
         ) {
             return Ok(Some(flow));
         }

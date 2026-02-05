@@ -88,20 +88,20 @@ pub(crate) fn analyze_module(
     let mut scope: Vec<HashMap<String, usize>> = vec![HashMap::new()];
     let mut def_spans: Vec<HashMap<String, xu_syntax::Span>> = vec![HashMap::new()];
     for builtin in BUILTIN_NAMES {
-        let idx = scope.last().expect("Scope stack underflow").len();
-        scope.last_mut().expect("Scope stack underflow").insert(builtin.to_string(), idx);
+        let idx = scope.last().expect("scope stack should not be empty").len();
+        scope.last_mut().expect("scope stack should not be empty").insert(builtin.to_string(), idx);
     }
     for name in extra_predefs {
-        let idx = scope.last().expect("Scope stack underflow").len();
-        scope.last_mut().expect("Scope stack underflow").insert((*name).to_string(), idx);
+        let idx = scope.last().expect("scope stack should not be empty").len();
+        scope.last_mut().expect("scope stack should not be empty").insert((*name).to_string(), idx);
     }
     for name in funcs.keys() {
-        let idx = scope.last().expect("Scope stack underflow").len();
-        scope.last_mut().expect("Scope stack underflow").insert(name.clone(), idx);
+        let idx = scope.last().expect("scope stack should not be empty").len();
+        scope.last_mut().expect("scope stack should not be empty").insert(name.clone(), idx);
     }
     for name in structs.keys() {
-        let idx = scope.last().expect("Scope stack underflow").len();
-        scope.last_mut().expect("Scope stack underflow").insert(name.clone(), idx);
+        let idx = scope.last().expect("scope stack should not be empty").len();
+        scope.last_mut().expect("scope stack should not be empty").insert(name.clone(), idx);
     }
 
     let mut sem_finder = Finder::new(source, tokens);

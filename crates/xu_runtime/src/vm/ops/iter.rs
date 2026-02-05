@@ -12,6 +12,7 @@ use crate::core::text::Text;
 use crate::core::value::{DictKey, TAG_DICT, TAG_LIST, TAG_RANGE};
 use crate::core::Value;
 use crate::errors::messages::{NOT_A_DICT, NOT_A_LIST};
+use crate::vm::ops::helpers::pop_stack;
 use crate::vm::stack::IterState;
 use crate::Runtime;
 
@@ -41,7 +42,7 @@ pub(crate) fn op_foreach_init(
     var_idx: Option<usize>,
     end: usize,
 ) -> Result<bool, String> {
-    let iterable = stack.pop().ok_or_else(|| "Stack underflow".to_string())?;
+    let iterable = pop_stack(stack)?;
     let tag = iterable.get_tag();
     let var = rt.get_const_str(idx, &bc.constants);
 
