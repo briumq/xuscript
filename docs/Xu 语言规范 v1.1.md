@@ -22,7 +22,7 @@ Xu 是一门**强类型脚本语言**，设计目标：
 | --- | ---------------------------------------------------------------- |
 | 控制流 | `if` `else` `while` `for` `in` `break` `continue` `match` `when` |
 | 定义  | `let` `var` `func` `return` `has` `with` `does`                  |
-| 修饰  | `inner` `static`                                                 |
+| 修饰  | `pub` `static`                                                   |
 | 字面  | `self` `true` `false`                                            |
 | 模块  | `use` `as`                                                       |
 
@@ -726,27 +726,33 @@ use "utils" as u
 
 ### 12.2 可见性
 
-默认情况下，所有顶层定义（函数、变量、结构体、枚举）和扩展方法都是**公开**的（模块外可见）。
-使用 `inner` 关键字可将其限制为**仅本文件可见**（模块私有）。
+默认情况下，所有顶层定义（函数、变量、结构体、枚举）和扩展方法都是**私有**的（仅本文件可见）。
+使用 `pub` 关键字可将其标记为**公开**（模块外可见）。
 
 |修饰符|说明|适用范围|
 |---|---|---|
-|（默认）|公开|顶层定义、方法|
-|`inner`|仅本文件可见|顶层定义、方法|
+|（默认）|仅本文件可见|顶层定义、方法|
+|`pub`|公开|顶层定义、方法|
 
 ```xu
-// 仅本模块可见的变量
-inner var counter = 0
+// 私有变量（默认，仅本模块可见）
+var counter = 0
 
-// 仅本模块可见的结构体
-inner Foo has { x: int }
+// 公开变量
+pub let config_version = "1.0"
+
+// 私有结构体（默认）
+Foo has { x: int }
+
+// 公开结构体
+pub Bar has { y: int }
 
 User does {
-    // 仅本模块可见的方法（即私有辅助方法）
-    inner func internal_helper() {}
+    // 私有方法（默认，即私有辅助方法）
+    func internal_helper() {}
 
     // 公开方法
-    func public_api() {}
+    pub func public_api() {}
 }
 ```
 

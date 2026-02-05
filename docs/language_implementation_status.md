@@ -5,7 +5,7 @@
 | 功能/问题 (Feature/Issue) | 状态 (Status) | 优先级 (Priority) | 说明 (Note) |
 | :--- | :--- | :--- | :--- |
 | **Match `else` -> `_`** | ✅ Done | High | 已统一为 `_` 通配符默认分支 |
-| **Inner 变量可见性** | ✅ Fixed | High | `inner let/var` 可见性进入 AST；移除源码扫描 hack |
+| **Inner 变量可见性** | ✅ Fixed | High | 已改为默认私有，使用 `pub` 标记公开；移除 `inner` 关键字 |
 | **枚举方法扩展** | ✅ Fixed | High | `Enum does { ... }` 扩展方法可被运行时查找调用 |
 | **预留关键字** | ✅ Fixed | Medium | `async`/`await`/`can` 已预留为关键字，禁止作标识符 |
 | **单语句块简写 `:`** | ✅ Done | Low | `:` 后解析单条语句；多语句块仍用 `{}` |
@@ -74,19 +74,21 @@ match x {
 
 ---
 
-## 3. Inner 关键字实现缺陷分析 (Analysis of Inner Keyword Implementation)
+## 3. 可见性实现 (Visibility Implementation)
 
 ### 3.1 核心机制
-*   **词法与语法**: `inner` 关键字在 Parser 中被识别。
-*   **运行时强制执行**: 在模块加载时，运行时会过滤掉标记为 `inner` 的成员。
+*   **默认私有**: 所有顶层定义默认为私有（仅本模块可见）。
+*   **pub 关键字**: 使用 `pub` 标记公开成员。
+*   **运行时强制执行**: 在模块加载时，运行时只导出标记为 `pub` 的成员。
 
-### 3.2 存在的问题 (Defects)
-*   **已修复**: `AssignStmt` 已包含 `vis` 字段，Parser 会把 `inner let/var` 的可见性写入 AST。
-*   **已移除 Hack**: 运行时不再通过源码扫描识别 `inner var/let`，而是在导出阶段从 AST 收集并过滤。
+### 3.2 历史变更
+*   **已移除**: `inner` 关键字已被移除。
+*   **已修复**: `AssignStmt` 已包含 `vis` 字段，Parser 会把可见性写入 AST。
+*   **已移除 Hack**: 运行时不再通过源码扫描识别可见性，而是在导出阶段从 AST 收集并过滤。
 
-### 3.3 改进建议 (Recommendations)
+### 3.3 当前状态
 1.  ✅ **AST 重构已完成**: `AssignStmt.vis: Visibility`。
-2.  ✅ **Parser 修复已完成**: `inner let/var` 的 `vis` 不再丢失。
+2.  ✅ **Parser 修复已完成**: 默认 `Visibility::Inner`，`pub` 标记为 `Visibility::Public`。
 3.  ✅ **移除 Hack 已完成**: 不再依赖 `scan_inner_names_from_source`。
 
 ---

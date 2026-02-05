@@ -167,8 +167,8 @@ pub enum TokenKind {
     /// `does` - 方法扩展块
     Does,
     
-    /// `inner` - 内部可见性
-    Inner,
+    /// `pub` - 公开可见性
+    Pub,
     /// `static` - 静态方法
     Static,
     

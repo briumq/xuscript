@@ -1278,19 +1278,19 @@ use "math" as m
 assert(m.add(2, 3) is 5)
 ```
 
-### 15.3 inner 可见性
+### 15.3 pub 可见性
 
 xu
 
 ```
 // file: counter.xu
-inner var count = 0
+var count = 0
 
-func increment() {
+pub func increment() {
     count += 1
 }
 
-func get() -> int {
+pub func get() -> int {
     return count
 }
 

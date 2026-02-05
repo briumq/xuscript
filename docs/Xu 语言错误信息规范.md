@@ -326,12 +326,12 @@ text
 error[E2008]: 关键字不能作为标识符
   --> {file}:{line}:{col}
    |
- {line} |     func inner() { }
-   |          ^^^^^ 'inner' 是保留关键字
+ {line} |     func pub() { }
+   |          ^^^ 'pub' 是保留关键字
    |
-   = help: 选择其他名称，如 'inner_func' 或 '_inner'
+   = help: 选择其他名称，如 'pub_func' 或 '_pub'
    = note: 保留关键字: if, else, for, while, func, return, break, continue,
-           let, var, match, when, has, does, inner, static, self, use, as,
+           let, var, match, when, has, does, pub, static, self, use, as,
            is, with, can, async, await, true, false
 ```
 
@@ -522,20 +522,9 @@ error[P040]: 枚举缺少变体
    |                   ^^ 枚举至少需要一个变体
 ```
 
-### P050: inner 不能修饰 does 块
+### P050: （已废弃）
 
-text
-
-```
-error[P050]: inner 不能修饰 does 块
-  --> {file}:{line}:{col}
-   |
- {line} |     inner User does { }
-   |     ^^^^^ 非法修饰
-   |
-   = help: 在 does 内部使用 inner 修饰单个方法
-   = note: `User does { inner func helper() { } }`
-```
+> 此错误码已废弃。`inner` 关键字已被移除，现在使用 `pub` 标记公开成员，默认为私有。
 
 ### P060: return 在函数外
 
@@ -1183,7 +1172,7 @@ warning[W002]: 未使用的函数 'helper'
  {line} |     func helper() { }
    |          ^^^^^^ 从未调用
    |
-   = help: 如果是内部函数，添加 inner 修饰
+   = help: 如果是内部函数，保持默认私有即可（不添加 pub）
 ```
 
 ### W003: 未使用的导入
