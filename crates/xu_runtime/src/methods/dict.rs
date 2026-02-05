@@ -27,7 +27,7 @@ enum TempKey {
 }
 
 impl TempKey {
-    fn to_value(self, rt: &mut Runtime) -> Value {
+    fn into_value(self, rt: &mut Runtime) -> Value {
         match self {
             TempKey::Str(s) => create_str_value(rt, &s),
             TempKey::Int(i) => Value::from_i64(i),
@@ -299,7 +299,7 @@ pub(super) fn dispatch(
         MethodKind::DictKeys => {
             validate_arity(rt, method, args.len(), 0, 0)?;
             let keys = collect_dict_keys(rt, recv)?;
-            let result: Vec<_> = keys.into_iter().map(|k| k.to_value(rt)).collect();
+            let result: Vec<_> = keys.into_iter().map(|k| k.into_value(rt)).collect();
             Ok(create_list_value(rt, result))
         }
         MethodKind::DictValues => {
@@ -324,7 +324,7 @@ pub(super) fn dispatch(
             validate_arity(rt, method, args.len(), 0, 0)?;
             let items_data = collect_dict_items(rt, recv)?;
             let items: Vec<_> = items_data.into_iter().map(|(k, v)| {
-                let key_val = k.to_value(rt);
+                let key_val = k.into_value(rt);
                 create_list_value(rt, vec![key_val, v])
             }).collect();
             Ok(create_list_value(rt, items))
