@@ -12,7 +12,38 @@ use crate::util::Appendable;
 use crate::util::type_matches;
 use crate::{Flow, Runtime};
 
+/// 将 DictKey 转换为 Value
+#[inline]
+fn dict_key_to_value(rt: &mut Runtime, k: &DictKey) -> Value {
+    match k {
+        DictKey::StrInline { .. } | DictKey::Str { .. } => Value::str(
+            rt.heap.alloc(crate::core::heap::ManagedObject::Str(Text::from_str(k.as_str()))),
+        ),
+        DictKey::Int(i) => Value::from_i64(*i),
+    }
+}
+
 impl Runtime {
+    /// 创建错误值
+    #[inline]
+    fn throw_err(&mut self, e: String) -> Flow {
+        Flow::Throw(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(e.into()))))
+    }
+
+    /// 设置循环变量
+    #[inline]
+    fn set_loop_var(&mut self, var: &str, local_idx: Option<usize>, use_local: bool, value: Value) {
+        if use_local {
+            if let Some(idx) = local_idx {
+                let _ = self.set_local_by_index(idx, value);
+            } else {
+                let _ = self.set_local(var, value);
+            }
+        } else {
+            self.env.define(var.to_string(), value);
+        }
+    }
+
     pub(crate) fn exec_stmts(&mut self, stmts: &[Stmt]) -> Flow {
         for s in stmts {
             let f = self.exec_stmt(s);
@@ -27,35 +58,23 @@ impl Runtime {
         match stmt {
             Stmt::StructDef(def) => {
                 self.types.structs.insert(def.name.clone(), (**def).clone());
-                let layout = def
-                    .fields
-                    .iter()
-                    .map(|f| f.name.clone())
-                    .collect::<Vec<_>>();
-                self.types.struct_layouts
-                    .insert(def.name.clone(), std::rc::Rc::from(layout));
+                let layout = def.fields.iter().map(|f| f.name.clone()).collect::<Vec<_>>();
+                self.types.struct_layouts.insert(def.name.clone(), std::rc::Rc::from(layout));
 
-                // Initialize static fields
                 for sf in def.static_fields.iter() {
                     let value = match self.eval_expr(&sf.default) {
                         Ok(v) => v,
-                        Err(e) => return Flow::Throw(Value::str(self.heap.alloc(
-                            crate::core::heap::ManagedObject::Str(e.into())
-                        ))),
+                        Err(e) => return self.throw_err(e),
                     };
-                    let key = (def.name.clone(), sf.name.clone());
-                    self.types.static_fields.insert(key, value);
+                    self.types.static_fields.insert((def.name.clone(), sf.name.clone()), value);
                 }
 
-                // Register all methods defined in the has block
                 for f in def.methods.iter() {
                     let s = Stmt::FuncDef(Box::new(f.clone()));
-                    match self.exec_stmt(&s) {
-                        Flow::None => {}
-                        other => return other,
+                    if let other @ (Flow::Return(_) | Flow::Throw(_) | Flow::Break | Flow::Continue) = self.exec_stmt(&s) {
+                        return other;
                     }
                 }
-
                 Flow::None
             }
             Stmt::EnumDef(def) => {
@@ -63,15 +82,9 @@ impl Runtime {
                 Flow::None
             }
             Stmt::FuncDef(def) => {
-                // First, freeze the current environment to promote attached frames to heap.
-                // This ensures that both the original env and the closure share the same scope.
                 let captured_env = self.env.freeze();
-
-                // If locals are active, we need to capture them too
                 let captured_env = if self.locals.is_active() {
                     let mut env = captured_env;
-                    // Use push_detached so values are stored in scope.values, not stack
-                    // This is important because the closure's stack will be empty when called
                     env.push_detached();
                     for (name, value) in self.locals.current_bindings() {
                         env.define(name, value);
@@ -89,29 +102,14 @@ impl Runtime {
                 };
 
                 let needs_env_frame = needs_env_frame(&def.body);
-                let fast_param_indices =
-                    if let Some(idxmap) = self.compiled_locals_idx.get(&def.name) {
-                        let mut out: Vec<usize> = Vec::with_capacity(def.params.len());
-                        let mut ok = true;
-                        for p in def.params.iter() {
-                            if let Some(i) = idxmap.get(p.name.as_str()).copied() {
-                                out.push(i);
-                            } else {
-                                ok = false;
-                                break;
-                            }
-                        }
-                        if ok {
-                            Some(out.into_boxed_slice())
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
-                let fast_locals_size = self
-                    .compiled_locals_idx
-                    .get(&def.name)
+                let fast_param_indices = self.compiled_locals_idx.get(&def.name).and_then(|idxmap| {
+                    let mut out = Vec::with_capacity(def.params.len());
+                    for p in def.params.iter() {
+                        out.push(*idxmap.get(p.name.as_str())?);
+                    }
+                    Some(out.into_boxed_slice())
+                });
+                let fast_locals_size = self.compiled_locals_idx.get(&def.name)
                     .and_then(|idxmap| idxmap.values().copied().max().map(|m| m + 1));
                 let skip_local_map = !needs_env_frame
                     && !def.params.is_empty()
@@ -137,78 +135,54 @@ impl Runtime {
             Stmt::DoesBlock(def) => {
                 for f in def.funcs.iter() {
                     let s = Stmt::FuncDef(Box::new(f.clone()));
-                    match self.exec_stmt(&s) {
-                        Flow::None => {}
-                        other => return other,
+                    if let other @ (Flow::Return(_) | Flow::Throw(_) | Flow::Break | Flow::Continue) = self.exec_stmt(&s) {
+                        return other;
                     }
                 }
                 Flow::None
             }
             Stmt::Use(u) => match crate::modules::import_path(self, &u.path) {
                 Ok(module_obj) => {
-                    let alias = u
-                        .alias
-                        .clone()
-                        .unwrap_or_else(|| crate::modules::infer_module_alias(&u.path));
+                    let alias = u.alias.clone().unwrap_or_else(|| crate::modules::infer_module_alias(&u.path));
                     self.env.define(alias, module_obj);
                     Flow::None
                 }
-                Err(e) => {
-                    let err_val = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(e.into())));
-                    Flow::Throw(err_val)
-                }
+                Err(e) => self.throw_err(e),
             },
             Stmt::Assign(s) => match self.exec_assign(s) {
                 Ok(()) => Flow::None,
-                Err(e) => {
-                    let err_val = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(e.into())));
-                    Flow::Throw(err_val)
-                }
+                Err(e) => self.throw_err(e),
             },
             Stmt::If(s) => self.exec_if_branches(s.branches.as_ref(), s.else_branch.as_ref()),
             Stmt::Match(s) => {
                 let v = match self.eval_expr(&s.expr) {
                     Ok(v) => v,
-                    Err(e) => {
-                        let err_val = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(e.into())));
-                        return Flow::Throw(err_val);
-                    }
+                    Err(e) => return self.throw_err(e),
                 };
                 for (pat, body) in s.arms.iter() {
                     if let Some(bindings) = crate::util::match_pattern(self, pat, &v) {
                         if self.locals.is_active() {
                             self.push_locals();
-                            for (name, val) in bindings {
-                                self.define_local(name, val);
-                            }
+                            for (name, val) in bindings { self.define_local(name, val); }
                             let flow = self.exec_stmts(body);
                             self.pop_locals();
                             return flow;
                         } else {
                             self.env.push();
-                            for (name, val) in bindings {
-                                self.env.define(name, val);
-                            }
+                            for (name, val) in bindings { self.env.define(name, val); }
                             let flow = self.exec_stmts(body);
                             self.env.pop();
                             return flow;
                         }
                     }
                 }
-                if let Some(body) = &s.else_branch {
-                    self.exec_stmts(body)
-                } else {
-                    Flow::None
-                }
+                s.else_branch.as_ref().map_or(Flow::None, |body| self.exec_stmts(body))
             }
             Stmt::While(s) => self.exec_while_loop(&s.cond, &s.body),
             Stmt::ForEach(s) => {
                 let iter = match self.eval_expr(&s.iter) {
                     Ok(v) => v,
-                    Err(e) => {
-                        let err_val = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(e.into())));
-                        return Flow::Throw(err_val);
-                    }
+                    Err(e) => return self.throw_err(e),
                 };
                 let iter_desc = match &s.iter {
                     Expr::Ident(n, _) => n.clone(),
@@ -218,35 +192,7 @@ impl Runtime {
                     _ => "*".to_string(),
                 };
                 let use_local = self.locals.is_active();
-                let mut local_idx: Option<usize> = None;
-                if use_local {
-                    // First try to get the index from compiled_locals_idx
-                    if let Some(func_name) = self.current_func.as_deref() {
-                        if let Some(idxmap) = self.compiled_locals_idx.get(func_name) {
-                            if let Some(&idx) = idxmap.get(&s.var) {
-                                local_idx = Some(idx);
-                                // Ensure the slot exists
-                                if let Some(values) = self.locals.values.last_mut() {
-                                    if values.len() <= idx {
-                                        values.resize(idx + 1, Value::UNIT);
-                                    }
-                                }
-                                if let Some(map) = self.locals.maps.last_mut() {
-                                    map.insert(s.var.clone(), idx);
-                                }
-                            }
-                        }
-                    }
-                    // Fallback to define_local if not found in compiled_locals_idx
-                    if local_idx.is_none() {
-                        if self.get_local(&s.var).is_none() {
-                            self.define_local(s.var.clone(), Value::UNIT);
-                        }
-                        local_idx = self.get_local_index(&s.var);
-                    }
-                } else {
-                    self.env.define(s.var.clone(), Value::UNIT);
-                }
+                let local_idx = self.prepare_loop_var(&s.var, use_local);
 
                 let tag = iter.get_tag();
                 if tag == crate::core::value::TAG_LIST {
@@ -257,190 +203,65 @@ impl Runtime {
                         Vec::new()
                     };
                     for item in items {
-                        if use_local {
-                            if let Some(idx) = local_idx {
-                                let _ = self.set_local_by_index(idx, item);
-                            } else {
-                                let _ = self.set_local(&s.var, item);
-                            }
-                        } else {
-                            self.env.define(s.var.clone(), item);
-                        }
-                        let flow = self.exec_stmts(&s.body);
-                        match flow {
-                            Flow::None => {}
-                            Flow::Continue => continue,
+                        self.set_loop_var(&s.var, local_idx, use_local, item);
+                        match self.exec_stmts(&s.body) {
+                            Flow::None | Flow::Continue => {}
                             Flow::Break => break,
                             other => return other,
                         }
                     }
                 } else if tag == crate::core::value::TAG_DICT {
                     let id = iter.as_obj_id();
+                    let is_kv_loop = s.var.starts_with('(') && s.var.ends_with(')') && s.var.contains(',');
+                    let is_parser_kv = s.var.starts_with("__tmp_foreach_");
 
-                    // 检查是否是字典键值对循环: for (key, value) in dict
-                    // 解析器会将 for (k, v) in dict 转换为 for __tmp_foreach_N in dict
-                    // 并在循环体内通过 .0 和 .1 访问键值对
-                    let is_key_value_loop = s.var.starts_with('(') && s.var.ends_with(')') && s.var.contains(',');
-                    let is_parser_transformed_kv_loop = s.var.starts_with("__tmp_foreach_");
-
-                    if is_key_value_loop {
-                        // 解析元组模式中的变量名
+                    if is_kv_loop {
                         let var_str = s.var.trim_matches(|c| c == '(' || c == ')');
                         let parts: Vec<&str> = var_str.split(',').map(|p| p.trim()).collect();
                         if parts.len() == 2 {
-                            let key_var = parts[0];
-                            let value_var = parts[1];
-
-                            // 预先收集字典的键值对，避免借用冲突
-                            let mut key_value_pairs = Vec::new();
-                            {
-                                let dict = if let crate::core::heap::ManagedObject::Dict(dict) = self.heap.get(id) {
-                                    dict
-                                } else {
-                                    return Flow::None;
-                                };
-                                
-                                for (k, v) in dict.map.iter() {
-                                    key_value_pairs.push((k.clone(), v.clone()));
-                                }
-                            }
-
-                            // 遍历预先收集的键值对
-                            for (k, v) in key_value_pairs {
-                                // 处理键
-                                let key_val = match k {
-                                    DictKey::StrInline { .. } | DictKey::Str { .. } => Value::str(
-                                        self.heap.alloc(crate::core::heap::ManagedObject::Str(Text::from_str(k.as_str()))),
-                                    ),
-                                    DictKey::Int(i) => Value::from_i64(i),
-                                };
-
-                                // 处理值
-                                let value_val = v;
-
-                                // 设置变量
+                            let (key_var, value_var) = (parts[0], parts[1]);
+                            let pairs = self.collect_dict_pairs(id, false);
+                            for (k, v) in pairs {
+                                let key_val = dict_key_to_value(self, &k);
                                 if use_local {
-                                    // 为键和值创建局部变量
-                                    if self.get_local(key_var).is_none() {
-                                        self.define_local(key_var.to_string(), Value::UNIT);
-                                    }
-                                    if self.get_local(value_var).is_none() {
-                                        self.define_local(value_var.to_string(), Value::UNIT);
-                                    }
+                                    if self.get_local(key_var).is_none() { self.define_local(key_var.to_string(), Value::UNIT); }
+                                    if self.get_local(value_var).is_none() { self.define_local(value_var.to_string(), Value::UNIT); }
                                     let _ = self.set_local(key_var, key_val);
-                                    let _ = self.set_local(value_var, value_val);
+                                    let _ = self.set_local(value_var, v);
                                 } else {
-                                    // 为键和值创建环境变量
                                     self.env.define(key_var.to_string(), key_val);
-                                    self.env.define(value_var.to_string(), value_val);
+                                    self.env.define(value_var.to_string(), v);
                                 }
-
-                                // 执行循环体
-                                let flow = self.exec_stmts(&s.body);
-                                match flow {
-                                    Flow::None => {}
-                                    Flow::Continue => continue,
+                                match self.exec_stmts(&s.body) {
+                                    Flow::None | Flow::Continue => {}
                                     Flow::Break => break,
                                     other => return other,
                                 }
                             }
                         }
-                    } else if is_parser_transformed_kv_loop {
-                        // 解析器转换的键值对循环: for __tmp_foreach_N in dict
-                        // 需要返回 (key, value) 元组，以便后续通过 .0 和 .1 访问
-                        let mut key_value_pairs = Vec::new();
-                        {
-                            let dict = if let crate::core::heap::ManagedObject::Dict(dict) = self.heap.get(id) {
-                                dict
-                            } else {
-                                return Flow::None;
-                            };
-
-                            for (k, v) in dict.map.iter() {
-                                key_value_pairs.push((k.clone(), v.clone()));
-                            }
-                            // 也需要处理 shape 中的属性
-                            if let Some(sid) = dict.shape {
-                                if let crate::core::heap::ManagedObject::Shape(shape) = self.heap.get(sid) {
-                                    for (k, off) in shape.prop_map.iter() {
-                                        if let Some(v) = dict.prop_values.get(*off) {
-                                            key_value_pairs.push((DictKey::from_str(k.as_str()), *v));
-                                        }
-                                    }
-                                }
-                            }
-                            // 处理 elements 数组中的值
-                            for (i, v) in dict.elements.iter().enumerate() {
-                                if v.get_tag() != crate::core::value::TAG_UNIT {
-                                    key_value_pairs.push((DictKey::Int(i as i64), *v));
-                                }
-                            }
-                        }
-
-                        for (k, v) in key_value_pairs {
-                            // 创建键值
-                            let key_val = match k {
-                                DictKey::StrInline { .. } | DictKey::Str { .. } => Value::str(
-                                    self.heap.alloc(crate::core::heap::ManagedObject::Str(Text::from_str(k.as_str()))),
-                                ),
-                                DictKey::Int(i) => Value::from_i64(i),
-                            };
-
-                            // 创建 (key, value) 元组
-                            let tuple = Value::tuple(
-                                self.heap.alloc(crate::core::heap::ManagedObject::Tuple(vec![key_val, v])),
-                            );
-
-                            // 设置循环变量
-                            if use_local {
-                                if let Some(idx) = local_idx {
-                                    let _ = self.set_local_by_index(idx, tuple);
-                                } else {
-                                    let _ = self.set_local(&s.var, tuple);
-                                }
-                            } else {
-                                self.env.define(s.var.clone(), tuple);
-                            }
-
-                            let flow = self.exec_stmts(&s.body);
-                            match flow {
-                                Flow::None => {}
-                                Flow::Continue => continue,
+                    } else if is_parser_kv {
+                        let pairs = self.collect_dict_pairs(id, true);
+                        for (k, v) in pairs {
+                            let key_val = dict_key_to_value(self, &k);
+                            let tuple = Value::tuple(self.heap.alloc(crate::core::heap::ManagedObject::Tuple(vec![key_val, v])));
+                            self.set_loop_var(&s.var, local_idx, use_local, tuple);
+                            match self.exec_stmts(&s.body) {
+                                Flow::None | Flow::Continue => {}
                                 Flow::Break => break,
                                 other => return other,
                             }
                         }
                     } else {
-                        // 普通的字典键循环: for key in dict
                         let raw_keys = if let crate::core::heap::ManagedObject::Dict(dict) = self.heap.get(id) {
                             dict.map.keys().cloned().collect::<Vec<_>>()
                         } else {
                             Vec::new()
                         };
-
-                        let mut items = Vec::with_capacity(raw_keys.len());
                         for k in raw_keys {
-                            match k {
-                                DictKey::StrInline { .. } | DictKey::Str { .. } => items.push(Value::str(
-                                    self.heap.alloc(crate::core::heap::ManagedObject::Str(Text::from_str(k.as_str()))),
-                                )),
-                                DictKey::Int(i) => items.push(Value::from_i64(i)),
-                            }
-                        }
-                        for item in items {
-                            if use_local {
-                                if let Some(idx) = local_idx {
-                                    let _ = self.set_local_by_index(idx, item);
-                                } else {
-                                    let _ = self.set_local(&s.var, item);
-                                }
-                            } else {
-                                self.env.define(s.var.clone(), item);
-                            }
-                            let flow = self.exec_stmts(&s.body);
-                            match flow {
-                                Flow::None => {}
-                                Flow::Continue => continue,
+                            let item = dict_key_to_value(self, &k);
+                            self.set_loop_var(&s.var, local_idx, use_local, item);
+                            match self.exec_stmts(&s.body) {
+                                Flow::None | Flow::Continue => {}
                                 Flow::Break => break,
                                 other => return other,
                             }
@@ -448,49 +269,30 @@ impl Runtime {
                     }
                 } else if tag == crate::core::value::TAG_RANGE {
                     let id = iter.as_obj_id();
-                    let (start, end, inclusive) =
-                        if let crate::core::heap::ManagedObject::Range(s, e, inc) = self.heap.get(id) {
-                            (*s, *e, *inc)
-                        } else {
-                            (0, 0, false)
-                        };
-
+                    let (start, end, inclusive) = if let crate::core::heap::ManagedObject::Range(s, e, inc) = self.heap.get(id) {
+                        (*s, *e, *inc)
+                    } else {
+                        (0, 0, false)
+                    };
                     let step: i64 = if start <= end { 1 } else { -1 };
                     let mut i = start;
                     loop {
-                        if !inclusive && i == end {
-                            break;
-                        }
-                        let item = Value::from_i64(i);
-                        if use_local {
-                            if let Some(idx) = local_idx {
-                                let _ = self.set_local_by_index(idx, item);
-                            } else {
-                                let _ = self.set_local(&s.var, item);
-                            }
-                        } else {
-                            self.env.define(s.var.clone(), item);
-                        }
-                        let flow = self.exec_stmts(&s.body);
-                        match flow {
-                            Flow::None => {}
-                            Flow::Continue => {}
+                        if !inclusive && i == end { break; }
+                        self.set_loop_var(&s.var, local_idx, use_local, Value::from_i64(i));
+                        match self.exec_stmts(&s.body) {
+                            Flow::None | Flow::Continue => {}
                             Flow::Break => break,
                             other => return other,
                         }
-                        if i == end {
-                            break;
-                        }
+                        if i == end { break; }
                         i = i.saturating_add(step);
                     }
                 } else {
-                    let err_msg = self.error(xu_syntax::DiagnosticKind::InvalidIteratorType {
+                    return self.throw_err(self.error(xu_syntax::DiagnosticKind::InvalidIteratorType {
                         expected: "list".to_string(),
                         actual: iter.type_name().to_string(),
                         iter_desc,
-                    });
-                    let err_val = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(err_msg.into())));
-                    return Flow::Throw(err_val);
+                    }));
                 }
                 Flow::None
             }
@@ -498,23 +300,16 @@ impl Runtime {
                 None => Flow::Return(Value::UNIT),
                 Some(e) => match self.eval_expr(e) {
                     Ok(v) => Flow::Return(v),
-                    Err(e) => {
-                        let err_val = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(e.into())));
-                        Flow::Throw(err_val)
-                    }
+                    Err(e) => self.throw_err(e),
                 },
             },
             Stmt::Break => Flow::Break,
             Stmt::Continue => Flow::Continue,
             Stmt::Expr(e) => match self.eval_expr(e) {
                 Ok(_) => Flow::None,
-                Err(e) => {
-                    let err_val = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(e.into())));
-                    Flow::Throw(err_val)
-                }
+                Err(e) => self.throw_err(e),
             },
             Stmt::Block(stmts) => {
-                // Execute block in a new scope
                 if self.locals.is_active() {
                     self.push_locals();
                     let flow = self.exec_stmts(stmts);
@@ -529,6 +324,59 @@ impl Runtime {
             }
             Stmt::Error(_) => Flow::None,
         }
+    }
+
+    /// 准备循环变量，返回 local_idx
+    fn prepare_loop_var(&mut self, var: &str, use_local: bool) -> Option<usize> {
+        if use_local {
+            if let Some(func_name) = self.current_func.as_deref() {
+                if let Some(idxmap) = self.compiled_locals_idx.get(func_name) {
+                    if let Some(&idx) = idxmap.get(var) {
+                        if let Some(values) = self.locals.values.last_mut() {
+                            if values.len() <= idx { values.resize(idx + 1, Value::UNIT); }
+                        }
+                        if let Some(map) = self.locals.maps.last_mut() {
+                            map.insert(var.to_string(), idx);
+                        }
+                        return Some(idx);
+                    }
+                }
+            }
+            if self.get_local(var).is_none() {
+                self.define_local(var.to_string(), Value::UNIT);
+            }
+            self.get_local_index(var)
+        } else {
+            self.env.define(var.to_string(), Value::UNIT);
+            None
+        }
+    }
+
+    /// 收集字典键值对
+    fn collect_dict_pairs(&self, id: crate::core::ObjectId, include_all: bool) -> Vec<(DictKey, Value)> {
+        let mut pairs = Vec::new();
+        if let crate::core::heap::ManagedObject::Dict(dict) = self.heap.get(id) {
+            for (k, v) in dict.map.iter() {
+                pairs.push((k.clone(), v.clone()));
+            }
+            if include_all {
+                if let Some(sid) = dict.shape {
+                    if let crate::core::heap::ManagedObject::Shape(shape) = self.heap.get(sid) {
+                        for (k, off) in shape.prop_map.iter() {
+                            if let Some(v) = dict.prop_values.get(*off) {
+                                pairs.push((DictKey::from_str(k.as_str()), *v));
+                            }
+                        }
+                    }
+                }
+                for (i, v) in dict.elements.iter().enumerate() {
+                    if v.get_tag() != crate::core::value::TAG_UNIT {
+                        pairs.push((DictKey::Int(i as i64), *v));
+                    }
+                }
+            }
+        }
+        pairs
     }
 
     fn exec_assign(&mut self, stmt: &AssignStmt) -> Result<(), String> {
@@ -829,60 +677,24 @@ impl Runtime {
         for (cond, body) in branches {
             match self.eval_expr(cond) {
                 Ok(v) if v.is_bool() && v.as_bool() => return self.exec_stmts(body.as_ref()),
-                Ok(v) if v.is_bool() && !v.as_bool() => continue,
-                Ok(v) => {
-                    let err_msg =
-                        self.error(xu_syntax::DiagnosticKind::InvalidConditionType(
-                            v.type_name().to_string(),
-                        ));
-                    let err_val = Value::str(
-                        self.heap
-                            .alloc(crate::core::heap::ManagedObject::Str(err_msg.into())),
-                    );
-                    return Flow::Throw(err_val);
-                }
-                Err(e) => {
-                    let err_val = Value::str(
-                        self.heap.alloc(crate::core::heap::ManagedObject::Str(e.into())),
-                    );
-                    return Flow::Throw(err_val);
-                }
+                Ok(v) if v.is_bool() => continue,
+                Ok(v) => return self.throw_err(self.error(xu_syntax::DiagnosticKind::InvalidConditionType(v.type_name().to_string()))),
+                Err(e) => return self.throw_err(e),
             }
         }
-        if let Some(body) = else_branch {
-            self.exec_stmts(body.as_ref())
-        } else {
-            Flow::None
-        }
+        else_branch.map_or(Flow::None, |body| self.exec_stmts(body.as_ref()))
     }
 
     pub(crate) fn exec_while_loop(&mut self, cond: &Expr, body: &Box<[Stmt]>) -> Flow {
         loop {
             let cond_v = match self.eval_expr(cond) {
                 Ok(v) if v.is_bool() => v.as_bool(),
-                Ok(v) => {
-                    let err_msg =
-                        self.error(xu_syntax::DiagnosticKind::InvalidConditionType(
-                            v.type_name().to_string(),
-                        ));
-                    let err_val = Value::str(
-                        self.heap
-                            .alloc(crate::core::heap::ManagedObject::Str(err_msg.into())),
-                    );
-                    return Flow::Throw(err_val);
-                }
-                Err(e) => {
-                    let err_val =
-                        Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(e.into())));
-                    return Flow::Throw(err_val);
-                }
+                Ok(v) => return self.throw_err(self.error(xu_syntax::DiagnosticKind::InvalidConditionType(v.type_name().to_string()))),
+                Err(e) => return self.throw_err(e),
             };
-            if !cond_v {
-                break;
-            }
+            if !cond_v { break; }
             match self.exec_stmts(body.as_ref()) {
-                Flow::None => {}
-                Flow::Continue => continue,
+                Flow::None | Flow::Continue => {}
                 Flow::Break => break,
                 other => return other,
             }
