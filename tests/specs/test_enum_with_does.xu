@@ -1,0 +1,86 @@
+// 测试枚举类型是否可以使用 does 关键字绑定方法
+
+// 定义一个枚举类型
+Status with [ active | inactive | pending ]
+
+// 为枚举类型绑定方法
+Status does {
+    // 实例方法：将枚举值转换为字符串
+    func to_string() -> string {
+        match self {
+            Status#active { return "active" }
+            Status#inactive { return "inactive" }
+            Status#pending { return "pending" }
+            _ { return "unknown" }
+        }
+    }
+
+    // 实例方法：检查是否为激活状态
+    func is_active() -> bool {
+        match self {
+            Status#active { return true }
+            _ { return false }
+        }
+    }
+
+    // 静态方法：创建默认状态
+    static func default() -> Status {
+        return Status#pending
+    }
+
+    // 静态方法：根据字符串创建状态
+    static func from_string(value: string) -> Option[Status] {
+        match value {
+            "active" { return Option#some(Status#active) }
+            "inactive" { return Option#some(Status#inactive) }
+            "pending" { return Option#some(Status#pending) }
+            _ { return Option#none }
+        }
+    }
+}
+
+// 测试代码
+func main() {
+    println("=== 测试枚举类型使用 does 关键字绑定方法 ===");
+
+    // 测试实例方法
+    let status1 = Status#active;
+    let status2 = Status#inactive;
+
+    println("Status 1: " + status1.to_string());
+    let is_active1 = status1.is_active();
+    if is_active1 {
+        println("Status 1 is active: true");
+    } else {
+        println("Status 1 is active: false");
+    }
+    println("Status 2: " + status2.to_string());
+    let is_active2 = status2.is_active();
+    if is_active2 {
+        println("Status 2 is active: true");
+    } else {
+        println("Status 2 is active: false");
+    }
+
+    // 测试静态方法
+    let default_status = Status.default();
+    println("Default status: " + default_status.to_string());
+
+    // 测试从字符串创建状态
+    let from_str = Status.from_string("active");
+    match from_str {
+        Option#some(s) { println("From string 'active': " + s.to_string()) }
+        _ { println("From string 'active': None") }
+    }
+
+    let from_str_invalid = Status.from_string("invalid");
+    match from_str_invalid {
+        Option#some(s) { println("From string 'invalid': " + s.to_string()) }
+        _ { println("From string 'invalid': None") }
+    }
+
+    println("Enum with does test completed!");
+}
+
+// 调用主函数
+main();

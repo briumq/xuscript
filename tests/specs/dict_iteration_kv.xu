@@ -1,0 +1,26 @@
+func assert(x) { __builtin_assert(x) }
+
+let dict = {"a": 1, "b": 2}
+var sum_values = 0
+var keys_str = ""
+
+for k in dict {
+    let v = dict[k]
+    if k == "a" { 
+        assert(v == 1)
+        sum_values += v 
+    }
+    if k == "b" { 
+        assert(v == 2)
+        sum_values += v 
+    }
+    // Simple concat to check keys are visited
+    // Note: order is undefined, so we don't assert keys_str exact value, just usage
+    if keys_str == "" {
+        keys_str = k
+    } else {
+        // keys_str = keys_str + k
+    }
+}
+
+assert(sum_values == 3)

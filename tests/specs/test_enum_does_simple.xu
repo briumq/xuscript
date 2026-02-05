@@ -1,0 +1,50 @@
+// 测试枚举类型是否可以使用 does 关键字绑定方法
+
+// 定义一个枚举类型
+Status with [ pending | approved | rejected ]
+
+// 为枚举类型绑定方法
+Status does {
+    // 实例方法：将枚举值转换为字符串
+    func to_string() -> string {
+        if self == Status#pending {
+            return "pending"
+        } else if self == Status#approved {
+            return "approved"
+        } else {
+            return "rejected"
+        }
+    }
+    
+    // 实例方法：检查是否为已批准状态
+    func is_approved() -> bool {
+        return self == Status#approved
+    }
+}
+
+// 测试代码
+func main() {
+    println("=== 测试枚举类型使用 does 关键字绑定方法 ===");
+    
+    // 测试实例方法
+    let status1 = Status#pending;
+    let status2 = Status#approved;
+    let status3 = Status#rejected;
+    
+    println("Status 1: " + status1.to_string());
+    println("Status 1 is approved:");
+    println(status1.is_approved());
+    
+    println("Status 2: " + status2.to_string());
+    println("Status 2 is approved:");
+    println(status2.is_approved());
+    
+    println("Status 3: " + status3.to_string());
+    println("Status 3 is approved:");
+    println(status3.is_approved());
+    
+    println("Enum with does test completed!");
+}
+
+// 调用主函数
+main();
