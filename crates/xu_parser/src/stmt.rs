@@ -11,6 +11,63 @@ use super::Parser;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a, 'b> Parser<'a, 'b> {
+    // ==================== 辅助方法 ====================
+
+    /// 解析冒号后的块或内联语句
+    #[inline]
+    fn parse_body_after_colon(&mut self, allow_match_inline: bool) -> Option<Box<[Stmt]>> {
+        if self.at(TokenKind::Colon) {
+            self.bump();
+            self.parse_block_or_inline_stmt_after_colon(allow_match_inline)
+        } else {
+            self.parse_block()
+        }
+    }
+
+    /// 创建成员访问表达式
+    #[inline]
+    fn make_member_expr(obj_name: &str, field: &str) -> Expr {
+        Expr::Member(Box::new(MemberExpr {
+            object: Box::new(Expr::Ident(obj_name.to_string(), Cell::new(None))),
+            field: field.to_string(),
+            ic_slot: Cell::new(None),
+        }))
+    }
+
+    /// 创建赋值语句
+    #[inline]
+    fn make_assign_stmt(name: String, value: Expr, decl: Option<DeclKind>) -> Stmt {
+        Stmt::Assign(Box::new(AssignStmt {
+            vis: Visibility::Public,
+            target: Expr::Ident(name, Cell::new(None)),
+            op: AssignOp::Set,
+            value,
+            ty: None,
+            slot: None,
+            decl,
+        }))
+    }
+
+    /// 处理方法定义（添加 self 参数和方法名前缀）
+    fn process_method(&self, f: &mut FuncDef, target: &str, is_static: bool) {
+        if is_static {
+            f.name = static_name(target, &f.name);
+        } else if !f.name.starts_with(METHOD_PREFIX) {
+            let original = f.name.clone();
+            f.name = method_name(target, &original);
+            let needs_self = f.params.first().map(|p| p.name != "self").unwrap_or(true);
+            if needs_self {
+                let mut params: Vec<Param> = Vec::with_capacity(f.params.len() + 1);
+                params.push(Param {
+                    name: "self".to_string(),
+                    ty: Some(TypeRef { name: target.to_string(), params: Box::new([]) }),
+                    default: None,
+                });
+                params.extend(f.params.iter().cloned());
+                f.params = params.into_boxed_slice();
+            }
+        }
+    }
     /// Parse a single statement.
     pub(super) fn parse_stmt(&mut self) -> Option<Stmt> {
         self.skip_trivia();
@@ -248,30 +305,7 @@ impl<'a, 'b> Parser<'a, 'b> {
 
             if self.at(TokenKind::KwFunc) {
                 let mut f = self.parse_func_def(item_vis)?;
-                if is_static {
-                    f.name = static_name(&name, &f.name);
-                } else if !f.name.starts_with(METHOD_PREFIX) {
-                    let original = f.name.clone();
-                    f.name = method_name(&name, &original);
-                    let needs_self = f
-                        .params
-                        .first()
-                        .map(|p| p.name != "self")
-                        .unwrap_or(true);
-                    if needs_self {
-                        let mut params: Vec<Param> = Vec::with_capacity(f.params.len() + 1);
-                        params.push(Param {
-                            name: "self".to_string(),
-                            ty: Some(TypeRef {
-                                name: name.clone(),
-                                params: Box::new([]),
-                            }),
-                            default: None,
-                        });
-                        params.extend(f.params.iter().cloned());
-                        f.params = params.into_boxed_slice();
-                    }
-                }
+                self.process_method(&mut f, &name, is_static);
                 methods.push(f);
                 continue;
             }
@@ -486,30 +520,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             }
 
             let mut f = self.parse_func_def(fvis)?;
-            if is_static {
-                f.name = static_name(&target, &f.name);
-            } else if !f.name.starts_with(METHOD_PREFIX) {
-                let original = f.name.clone();
-                f.name = method_name(&target, &original);
-                let needs_self = f
-                    .params
-                    .first()
-                    .map(|p| p.name != "self")
-                    .unwrap_or(true);
-                if needs_self {
-                    let mut params: Vec<Param> = Vec::with_capacity(f.params.len() + 1);
-                    params.push(Param {
-                        name: "self".to_string(),
-                        ty: Some(TypeRef {
-                            name: target.clone(),
-                            params: Box::new([]),
-                        }),
-                        default: None,
-                    });
-                    params.extend(f.params.iter().cloned());
-                    f.params = params.into_boxed_slice();
-                }
-            }
+            self.process_method(&mut f, &target, is_static);
             funcs.push(f);
         }
         self.expect(TokenKind::RBrace)?;
@@ -529,21 +540,12 @@ impl<'a, 'b> Parser<'a, 'b> {
         let mut arms: Vec<(Pattern, Box<[Stmt]>)> = Vec::with_capacity(4);
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             self.skip_trivia();
-            if self.at(TokenKind::RBrace) {
-                break;
-            }
+            if self.at(TokenKind::RBrace) { break; }
             let pat = self.parse_pattern()?;
-            let body = if self.at(TokenKind::Colon) {
-                self.bump();
-                self.parse_block_or_inline_stmt_after_colon(true)?
-            } else {
-                self.parse_block()?
-            };
+            let body = self.parse_body_after_colon(true)?;
             arms.push((pat, body));
             self.skip_trivia();
-            if self.at(TokenKind::Comma) {
-                self.bump();
-            }
+            if self.at(TokenKind::Comma) { self.bump(); }
         }
         let else_branch = if let Some((Pattern::Wildcard, body)) = arms.last() {
             let body = body.clone();
@@ -558,11 +560,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         };
         self.expect(TokenKind::RBrace)?;
         self.expect_stmt_terminator()?;
-        Some(MatchStmt {
-            expr,
-            arms: arms.into_boxed_slice(),
-            else_branch,
-        })
+        Some(MatchStmt { expr, arms: arms.into_boxed_slice(), else_branch })
     }
 
     fn parse_when_bind_stmt(&mut self) -> Option<Stmt> {
@@ -570,7 +568,6 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.skip_layout();
 
         // Check if user is trying to use `when expr { ... }` pattern matching syntax
-        // which should be `match expr { ... }` instead
         if self.at(TokenKind::Ident) {
             let next = self.peek_kind_n(1);
             if next == Some(TokenKind::LBrace) || next == Some(TokenKind::Newline) {
@@ -597,63 +594,31 @@ impl<'a, 'b> Parser<'a, 'b> {
                 ));
                 return None;
             }
-            self.bump(); // consume '='
+            self.bump();
             self.skip_layout();
-            let expr = self.parse_expr(0)?;
-            bindings.push((name, expr));
+            bindings.push((name, self.parse_expr(0)?));
             self.skip_layout();
-            if self.at(TokenKind::Comma) {
-                self.bump();
-                self.skip_layout();
-                continue;
-            }
+            if self.at(TokenKind::Comma) { self.bump(); self.skip_layout(); continue; }
             break;
         }
 
-        let success_body = if self.at(TokenKind::Colon) {
-            self.bump();
-            self.parse_block_or_inline_stmt_after_colon(false)?
-        } else {
-            self.parse_block()?
-        };
-
+        let success_body = self.parse_body_after_colon(false)?;
         self.skip_trivia();
         let else_body = if self.at(TokenKind::KwElse) {
             self.bump();
-            if self.at(TokenKind::Colon) {
-                self.bump();
-                self.parse_block_or_inline_stmt_after_colon(false)?
-            } else {
-                self.parse_block()?
-            }
+            self.parse_body_after_colon(false)?
         } else {
-            // 允许省略 else，默认为空块
             Box::new([])
         };
 
         let mut inner_body = success_body;
         let mut outer_stmt: Option<Stmt> = None;
         for (name, expr) in bindings.into_iter().rev() {
-            let pat_opt = Pattern::EnumVariant {
-                ty: "Option".to_string(),
-                variant: "some".to_string(),
-                args: vec![Pattern::Bind(name.clone())].into_boxed_slice(),
-            };
-            let pat_res = Pattern::EnumVariant {
-                ty: "Result".to_string(),
-                variant: "ok".to_string(),
-                args: vec![Pattern::Bind(name)].into_boxed_slice(),
-            };
             let arms = vec![
-                (pat_opt, inner_body.clone()),
-                (pat_res, inner_body.clone()),
-            ]
-            .into_boxed_slice();
-            let match_stmt = Stmt::Match(Box::new(MatchStmt {
-                expr,
-                arms,
-                else_branch: Some(else_body.clone()),
-            }));
+                (Pattern::EnumVariant { ty: "Option".to_string(), variant: "some".to_string(), args: vec![Pattern::Bind(name.clone())].into_boxed_slice() }, inner_body.clone()),
+                (Pattern::EnumVariant { ty: "Result".to_string(), variant: "ok".to_string(), args: vec![Pattern::Bind(name)].into_boxed_slice() }, inner_body.clone()),
+            ].into_boxed_slice();
+            let match_stmt = Stmt::Match(Box::new(MatchStmt { expr, arms, else_branch: Some(else_body.clone()) }));
             outer_stmt = Some(match_stmt.clone());
             inner_body = vec![match_stmt].into_boxed_slice();
         }
@@ -667,12 +632,7 @@ impl<'a, 'b> Parser<'a, 'b> {
     fn parse_if(&mut self) -> Option<IfStmt> {
         self.expect(TokenKind::KwIf)?;
         let cond = self.parse_expr_no_struct_init(0)?;
-        let body = if self.at(TokenKind::Colon) {
-            self.bump();
-            self.parse_block_or_inline_stmt_after_colon(false)?
-        } else {
-            self.parse_block()?
-        };
+        let body = self.parse_body_after_colon(false)?;
         let mut branches = vec![(cond, body)];
 
         let mut else_branch = None;
@@ -684,21 +644,11 @@ impl<'a, 'b> Parser<'a, 'b> {
                 if self.at(TokenKind::KwIf) {
                     self.bump();
                     let cond = self.parse_expr_no_struct_init(0)?;
-                    let body = if self.at(TokenKind::Colon) {
-                        self.bump();
-                        self.parse_block_or_inline_stmt_after_colon(false)?
-                    } else {
-                        self.parse_block()?
-                    };
+                    let body = self.parse_body_after_colon(false)?;
                     branches.push((cond, body));
                     continue;
                 }
-                else_branch = Some(if self.at(TokenKind::Colon) {
-                    self.bump();
-                    self.parse_block_or_inline_stmt_after_colon(false)?
-                } else {
-                    self.parse_block()?
-                });
+                else_branch = Some(self.parse_body_after_colon(false)?);
             }
             break;
         }
@@ -712,18 +662,13 @@ impl<'a, 'b> Parser<'a, 'b> {
     fn parse_while(&mut self) -> Option<WhileStmt> {
         self.expect(TokenKind::KwWhile)?;
         let cond = self.parse_expr_no_struct_init(0)?;
-        let body = if self.at(TokenKind::Colon) {
-            self.bump();
-            self.parse_block_or_inline_stmt_after_colon(false)?
-        } else {
-            self.parse_block()?
-        };
+        let body = self.parse_body_after_colon(false)?;
         Some(WhileStmt { cond, body })
     }
 
     fn parse_foreach(&mut self) -> Option<ForEachStmt> {
         self.expect(TokenKind::KwFor)?;
-        
+
         // 检查是否是字典键值对循环: for (key, value) in dict
         let (var, key_value_vars) = if self.at(TokenKind::LParen) {
             self.bump();
@@ -735,65 +680,25 @@ impl<'a, 'b> Parser<'a, 'b> {
             self.tmp_counter += 1;
             (tmp_var, Some((key_var, value_var)))
         } else {
-            // 普通循环: for var in iter
             (self.expect_ident()?, None)
         };
-        
+
         self.expect(TokenKind::KwIn)?;
         let iter = self.parse_expr_no_struct_init(0)?;
-        let body = if self.at(TokenKind::Colon) {
-            self.bump();
-            self.parse_block_or_inline_stmt_after_colon(false)?
-        } else {
-            self.parse_block()?
-        };
-        
+        let body = self.parse_body_after_colon(false)?;
+
         // 如果是字典键值对循环，修改body来包含键值对的解构
         let final_body = if let Some((key_var, value_var)) = key_value_vars {
-            let mut new_body = Vec::new();
-            
-            // 创建键值对解构语句
-            let key_expr = Expr::Member(Box::new(MemberExpr {
-                object: Box::new(Expr::Ident(var.clone(), std::cell::Cell::new(None))),
-                field: "0".to_string(),
-                ic_slot: std::cell::Cell::new(None),
-            }));
-            let value_expr = Expr::Member(Box::new(MemberExpr {
-                object: Box::new(Expr::Ident(var.clone(), std::cell::Cell::new(None))),
-                field: "1".to_string(),
-                ic_slot: std::cell::Cell::new(None),
-            }));
-            
-            // 添加键的赋值语句
-            new_body.push(Stmt::Assign(Box::new(AssignStmt {
-                vis: Visibility::Public,
-                target: Expr::Ident(key_var.clone(), std::cell::Cell::new(None)),
-                op: AssignOp::Set,
-                value: key_expr,
-                ty: None,
-                slot: None,
-                decl: Some(DeclKind::Let),
-            })));
-            
-            // 添加值的赋值语句
-            new_body.push(Stmt::Assign(Box::new(AssignStmt {
-                vis: Visibility::Public,
-                target: Expr::Ident(value_var.clone(), std::cell::Cell::new(None)),
-                op: AssignOp::Set,
-                value: value_expr,
-                ty: None,
-                slot: None,
-                decl: Some(DeclKind::Let),
-            })));
-            
-            // 添加原有的body语句
+            let mut new_body = vec![
+                Self::make_assign_stmt(key_var, Self::make_member_expr(&var, "0"), Some(DeclKind::Let)),
+                Self::make_assign_stmt(value_var, Self::make_member_expr(&var, "1"), Some(DeclKind::Let)),
+            ];
             new_body.extend(body.iter().cloned());
-            
             new_body.into_boxed_slice()
         } else {
             body
         };
-        
+
         Some(ForEachStmt { iter, var, body: final_body })
     }
 

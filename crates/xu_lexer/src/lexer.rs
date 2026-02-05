@@ -46,6 +46,67 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    // ==================== 辅助方法 ====================
+
+    /// 处理开分隔符
+    #[inline]
+    fn handle_open_delim(&mut self, start: usize, ch: char, kind: TokenKind) {
+        self.i += 1;
+        self.delim_depth = self.delim_depth.saturating_add(1);
+        self.delim_stack.push(ch);
+        self.push(kind, start, self.i);
+    }
+
+    /// 处理闭分隔符
+    #[inline]
+    fn handle_close_delim(&mut self, start: usize, expected: char, close_ch: char, kind: TokenKind) {
+        self.i += 1;
+        if let Some(top) = self.delim_stack.pop() {
+            if top != expected {
+                self.diagnostics.push(Diagnostic::error_kind(DiagnosticKind::UnmatchedDelimiter(close_ch), Some(Span::new(start as u32, self.i as u32))));
+            }
+        } else {
+            self.diagnostics.push(Diagnostic::error_kind(DiagnosticKind::UnmatchedDelimiter(close_ch), Some(Span::new(start as u32, self.i as u32))));
+        }
+        self.delim_depth = self.delim_depth.saturating_sub(1);
+        self.push(kind, start, self.i);
+    }
+
+    /// 处理可能带 = 后缀的运算符
+    #[inline]
+    fn handle_op_with_eq(&mut self, start: usize, base: TokenKind, with_eq: TokenKind) {
+        self.i += 1;
+        if self.peek_char() == Some('=') {
+            self.i += 1;
+            self.push(with_eq, start, self.i);
+        } else {
+            self.push(base, start, self.i);
+        }
+    }
+
+    /// 词法分析带引号的字符串（双引号或单引号）
+    fn lex_quoted_string(&mut self, quote: char) {
+        let start = self.i;
+        self.i += 1;
+        while self.i < self.bytes.len() {
+            let ch = self.peek_char().unwrap();
+            if ch == '\n' || ch == '\r' { break; }
+            if ch == quote {
+                self.i += 1;
+                self.push(TokenKind::Str, start, self.i);
+                return;
+            }
+            if ch == '\\' {
+                self.i += 1;
+                if self.i >= self.bytes.len() { break; }
+                self.i += self.peek_char().unwrap().len_utf8();
+                continue;
+            }
+            self.i += ch.len_utf8();
+        }
+        self.diagnostics.push(Diagnostic::error_kind(DiagnosticKind::UnterminatedString, Some(Span::new(start as u32, self.i as u32))));
+    }
+
     /// Run the lexer and return tokens + diagnostics.
     pub fn lex(mut self) -> LexResult {
         let approx = self.bytes.len().saturating_div(4).max(32);
@@ -144,84 +205,14 @@ impl<'a> Lexer<'a> {
                         }
                     }
                 }
-                Some('(') => {
-                    self.i += 1;
-                    self.delim_depth = self.delim_depth.saturating_add(1);
-                    self.delim_stack.push('(');
-                    self.push(TokenKind::LParen, start, self.i);
-                }
-                Some(')') => {
-                    self.i += 1;
-                    if let Some(top) = self.delim_stack.pop() {
-                        if top != '(' {
-                            self.diagnostics.push(Diagnostic::error_kind(
-                                DiagnosticKind::UnmatchedDelimiter(')'),
-                                Some(Span::new(start as u32, self.i as u32)),
-                            ));
-                        }
-                    } else {
-                        self.diagnostics.push(Diagnostic::error_kind(
-                            DiagnosticKind::UnmatchedDelimiter(')'),
-                            Some(Span::new(start as u32, self.i as u32)),
-                        ));
-                    }
-                    self.delim_depth = self.delim_depth.saturating_sub(1);
-                    self.push(TokenKind::RParen, start, self.i);
-                }
-                Some('[') => {
-                    self.i += 1;
-                    self.delim_depth = self.delim_depth.saturating_add(1);
-                    self.delim_stack.push('[');
-                    self.push(TokenKind::LBracket, start, self.i);
-                }
-                Some(']') => {
-                    self.i += 1;
-                    if let Some(top) = self.delim_stack.pop() {
-                        if top != '[' {
-                            self.diagnostics.push(Diagnostic::error_kind(
-                                DiagnosticKind::UnmatchedDelimiter(']'),
-                                Some(Span::new(start as u32, self.i as u32)),
-                            ));
-                        }
-                    } else {
-                        self.diagnostics.push(Diagnostic::error_kind(
-                            DiagnosticKind::UnmatchedDelimiter(']'),
-                            Some(Span::new(start as u32, self.i as u32)),
-                        ));
-                    }
-                    self.delim_depth = self.delim_depth.saturating_sub(1);
-                    self.push(TokenKind::RBracket, start, self.i);
-                }
-                Some('{') => {
-                    self.i += 1;
-                    self.delim_depth = self.delim_depth.saturating_add(1);
-                    self.delim_stack.push('{');
-                    self.push(TokenKind::LBrace, start, self.i);
-                }
-                Some('}') => {
-                    self.i += 1;
-                    if let Some(top) = self.delim_stack.pop() {
-                        if top != '{' {
-                            self.diagnostics.push(Diagnostic::error_kind(
-                                DiagnosticKind::UnmatchedDelimiter('}'),
-                                Some(Span::new(start as u32, self.i as u32)),
-                            ));
-                        }
-                    } else {
-                        self.diagnostics.push(Diagnostic::error_kind(
-                            DiagnosticKind::UnmatchedDelimiter('}'),
-                            Some(Span::new(start as u32, self.i as u32)),
-                        ));
-                    }
-                    self.delim_depth = self.delim_depth.saturating_sub(1);
-                    self.push(TokenKind::RBrace, start, self.i);
-                }
-                Some('"') => {
-                    self.lex_string();
-                }
-                Some('\'') => {
-                    self.lex_single_quote_string();
-                }
+                Some('(') => self.handle_open_delim(start, '(', TokenKind::LParen),
+                Some(')') => self.handle_close_delim(start, '(', ')', TokenKind::RParen),
+                Some('[') => self.handle_open_delim(start, '[', TokenKind::LBracket),
+                Some(']') => self.handle_close_delim(start, '[', ']', TokenKind::RBracket),
+                Some('{') => self.handle_open_delim(start, '{', TokenKind::LBrace),
+                Some('}') => self.handle_close_delim(start, '{', '}', TokenKind::RBrace),
+                Some('"') => self.lex_string(),
+                Some('\'') => self.lex_quoted_string('\''),
                 Some('.') => {
                     if self.peek_str("...") {
                         self.i += 3;
@@ -250,33 +241,9 @@ impl<'a> Lexer<'a> {
                     self.i += 1;
                     self.push(TokenKind::Colon, start, self.i);
                 }
-                Some('+') => {
-                    self.i += 1;
-                    if self.peek_char() == Some('=') {
-                        self.i += 1;
-                        self.push(TokenKind::PlusEq, start, self.i);
-                    } else {
-                        self.push(TokenKind::Plus, start, self.i);
-                    }
-                }
-                Some('-') => {
-                    self.i += 1;
-                    if self.peek_char() == Some('=') {
-                        self.i += 1;
-                        self.push(TokenKind::MinusEq, start, self.i);
-                    } else {
-                        self.push(TokenKind::Minus, start, self.i);
-                    }
-                }
-                Some('*') => {
-                    self.i += 1;
-                    if self.peek_char() == Some('=') {
-                        self.i += 1;
-                        self.push(TokenKind::StarEq, start, self.i);
-                    } else {
-                        self.push(TokenKind::Star, start, self.i);
-                    }
-                }
+                Some('+') => self.handle_op_with_eq(start, TokenKind::Plus, TokenKind::PlusEq),
+                Some('-') => self.handle_op_with_eq(start, TokenKind::Minus, TokenKind::MinusEq),
+                Some('*') => self.handle_op_with_eq(start, TokenKind::Star, TokenKind::StarEq),
                 Some('%') => {
                     self.i += 1;
                     self.push(TokenKind::Percent, start, self.i);
@@ -306,42 +273,10 @@ impl<'a> Lexer<'a> {
                         ));
                     }
                 }
-                Some('>') => {
-                    self.i += 1;
-                    if self.peek_char() == Some('=') {
-                        self.i += 1;
-                        self.push(TokenKind::Ge, start, self.i);
-                    } else {
-                        self.push(TokenKind::Gt, start, self.i);
-                    }
-                }
-                Some('<') => {
-                    self.i += 1;
-                    if self.peek_char() == Some('=') {
-                        self.i += 1;
-                        self.push(TokenKind::Le, start, self.i);
-                    } else {
-                        self.push(TokenKind::Lt, start, self.i);
-                    }
-                }
-                Some('=') => {
-                    self.i += 1;
-                    if self.peek_char() == Some('=') {
-                        self.i += 1;
-                        self.push(TokenKind::EqEq, start, self.i);
-                    } else {
-                        self.push(TokenKind::Eq, start, self.i);
-                    }
-                }
-                Some('!') => {
-                    self.i += 1;
-                    if self.peek_char() == Some('=') {
-                        self.i += 1;
-                        self.push(TokenKind::Ne, start, self.i);
-                    } else {
-                        self.push(TokenKind::Bang, start, self.i);
-                    }
-                }
+                Some('>') => self.handle_op_with_eq(start, TokenKind::Gt, TokenKind::Ge),
+                Some('<') => self.handle_op_with_eq(start, TokenKind::Lt, TokenKind::Le),
+                Some('=') => self.handle_op_with_eq(start, TokenKind::Eq, TokenKind::EqEq),
+                Some('!') => self.handle_op_with_eq(start, TokenKind::Bang, TokenKind::Ne),
                 Some('?') => {
                     self.i += 1;
                     self.push(TokenKind::Question, start, self.i);
@@ -469,65 +404,7 @@ impl<'a> Lexer<'a> {
             self.lex_triple_string();
             return;
         }
-        let start = self.i;
-        self.i += 1;
-        while self.i < self.bytes.len() {
-            let ch = self.peek_char().unwrap();
-            if ch == '\n' || ch == '\r' {
-                break;
-            }
-            if ch == '"' {
-                self.i += 1;
-                self.push(TokenKind::Str, start, self.i);
-                return;
-            }
-            if ch == '\\' {
-                self.i += 1;
-                if self.i >= self.bytes.len() {
-                    break;
-                }
-                let esc = self.peek_char().unwrap();
-                self.i += esc.len_utf8();
-                continue;
-            }
-            self.i += ch.len_utf8();
-        }
-        self.diagnostics.push(Diagnostic::error_kind(
-            DiagnosticKind::UnterminatedString,
-            Some(Span::new(start as u32, self.i as u32)),
-        ));
-    }
-
-    /// Lex a single-quoted string (e.g., 'hello')
-    /// Single-quoted strings are treated the same as double-quoted strings
-    fn lex_single_quote_string(&mut self) {
-        let start = self.i;
-        self.i += 1; // skip opening '
-        while self.i < self.bytes.len() {
-            let ch = self.peek_char().unwrap();
-            if ch == '\n' || ch == '\r' {
-                break;
-            }
-            if ch == '\'' {
-                self.i += 1;
-                self.push(TokenKind::Str, start, self.i);
-                return;
-            }
-            if ch == '\\' {
-                self.i += 1;
-                if self.i >= self.bytes.len() {
-                    break;
-                }
-                let esc = self.peek_char().unwrap();
-                self.i += esc.len_utf8();
-                continue;
-            }
-            self.i += ch.len_utf8();
-        }
-        self.diagnostics.push(Diagnostic::error_kind(
-            DiagnosticKind::UnterminatedString,
-            Some(Span::new(start as u32, self.i as u32)),
-        ));
+        self.lex_quoted_string('"');
     }
 
     /// Lexes a numeric literal (integer or float).

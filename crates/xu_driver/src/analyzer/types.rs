@@ -1,8 +1,34 @@
 use std::collections::HashMap;
-use xu_syntax::{Diagnostic, DiagnosticKind, codes, Type, TypeId, TypeInterner, TokenKind};
+use xu_syntax::{Diagnostic, DiagnosticKind, codes, Type, TypeId, TypeInterner, TokenKind, Span};
 use xu_parser::{Stmt, Expr, TypeRef, UnaryOp, BinaryOp, ReceiverType};
 use super::utils::Finder;
 use super::{StructMap, infer_module_alias};
+
+// ==================== 辅助函数 ====================
+
+/// 获取类型环境的最后一个作用域
+#[inline]
+fn env_last(type_env: &mut Vec<HashMap<String, TypeId>>) -> &mut HashMap<String, TypeId> {
+    type_env.last_mut().expect("type_env should not be empty")
+}
+
+/// 创建类型不匹配诊断
+fn make_type_mismatch_diag(
+    interner: &TypeInterner,
+    expected: TypeId,
+    actual: TypeId,
+    primary: Option<Span>,
+    label_msg: Option<&str>,
+) -> Diagnostic {
+    let mut d = Diagnostic::error_kind(
+        DiagnosticKind::TypeMismatch { expected: interner.name(expected), actual: interner.name(actual) },
+        primary,
+    ).with_code(codes::TYPE_MISMATCH);
+    if let (Some(msg), Some(sp)) = (label_msg, primary) {
+        d = d.with_label(msg, sp);
+    }
+    d
+}
 
 pub fn analyze_types(
     module: &xu_parser::Module,
@@ -12,55 +38,35 @@ pub fn analyze_types(
 ) {
     let mut interner = TypeInterner::new();
     let mut func_sigs: HashMap<String, (Vec<Option<TypeId>>, Option<TypeId>)> = HashMap::new();
+
+    // 收集函数签名
     for s in &module.stmts {
-        if let Stmt::FuncDef(def) = s {
-            let params = def
-                .params
-                .iter()
-                .map(|p| p.ty.as_ref().map(|t| typeref_to_typeid(&mut interner, t)))
-                .collect::<Vec<_>>();
-            let ret = def
-                .return_ty
-                .as_ref()
-                .map(|t| typeref_to_typeid(&mut interner, t));
-            func_sigs.insert(def.name.clone(), (params, ret));
-        }
-        // Collect static methods from struct definitions (has blocks)
-        // Note: method.name is already mangled by the parser (e.g., __static__Task__create)
-        if let Stmt::StructDef(def) = s {
-            for method in def.methods.iter() {
-                let params = method
-                    .params
-                    .iter()
-                    .map(|p| p.ty.as_ref().map(|t| typeref_to_typeid(&mut interner, t)))
-                    .collect::<Vec<_>>();
-                let ret = method
-                    .return_ty
-                    .as_ref()
-                    .map(|t| typeref_to_typeid(&mut interner, t));
-                func_sigs.insert(method.name.clone(), (params, ret));
+        match s {
+            Stmt::FuncDef(def) => {
+                func_sigs.insert(def.name.clone(), collect_func_sig(&mut interner, &def.params, &def.return_ty));
             }
+            Stmt::StructDef(def) => {
+                for method in def.methods.iter() {
+                    func_sigs.insert(method.name.clone(), collect_func_sig(&mut interner, &method.params, &method.return_ty));
+                }
+            }
+            _ => {}
         }
     }
 
     let mut type_env: Vec<HashMap<String, TypeId>> = vec![HashMap::new()];
     let fn_ty = interner.builtin_by_name("func").expect("func type should be registered");
     for builtin in xu_syntax::BUILTIN_NAMES {
-        type_env
-            .last_mut()
-            .expect("type_env should not be empty")
-            .insert(builtin.to_string(), fn_ty);
+        env_last(&mut type_env).insert(builtin.to_string(), fn_ty);
     }
-    analyze_type_stmts(
-        &module.stmts,
-        &func_sigs,
-        structs,
-        &mut type_env,
-        finder,
-        None,
-        &mut interner,
-        out,
-    );
+    analyze_type_stmts(&module.stmts, &func_sigs, structs, &mut type_env, finder, None, &mut interner, out);
+}
+
+/// 收集函数签名
+fn collect_func_sig(interner: &mut TypeInterner, params: &[xu_parser::Param], return_ty: &Option<TypeRef>) -> (Vec<Option<TypeId>>, Option<TypeId>) {
+    let params = params.iter().map(|p| p.ty.as_ref().map(|t| typeref_to_typeid(interner, t))).collect();
+    let ret = return_ty.as_ref().map(|t| typeref_to_typeid(interner, t));
+    (params, ret)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -77,18 +83,8 @@ fn analyze_type_stmts(
     for s in stmts {
         match s {
             Stmt::StructDef(def) => {
-                // Analyze static methods in has blocks
                 for method in def.methods.iter() {
-                    analyze_type_stmts(
-                        &[Stmt::FuncDef(Box::new(method.clone()))],
-                        func_sigs,
-                        structs,
-                        type_env,
-                        finder,
-                        None, // Static methods have their own return type
-                        interner,
-                        out,
-                    );
+                    analyze_type_stmts(&[Stmt::FuncDef(Box::new(method.clone()))], func_sigs, structs, type_env, finder, None, interner, out);
                 }
             }
             Stmt::EnumDef(_) => {}
@@ -97,185 +93,67 @@ fn analyze_type_stmts(
                 for p in &def.params {
                     if let Some(t) = &p.ty {
                         let tid = typeref_to_typeid(interner, t);
-                        type_env.last_mut().expect("type_env should not be empty").insert(p.name.clone(), tid);
+                        env_last(type_env).insert(p.name.clone(), tid);
                         if let Some(d) = &p.default {
-                            if let Some(actual_id) =
-                                infer_type(d, func_sigs, structs, type_env, interner)
-                            {
-                                let expected_id = tid;
-                                if type_mismatch_id(interner, expected_id, actual_id)
-                                    && !empty_container_literal_ok(interner, expected_id, d)
-                                {
-                                    let en = interner.name(expected_id);
-                                    let an = interner.name(actual_id);
-                                    let primary = finder.find_name_or_next(&p.name);
-                                    let msg = "Variable is defined here";
-                                    let mut d = Diagnostic::error_kind(
-                                        DiagnosticKind::TypeMismatch {
-                                            expected: en,
-                                            actual: an,
-                                        },
-                                        primary,
-                                    )
-                                    .with_code(codes::TYPE_MISMATCH);
-                                    if let Some(sp) = primary {
-                                        d = d.with_label(msg, sp);
-                                    }
-                                    out.push(d);
-                                }
-                            }
+                            check_type_match(d, tid, func_sigs, structs, type_env, finder, interner, out, Some("Variable is defined here"));
                         }
                     }
                 }
-                let expected_ret = def.return_ty
-                    .as_ref()
-                    .map(|t| typeref_to_typeid(interner, t));
-                analyze_type_stmts(
-                    &def.body,
-                    func_sigs,
-                    structs,
-                    type_env,
-                    finder,
-                    expected_ret,
-                    interner,
-                    out,
-                );
+                let expected_ret = def.return_ty.as_ref().map(|t| typeref_to_typeid(interner, t));
+                analyze_type_stmts(&def.body, func_sigs, structs, type_env, finder, expected_ret, interner, out);
                 type_env.pop();
             }
             Stmt::DoesBlock(def) => {
-                for def in def.funcs.iter() {
-                    analyze_type_stmts(
-                        &[Stmt::FuncDef(Box::new(def.clone()))],
-                        func_sigs,
-                        structs,
-                        type_env,
-                        finder,
-                        None, // Instance methods have their own return type
-                        interner,
-                        out,
-                    );
+                for f in def.funcs.iter() {
+                    analyze_type_stmts(&[Stmt::FuncDef(Box::new(f.clone()))], func_sigs, structs, type_env, finder, None, interner, out);
                 }
             }
             Stmt::Use(u) => {
-                // Register module alias in type environment
-                // Use explicit alias if provided, otherwise infer from path
                 let alias = u.alias.clone().unwrap_or_else(|| infer_module_alias(&u.path));
                 let any = interner.builtin_by_name("any").expect("any type should be registered");
-                type_env.last_mut().expect("type_env should not be empty").insert(alias, any);
+                env_last(type_env).insert(alias, any);
             }
             Stmt::If(s) => {
                 for (cond, body) in &s.branches {
                     let _ = infer_type(cond, func_sigs, structs, type_env, interner);
-                    analyze_type_stmts(
-                        body,
-                        func_sigs,
-                        structs,
-                        type_env,
-                        finder,
-                        expected_return,
-                        interner,
-                        out,
-                    );
+                    analyze_type_stmts(body, func_sigs, structs, type_env, finder, expected_return, interner, out);
                 }
                 if let Some(body) = &s.else_branch {
-                    analyze_type_stmts(
-                        body,
-                        func_sigs,
-                        structs,
-                        type_env,
-                        finder,
-                        expected_return,
-                        interner,
-                        out,
-                    );
+                    analyze_type_stmts(body, func_sigs, structs, type_env, finder, expected_return, interner, out);
                 }
             }
             Stmt::Match(s) => {
                 let _ = infer_type(&s.expr, func_sigs, structs, type_env, interner);
                 for (_, body) in s.arms.iter() {
-                    analyze_type_stmts(
-                        body,
-                        func_sigs,
-                        structs,
-                        type_env,
-                        finder,
-                        expected_return,
-                        interner,
-                        out,
-                    );
+                    analyze_type_stmts(body, func_sigs, structs, type_env, finder, expected_return, interner, out);
                 }
                 if let Some(body) = &s.else_branch {
-                    analyze_type_stmts(
-                        body,
-                        func_sigs,
-                        structs,
-                        type_env,
-                        finder,
-                        expected_return,
-                        interner,
-                        out,
-                    );
+                    analyze_type_stmts(body, func_sigs, structs, type_env, finder, expected_return, interner, out);
                 }
             }
             Stmt::While(s) => {
                 let _ = infer_type(&s.cond, func_sigs, structs, type_env, interner);
-                analyze_type_stmts(
-                    &s.body,
-                    func_sigs,
-                    structs,
-                    type_env,
-                    finder,
-                    expected_return,
-                    interner,
-                    out,
-                );
+                analyze_type_stmts(&s.body, func_sigs, structs, type_env, finder, expected_return, interner, out);
             }
             Stmt::ForEach(s) => {
                 let iter_ty = infer_type(&s.iter, func_sigs, structs, type_env, interner);
                 type_env.push(HashMap::new());
-                let var_ty = if let Some(id) = iter_ty {
-                    match interner.get(id) {
-                        Type::Range => interner.intern(Type::Int),
-                        Type::List(elem) => *elem,
-                        _ => interner.intern(Type::Any),
-                    }
-                } else {
-                    interner.intern(Type::Any)
-                };
-                type_env.last_mut().expect("type_env should not be empty").insert(s.var.clone(), var_ty);
-                analyze_type_stmts(
-                    &s.body,
-                    func_sigs,
-                    structs,
-                    type_env,
-                    finder,
-                    expected_return,
-                    interner,
-                    out,
-                );
+                let var_ty = iter_ty.map(|id| match interner.get(id) {
+                    Type::Range => interner.intern(Type::Int),
+                    Type::List(elem) => *elem,
+                    _ => interner.intern(Type::Any),
+                }).unwrap_or_else(|| interner.intern(Type::Any));
+                env_last(type_env).insert(s.var.clone(), var_ty);
+                analyze_type_stmts(&s.body, func_sigs, structs, type_env, finder, expected_return, interner, out);
                 type_env.pop();
             }
             Stmt::Return(e) => {
                 if let (Some(expected), Some(e)) = (expected_return, e) {
                     if let Some(actual) = infer_type(e, func_sigs, structs, type_env, interner) {
-                        // Skip type check if actual type is 'any' (unknown type from cross-module calls)
                         let any_id = interner.intern(Type::Any);
-                        if actual != any_id
-                            && type_mismatch_id(interner, expected, actual)
-                            && !empty_container_literal_ok(interner, expected, e)
-                        {
-                            let en = interner.name(expected);
-                            let an = interner.name(actual);
-                            let d = Diagnostic::error_kind(
-                                DiagnosticKind::TypeMismatch {
-                                    expected: en,
-                                    actual: an,
-                                },
-                                finder.find_kw_or_next(TokenKind::KwReturn),
-                            )
-                            .with_code(codes::TYPE_MISMATCH)
-                            .with_help("Function return type is declared at definition");
-                            out.push(d);
+                        if actual != any_id && type_mismatch_id(interner, expected, actual) && !empty_container_literal_ok(interner, expected, e) {
+                            out.push(make_type_mismatch_diag(interner, expected, actual, finder.find_kw_or_next(TokenKind::KwReturn), None)
+                                .with_help("Function return type is declared at definition"));
                         }
                     }
                 }
@@ -283,96 +161,74 @@ fn analyze_type_stmts(
             Stmt::Break | Stmt::Continue => {}
             Stmt::Block(stmts) => {
                 type_env.push(HashMap::new());
-                analyze_type_stmts(
-                    stmts,
-                    func_sigs,
-                    structs,
-                    type_env,
-                    finder,
-                    expected_return,
-                    interner,
-                    out,
-                );
+                analyze_type_stmts(stmts, func_sigs, structs, type_env, finder, expected_return, interner, out);
                 type_env.pop();
             }
-            Stmt::Assign(s) => {
-                if let Some(expected_id) = s.ty.as_ref().map(|t| typeref_to_typeid(interner, t)) {
-                    if let Some(actual) =
-                        infer_type(&s.value, func_sigs, structs, type_env, interner)
-                    {
-                        if type_mismatch_id(interner, expected_id, actual)
-                            && !empty_container_literal_ok(interner, expected_id, &s.value)
-                        {
-                            let en = interner.name(expected_id);
-                            let an = interner.name(actual);
-                            let primary = match &s.target {
-                                Expr::Ident(name, _) => finder.find_name_or_next(name),
-                                _ => finder.next_significant_span(),
-                            };
-                            let mut d = Diagnostic::error_kind(
-                                DiagnosticKind::TypeMismatch {
-                                    expected: en,
-                                    actual: an,
-                                },
-                                primary,
-                            )
-                            .with_code(codes::TYPE_MISMATCH);
-                            if let Expr::Ident(_name, _) = &s.target {
-                                let msg = "Variable is defined here";
-                                if let Some(sp) = primary {
-                                    d = d.with_label(msg, sp);
-                                }
-                            }
-                            out.push(d);
-                        }
-                    }
-                    if let Expr::Ident(name, _) = &s.target {
-                        type_env
-                            .last_mut()
-                            .expect("type_env should not be empty")
-                            .insert(name.clone(), expected_id);
-                    }
-                } else if s.decl.is_some() {
-                    if let Expr::Ident(name, _) = &s.target {
-                        let actual = infer_type(&s.value, func_sigs, structs, type_env, interner)
-                            .unwrap_or(interner.intern(Type::Any));
-                        type_env.last_mut().expect("type_env should not be empty").insert(name.clone(), actual);
-                    }
-                } else if let Expr::Ident(name, _) = &s.target {
-                    if let Some(expected) = type_env.iter().rev().find_map(|m| m.get(name).cloned())
-                    {
-                        if let Some(actual) =
-                            infer_type(&s.value, func_sigs, structs, type_env, interner)
-                        {
-                            if type_mismatch_id(interner, expected, actual) {
-                                let en = interner.name(expected);
-                                let an = interner.name(actual);
-                                let primary = finder.find_name_or_next(&name);
-                                let mut d = Diagnostic::error_kind(
-                                    DiagnosticKind::TypeMismatch {
-                                        expected: en,
-                                        actual: an,
-                                    },
-                                    primary,
-                                )
-                                .with_code(codes::TYPE_MISMATCH);
-                                let msg = "Variable is defined here";
-                                if let Some(sp) = primary {
-                                    d = d.with_label(msg, sp);
-                                }
-                                out.push(d);
-                            }
-                        }
-                    }
-                }
-            }
+            Stmt::Assign(s) => analyze_assign_stmt(s, func_sigs, structs, type_env, finder, interner, out),
             Stmt::Expr(e) => {
                 let _ = infer_type(e, func_sigs, structs, type_env, interner);
-                // Check closure call argument types
                 check_closure_call_args(e, func_sigs, structs, type_env, finder, interner, out);
             }
             Stmt::Error(_) => {}
-            // Removed Try/Throw cases
+        }
+    }
+}
+
+/// 检查类型匹配
+#[allow(clippy::too_many_arguments)]
+fn check_type_match(
+    expr: &Expr,
+    expected: TypeId,
+    func_sigs: &HashMap<String, (Vec<Option<TypeId>>, Option<TypeId>)>,
+    structs: &StructMap,
+    type_env: &Vec<HashMap<String, TypeId>>,
+    finder: &mut Finder<'_>,
+    interner: &mut TypeInterner,
+    out: &mut Vec<Diagnostic>,
+    label_msg: Option<&str>,
+) {
+    if let Some(actual) = infer_type(expr, func_sigs, structs, type_env, interner) {
+        if type_mismatch_id(interner, expected, actual) && !empty_container_literal_ok(interner, expected, expr) {
+            let primary = finder.next_significant_span();
+            out.push(make_type_mismatch_diag(interner, expected, actual, primary, label_msg));
+        }
+    }
+}
+
+/// 分析赋值语句
+#[allow(clippy::too_many_arguments)]
+fn analyze_assign_stmt(
+    s: &xu_parser::AssignStmt,
+    func_sigs: &HashMap<String, (Vec<Option<TypeId>>, Option<TypeId>)>,
+    structs: &StructMap,
+    type_env: &mut Vec<HashMap<String, TypeId>>,
+    finder: &mut Finder<'_>,
+    interner: &mut TypeInterner,
+    out: &mut Vec<Diagnostic>,
+) {
+    if let Some(expected_id) = s.ty.as_ref().map(|t| typeref_to_typeid(interner, t)) {
+        if let Some(actual) = infer_type(&s.value, func_sigs, structs, type_env, interner) {
+            if type_mismatch_id(interner, expected_id, actual) && !empty_container_literal_ok(interner, expected_id, &s.value) {
+                let primary = match &s.target { Expr::Ident(name, _) => finder.find_name_or_next(name), _ => finder.next_significant_span() };
+                out.push(make_type_mismatch_diag(interner, expected_id, actual, primary, Some("Variable is defined here")));
+            }
+        }
+        if let Expr::Ident(name, _) = &s.target {
+            env_last(type_env).insert(name.clone(), expected_id);
+        }
+    } else if s.decl.is_some() {
+        if let Expr::Ident(name, _) = &s.target {
+            let actual = infer_type(&s.value, func_sigs, structs, type_env, interner).unwrap_or(interner.intern(Type::Any));
+            env_last(type_env).insert(name.clone(), actual);
+        }
+    } else if let Expr::Ident(name, _) = &s.target {
+        if let Some(expected) = type_env.iter().rev().find_map(|m| m.get(name).cloned()) {
+            if let Some(actual) = infer_type(&s.value, func_sigs, structs, type_env, interner) {
+                if type_mismatch_id(interner, expected, actual) {
+                    let primary = finder.find_name_or_next(name);
+                    out.push(make_type_mismatch_diag(interner, expected, actual, primary, Some("Variable is defined here")));
+                }
+            }
         }
     }
 }

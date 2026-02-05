@@ -87,6 +87,48 @@ impl Compiler {
         self.scopes.push(Scope { locals: Vec::new() });
     }
 
+    // ==================== 辅助方法 ====================
+
+    /// 修补跳转指令的目标地址
+    #[inline]
+    fn patch_jump(&mut self, pos: usize, target: usize) -> Option<()> {
+        match &mut self.bc.ops[pos] {
+            Op::Jump(to) | Op::JumpIfFalse(to) | Op::JumpIfTrue(to) => { *to = target; Some(()) }
+            _ => None,
+        }
+    }
+
+    /// 修补多个跳转指令到同一目标
+    #[inline]
+    fn patch_jumps(&mut self, positions: &[usize], target: usize) -> Option<()> {
+        for &pos in positions {
+            self.patch_jump(pos, target)?;
+        }
+        Some(())
+    }
+
+    /// 编译语句列表
+    #[inline]
+    fn compile_stmts(&mut self, stmts: &[Stmt]) -> Option<()> {
+        for s in stmts { self.compile_stmt(s)?; }
+        Some(())
+    }
+
+    /// 编译表达式列表
+    #[inline]
+    fn compile_exprs(&mut self, exprs: &[Expr]) -> Option<()> {
+        for e in exprs { self.compile_expr(e)?; }
+        Some(())
+    }
+
+    /// 发出跳转指令并返回其位置（用于后续修补）
+    #[inline]
+    fn emit_jump(&mut self, op: Op) -> usize {
+        let pos = self.bc.ops.len();
+        self.bc.ops.push(op);
+        pos
+    }
+
     fn resolve_local(&self, name: &str) -> Option<usize> {
         if self.scopes.len() <= 1 {
             return None; // Top-level variables are globals
@@ -304,205 +346,107 @@ impl Compiler {
         let mut end_jumps: Vec<usize> = Vec::new();
         for (cond, body) in &stmt.branches {
             self.compile_expr(cond)?;
-            let jfalse_pos = self.bc.ops.len();
-            self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
-            for s in body {
-                self.compile_stmt(s)?;
-            }
-            let jend_pos = self.bc.ops.len();
-            self.bc.ops.push(Op::Jump(usize::MAX));
-            end_jumps.push(jend_pos);
-            let next_start = self.bc.ops.len();
-            let Op::JumpIfFalse(to) = &mut self.bc.ops[jfalse_pos] else {
-                return None;
-            };
-            *to = next_start;
+            let jfalse_pos = self.emit_jump(Op::JumpIfFalse(usize::MAX));
+            self.compile_stmts(body)?;
+            end_jumps.push(self.emit_jump(Op::Jump(usize::MAX)));
+            self.patch_jump(jfalse_pos, self.bc.ops.len())?;
         }
         if let Some(body) = &stmt.else_branch {
-            for s in body {
-                self.compile_stmt(s)?;
-            }
+            self.compile_stmts(body)?;
         }
-        let end = self.bc.ops.len();
-        for pos in end_jumps {
-            let Op::Jump(to) = &mut self.bc.ops[pos] else {
-                return None;
-            };
-            *to = end;
-        }
-        Some(())
+        self.patch_jumps(&end_jumps, self.bc.ops.len())
     }
 
     fn compile_match_stmt(&mut self, stmt: &xu_ir::MatchStmt) -> Option<()> {
-        // Compile the match expression
         self.compile_expr(&stmt.expr)?;
-
         let mut arm_end_jumps: Vec<usize> = Vec::new();
 
         for (i, (pat, body)) in stmt.arms.iter().enumerate() {
             let is_last = i == stmt.arms.len() - 1 && stmt.else_branch.is_none();
+            let jump_pos = self.compile_match_pattern_check(pat)?;
 
-            // Handle pattern matching
-            if !matches!(pat, xu_ir::Pattern::Wildcard) {
-                // Add pattern to constants and emit match instruction
-                // MatchPattern peeks the value and pushes bool result
-                let pat_idx = self.add_constant(xu_ir::Constant::Pattern(pat.clone()));
-                self.bc.ops.push(Op::MatchPattern(pat_idx));
-
-                // Jump to next arm if pattern doesn't match
-                let jump_pos = self.bc.ops.len();
-                self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
-
-                // Get bindings from pattern
+            if let Some(jpos) = jump_pos {
                 let bindings = collect_pattern_bindings(pat);
                 if !bindings.is_empty() {
-                    // Push env frame for bindings
                     self.bc.ops.push(Op::EnvPush);
-
-                    // Emit MatchBindings to pop value and push binding values onto stack
+                    let pat_idx = self.add_constant(xu_ir::Constant::Pattern(pat.clone()));
                     self.bc.ops.push(Op::MatchBindings(pat_idx));
-
-                    // Store bindings in env (in reverse order since they're on stack)
                     for name in bindings.iter().rev() {
                         let name_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
                         self.bc.ops.push(Op::StoreName(name_idx));
                     }
-
-                    // Compile body statements
-                    for s in body.iter() {
-                        self.compile_stmt(s)?;
-                    }
-
-                    // Pop env frame
+                    self.compile_stmts(body)?;
                     self.bc.ops.push(Op::EnvPop);
                 } else {
-                    // No bindings, just pop the original value
                     self.bc.ops.push(Op::Pop);
-
-                    // Compile body statements
-                    for s in body.iter() {
-                        self.compile_stmt(s)?;
-                    }
+                    self.compile_stmts(body)?;
                 }
-
-                // Jump to end of match
-                let end_jump = self.bc.ops.len();
-                self.bc.ops.push(Op::Jump(usize::MAX));
-                arm_end_jumps.push(end_jump);
-
-                // Patch the conditional jump to point here (next arm)
-                let next_arm_ip = self.bc.ops.len();
-                match self.bc.ops[jump_pos] {
-                    Op::JumpIfFalse(ref mut to) => *to = next_arm_ip,
-                    _ => return None,
-                }
+                arm_end_jumps.push(self.emit_jump(Op::Jump(usize::MAX)));
+                self.patch_jump(jpos, self.bc.ops.len())?;
             } else {
-                // Wildcard pattern - always matches
-                // Pop the original value
                 self.bc.ops.push(Op::Pop);
-
-                // Compile body statements
-                for s in body.iter() {
-                    self.compile_stmt(s)?;
-                }
-
-                // Jump to end (unless this is the last arm)
+                self.compile_stmts(body)?;
                 if !is_last {
-                    let end_jump = self.bc.ops.len();
-                    self.bc.ops.push(Op::Jump(usize::MAX));
-                    arm_end_jumps.push(end_jump);
+                    arm_end_jumps.push(self.emit_jump(Op::Jump(usize::MAX)));
                 }
             }
         }
 
-        // Compile else branch if present
         if let Some(else_body) = &stmt.else_branch {
-            // Pop the original value
             self.bc.ops.push(Op::Pop);
-            for s in else_body.iter() {
-                self.compile_stmt(s)?;
-            }
+            self.compile_stmts(else_body)?;
         }
+        self.patch_jumps(&arm_end_jumps, self.bc.ops.len())
+    }
 
-        // Patch all end jumps to point here
-        let end_ip = self.bc.ops.len();
-        for jump_pos in arm_end_jumps {
-            match self.bc.ops[jump_pos] {
-                Op::Jump(ref mut to) => *to = end_ip,
-                _ => return None,
-            }
+    /// 编译模式检查，返回需要修补的跳转位置（通配符返回 None）
+    fn compile_match_pattern_check(&mut self, pat: &Pattern) -> Option<Option<usize>> {
+        if matches!(pat, Pattern::Wildcard) {
+            return Some(None);
         }
-
-        Some(())
+        let pat_idx = self.add_constant(xu_ir::Constant::Pattern(pat.clone()));
+        self.bc.ops.push(Op::MatchPattern(pat_idx));
+        Some(Some(self.emit_jump(Op::JumpIfFalse(usize::MAX))))
     }
 
     fn compile_while(&mut self, stmt: &xu_ir::WhileStmt) -> Option<()> {
         let loop_start = self.bc.ops.len();
         self.compile_expr(&stmt.cond)?;
-        let jfalse_pos = self.bc.ops.len();
-        self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
-        self.loops.push(LoopCtx {
-            break_ops: Vec::new(),
-            continue_ops: Vec::new(),
-        });
-        for s in &stmt.body {
-            self.compile_stmt(s)?;
-        }
+        let jfalse_pos = self.emit_jump(Op::JumpIfFalse(usize::MAX));
+        self.loops.push(LoopCtx { break_ops: Vec::new(), continue_ops: Vec::new() });
+        self.compile_stmts(&stmt.body)?;
         let ctx = self.loops.pop()?;
         self.bc.ops.push(Op::Jump(loop_start));
         let end = self.bc.ops.len();
-        let Op::JumpIfFalse(to) = &mut self.bc.ops[jfalse_pos] else {
-            return None;
-        };
-        *to = end;
-        self.patch_loop(ctx, end, loop_start)?;
-        Some(())
+        self.patch_jump(jfalse_pos, end)?;
+        self.patch_loop(ctx, end, loop_start)
     }
 
     fn compile_foreach(&mut self, stmt: &xu_ir::ForEachStmt) -> Option<()> {
         self.compile_expr(&stmt.iter)?;
-        let init_pos = self.bc.ops.len();
-        let var_idx = if self.scopes.len() > 1 {
-            Some(self.define_local(&stmt.var))
-        } else {
-            None
-        };
+        let var_idx = if self.scopes.len() > 1 { Some(self.define_local(&stmt.var)) } else { None };
         let n_idx = self.add_constant(xu_ir::Constant::Str(stmt.var.clone()));
-        self.bc
-            .ops
-            .push(Op::ForEachInit(n_idx, var_idx, usize::MAX));
-        self.loops.push(LoopCtx {
-            break_ops: Vec::new(),
-            continue_ops: Vec::new(),
-        });
+        let init_pos = self.emit_jump(Op::ForEachInit(n_idx, var_idx, usize::MAX));
+        self.loops.push(LoopCtx { break_ops: Vec::new(), continue_ops: Vec::new() });
         let body_start = self.bc.ops.len();
-        for s in &stmt.body {
-            self.compile_stmt(s)?;
-        }
-        let next_pos = self.bc.ops.len();
-        self.bc
-            .ops
-            .push(Op::ForEachNext(n_idx, var_idx, body_start, usize::MAX));
+        self.compile_stmts(&stmt.body)?;
+        let next_pos = self.emit_jump(Op::ForEachNext(n_idx, var_idx, body_start, usize::MAX));
         let break_cleanup = self.bc.ops.len();
         self.bc.ops.push(Op::IterPop);
-        let j_to_end = self.bc.ops.len();
-        self.bc.ops.push(Op::Jump(usize::MAX));
+        let j_to_end = self.emit_jump(Op::Jump(usize::MAX));
         let end = self.bc.ops.len();
-        let Op::ForEachInit(_, _, end_ip) = &mut self.bc.ops[init_pos] else {
-            return None;
-        };
-        *end_ip = end;
-        let Op::ForEachNext(_, _, _, end_ip) = &mut self.bc.ops[next_pos] else {
-            return None;
-        };
-        *end_ip = end;
-        let Op::Jump(to) = &mut self.bc.ops[j_to_end] else {
-            return None;
-        };
-        *to = end;
+        // 修补 ForEachInit 和 ForEachNext 的结束地址
+        match &mut self.bc.ops[init_pos] {
+            Op::ForEachInit(_, _, end_ip) => *end_ip = end,
+            _ => return None,
+        }
+        match &mut self.bc.ops[next_pos] {
+            Op::ForEachNext(_, _, _, end_ip) => *end_ip = end,
+            _ => return None,
+        }
+        self.patch_jump(j_to_end, end)?;
         let ctx = self.loops.pop()?;
-        self.patch_loop(ctx, break_cleanup, next_pos)?;
-        Some(())
+        self.patch_loop(ctx, break_cleanup, next_pos)
     }
 
     fn compile_return(&mut self, v: Option<&Expr>) -> Option<()> {
@@ -836,42 +780,22 @@ impl Compiler {
 
     /// 编译短路与运算 (&&)
     fn compile_short_circuit_and(&mut self, left: &Expr, right: &Expr) -> Option<()> {
-        // a && b:
-        // 1. 编译 a
-        // 2. Dup (保留一份用于短路结果)
-        // 3. JumpIfFalse 到 end (如果 a 为 false，结果为 false)
-        // 4. Pop (移除副本)
-        // 5. 编译 b (结果为 b)
-        // end:
         self.compile_expr(left)?;
         self.bc.ops.push(Op::Dup);
-        let jump_idx = self.bc.ops.len();
-        self.bc.ops.push(Op::JumpIfFalse(0)); // 占位符
+        let jump_idx = self.emit_jump(Op::JumpIfFalse(0));
         self.bc.ops.push(Op::Pop);
         self.compile_expr(right)?;
-        let end_idx = self.bc.ops.len();
-        self.bc.ops[jump_idx] = Op::JumpIfFalse(end_idx);
-        Some(())
+        self.patch_jump(jump_idx, self.bc.ops.len())
     }
 
     /// 编译短路或运算 (||)
     fn compile_short_circuit_or(&mut self, left: &Expr, right: &Expr) -> Option<()> {
-        // a || b:
-        // 1. 编译 a
-        // 2. Dup (保留一份用于短路结果)
-        // 3. JumpIfTrue 到 end (如果 a 为 true，结果为 true)
-        // 4. Pop (移除副本)
-        // 5. 编译 b (结果为 b)
-        // end:
         self.compile_expr(left)?;
         self.bc.ops.push(Op::Dup);
-        let jump_idx = self.bc.ops.len();
-        self.bc.ops.push(Op::JumpIfTrue(0)); // 占位符
+        let jump_idx = self.emit_jump(Op::JumpIfTrue(0));
         self.bc.ops.push(Op::Pop);
         self.compile_expr(right)?;
-        let end_idx = self.bc.ops.len();
-        self.bc.ops[jump_idx] = Op::JumpIfTrue(end_idx);
-        Some(())
+        self.patch_jump(jump_idx, self.bc.ops.len())
     }
 
     // ==================== 字符串插值编译 ====================
@@ -951,18 +875,14 @@ impl Compiler {
 
     /// 编译列表表达式
     fn compile_expr_list(&mut self, items: &[Expr]) -> Option<()> {
-        for e in items {
-            self.compile_expr(e)?;
-        }
+        self.compile_exprs(items)?;
         self.bc.ops.push(Op::ListNew(items.len()));
         Some(())
     }
 
     /// 编译元组表达式
     fn compile_expr_tuple(&mut self, items: &[Expr]) -> Option<()> {
-        for e in items {
-            self.compile_expr(e)?;
-        }
+        self.compile_exprs(items)?;
         self.bc.ops.push(Op::TupleNew(items.len()));
         Some(())
     }
@@ -991,119 +911,55 @@ impl Compiler {
     /// 编译 if 表达式
     fn compile_expr_if(&mut self, e: &xu_ir::IfExpr) -> Option<()> {
         self.compile_expr(&e.cond)?;
-        let j_if = self.bc.ops.len();
-        self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
+        let j_if = self.emit_jump(Op::JumpIfFalse(usize::MAX));
         self.compile_expr(&e.then_expr)?;
-        let j_end = self.bc.ops.len();
-        self.bc.ops.push(Op::Jump(usize::MAX));
-        let else_ip = self.bc.ops.len();
-        match self.bc.ops[j_if] {
-            Op::JumpIfFalse(ref mut to) => *to = else_ip,
-            _ => return None,
-        }
+        let j_end = self.emit_jump(Op::Jump(usize::MAX));
+        self.patch_jump(j_if, self.bc.ops.len())?;
         self.compile_expr(&e.else_expr)?;
-        let end_ip = self.bc.ops.len();
-        match self.bc.ops[j_end] {
-            Op::Jump(ref mut to) => *to = end_ip,
-            _ => return None,
-        }
-        Some(())
+        self.patch_jump(j_end, self.bc.ops.len())
     }
 
     /// 编译 match 表达式
     fn compile_expr_match(&mut self, m: &xu_ir::MatchExpr) -> Option<()> {
-        // 编译 match 表达式
         self.compile_expr(&m.expr)?;
-
         let mut arm_end_jumps: Vec<usize> = Vec::new();
 
         for (i, (pat, body)) in m.arms.iter().enumerate() {
             let is_last = i == m.arms.len() - 1 && m.else_expr.is_none();
+            let jump_pos = self.compile_match_pattern_check(pat)?;
 
-            // 处理模式匹配
-            if !matches!(pat, xu_ir::Pattern::Wildcard) {
-                // 添加模式到常量池并发出匹配指令
-                // MatchPattern 窥视值并推送布尔结果
-                let pat_idx = self.add_constant(xu_ir::Constant::Pattern(pat.clone()));
-                self.bc.ops.push(Op::MatchPattern(pat_idx));
-
-                // 如果模式不匹配则跳转到下一个分支
-                let jump_pos = self.bc.ops.len();
-                self.bc.ops.push(Op::JumpIfFalse(usize::MAX));
-
-                // 从模式中获取绑定
+            if let Some(jpos) = jump_pos {
                 let bindings = collect_pattern_bindings(pat);
                 if !bindings.is_empty() {
-                    // 为绑定推送环境帧
                     self.bc.ops.push(Op::EnvPush);
-
-                    // 发出 MatchBindings 弹出值并将绑定值推送到栈上
+                    let pat_idx = self.add_constant(xu_ir::Constant::Pattern(pat.clone()));
                     self.bc.ops.push(Op::MatchBindings(pat_idx));
-
-                    // 以相反顺序存储绑定到环境中（因为它们在栈上）
                     for name in bindings.iter().rev() {
                         let name_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
                         self.bc.ops.push(Op::StoreName(name_idx));
                     }
-
-                    // 编译主体表达式
                     self.compile_expr(body)?;
-
-                    // 弹出环境帧
                     self.bc.ops.push(Op::EnvPop);
                 } else {
-                    // 没有绑定，只弹出原始值
                     self.bc.ops.push(Op::Pop);
-
-                    // 编译主体表达式
                     self.compile_expr(body)?;
                 }
-
-                // 跳转到 match 结束
-                let end_jump = self.bc.ops.len();
-                self.bc.ops.push(Op::Jump(usize::MAX));
-                arm_end_jumps.push(end_jump);
-
-                // 修补条件跳转指向这里（下一个分支）
-                let next_arm_ip = self.bc.ops.len();
-                match self.bc.ops[jump_pos] {
-                    Op::JumpIfFalse(ref mut to) => *to = next_arm_ip,
-                    _ => return None,
-                }
+                arm_end_jumps.push(self.emit_jump(Op::Jump(usize::MAX)));
+                self.patch_jump(jpos, self.bc.ops.len())?;
             } else {
-                // 通配符模式 - 总是匹配
-                // 弹出原始值
                 self.bc.ops.push(Op::Pop);
-
-                // 编译主体表达式
                 self.compile_expr(body)?;
-
-                // 跳转到结束（除非这是最后一个分支）
                 if !is_last {
-                    let end_jump = self.bc.ops.len();
-                    self.bc.ops.push(Op::Jump(usize::MAX));
-                    arm_end_jumps.push(end_jump);
+                    arm_end_jumps.push(self.emit_jump(Op::Jump(usize::MAX)));
                 }
             }
         }
 
-        // 如果存在 else 表达式则编译
         if let Some(else_expr) = &m.else_expr {
-            // 弹出原始值
             self.bc.ops.push(Op::Pop);
             self.compile_expr(else_expr)?;
         }
-
-        // 修补所有结束跳转指向这里
-        let end_ip = self.bc.ops.len();
-        for jump_pos in arm_end_jumps {
-            match self.bc.ops[jump_pos] {
-                Op::Jump(ref mut to) => *to = end_ip,
-                _ => return None,
-            }
-        }
-
-        Some(())
+        self.patch_jumps(&arm_end_jumps, self.bc.ops.len())
     }
 
     // ==================== 函数相关编译 ====================
@@ -1120,19 +976,14 @@ impl Compiler {
         // 特殊情况: builder_push(b, x) -> BuilderAppend
         if let Expr::Ident(name, _) = c.callee.as_ref() {
             if name == "builder_push" && c.args.len() == 2 {
-                self.compile_expr(&c.args[0])?;
-                self.compile_expr(&c.args[1])?;
+                self.compile_exprs(&c.args)?;
                 self.bc.ops.push(Op::BuilderAppend);
-                // BuilderAppend 弹出两个参数且不推送任何东西
-                // builder_push 返回 void，所以推送 null
                 self.bc.ops.push(Op::ConstNull);
                 return Some(());
             }
         }
         self.compile_expr(&c.callee)?;
-        for a in c.args.iter() {
-            self.compile_expr(a)?;
-        }
+        self.compile_exprs(&c.args)?;
         self.bc.ops.push(Op::Call(c.args.len()));
         Some(())
     }
@@ -1145,77 +996,51 @@ impl Compiler {
         // 只有当接收者确认为列表时才生成 ListAppend
         if mname == "add" && recv_ty == Some(ReceiverType::List) {
             self.compile_expr(&m.receiver)?;
-            for a in m.args.iter() {
-                self.compile_expr(a)?;
-            }
+            self.compile_exprs(&m.args)?;
             self.bc.ops.push(Op::ListAppend(m.args.len()));
+            return Some(());
         }
         // 只有当接收者确认为字典时才生成 DictMerge
-        else if mname == "merge" && m.args.len() == 1 && recv_ty == Some(ReceiverType::Dict) {
+        if mname == "merge" && m.args.len() == 1 && recv_ty == Some(ReceiverType::Dict) {
             self.compile_expr(&m.receiver)?;
             self.compile_expr(&m.args[0])?;
             self.bc.ops.push(Op::DictMerge);
+            return Some(());
         }
         // 只有当接收者确认为字典时才生成 DictInsert
-        else if mname == "insert_int" && m.args.len() == 2 && recv_ty == Some(ReceiverType::Dict) {
+        if mname == "insert_int" && m.args.len() == 2 && recv_ty == Some(ReceiverType::Dict) {
             self.compile_expr(&m.receiver)?;
-            self.compile_expr(&m.args[0])?;
-            self.compile_expr(&m.args[1])?;
+            self.compile_exprs(&m.args)?;
             self.bc.ops.push(Op::DictInsert);
+            return Some(());
         }
         // 所有其他情况：生成通用的 CallMethod 或 CallStaticOrMethod
-        else {
-            // 检查接收者是否为标识符 - 可能是静态方法调用
-            if let Expr::Ident(name, _) = m.receiver.as_ref() {
-                // 检查此标识符是否为已知的局部变量
-                let is_local = self.resolve_local(name).is_some();
+        self.compile_method_call_generic(m)
+    }
 
-                if is_local {
-                    // 它是局部变量 - 使用常规 CallMethod
-                    self.compile_expr(&m.receiver)?;
-                    for a in m.args.iter() {
-                        self.compile_expr(a)?;
-                    }
-                    let slot = self.alloc_ic_slot();
-                    let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
-                    self.bc.ops.push(Op::CallMethod(
-                        m_idx,
-                        xu_ir::stable_hash64(m.method.as_str()),
-                        m.args.len(),
-                        Some(slot),
-                    ));
-                } else {
-                    // 不是局部变量 - 可能是全局变量或类型名
-                    // 生成 CallStaticOrMethod 先尝试静态方法
-                    // 栈布局: [args...] - 静态方法栈上没有接收者
-                    for a in m.args.iter() {
-                        self.compile_expr(a)?;
-                    }
-                    let slot = self.alloc_ic_slot();
-                    let type_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
-                    let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
-                    self.bc.ops.push(Op::CallStaticOrMethod(
-                        type_idx,
-                        m_idx,
-                        xu_ir::stable_hash64(m.method.as_str()),
-                        m.args.len(),
-                        Some(slot),
-                    ));
-                }
-            } else {
+    /// 编译通用方法调用
+    fn compile_method_call_generic(&mut self, m: &xu_ir::MethodCallExpr) -> Option<()> {
+        let slot = self.alloc_ic_slot();
+        let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
+        let method_hash = xu_ir::stable_hash64(m.method.as_str());
+
+        // 检查接收者是否为标识符 - 可能是静态方法调用
+        if let Expr::Ident(name, _) = m.receiver.as_ref() {
+            if self.resolve_local(name).is_some() {
+                // 它是局部变量 - 使用常规 CallMethod
                 self.compile_expr(&m.receiver)?;
-                for a in m.args.iter() {
-                    self.compile_expr(a)?;
-                }
-                let slot = self.alloc_ic_slot();
-                let m_idx = self.add_constant(xu_ir::Constant::Str(m.method.clone()));
-                self.bc.ops.push(Op::CallMethod(
-                    m_idx,
-                    xu_ir::stable_hash64(m.method.as_str()),
-                    m.args.len(),
-                    Some(slot),
-                ));
+                self.compile_exprs(&m.args)?;
+                self.bc.ops.push(Op::CallMethod(m_idx, method_hash, m.args.len(), Some(slot)));
+            } else {
+                // 不是局部变量 - 可能是全局变量或类型名，生成 CallStaticOrMethod
+                self.compile_exprs(&m.args)?;
+                let type_idx = self.add_constant(xu_ir::Constant::Str(name.clone()));
+                self.bc.ops.push(Op::CallStaticOrMethod(type_idx, m_idx, method_hash, m.args.len(), Some(slot)));
             }
+        } else {
+            self.compile_expr(&m.receiver)?;
+            self.compile_exprs(&m.args)?;
+            self.bc.ops.push(Op::CallMethod(m_idx, method_hash, m.args.len(), Some(slot)));
         }
         Some(())
     }
@@ -1277,22 +1102,17 @@ impl Compiler {
         args: &[Expr],
     ) -> Option<()> {
         if let Some(mod_expr) = module {
-            // 跨模块枚举: module.Type#variant
-            // 编译模块表达式并丢弃（类型是全局注册的）
             self.compile_expr(mod_expr)?;
             self.bc.ops.push(Op::Pop);
         }
-        // 编译参数
-        for a in args.iter() {
-            self.compile_expr(a)?;
-        }
+        self.compile_exprs(args)?;
         let t_idx = self.add_constant(xu_ir::Constant::Str(ty.to_string()));
         let v_idx = self.add_constant(xu_ir::Constant::Str(variant.to_string()));
-        if args.is_empty() {
-            self.bc.ops.push(Op::EnumCtor(t_idx, v_idx));
+        self.bc.ops.push(if args.is_empty() {
+            Op::EnumCtor(t_idx, v_idx)
         } else {
-            self.bc.ops.push(Op::EnumCtorN(t_idx, v_idx, args.len()));
-        }
+            Op::EnumCtorN(t_idx, v_idx, args.len())
+        });
         Some(())
     }
 
