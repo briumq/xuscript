@@ -176,12 +176,14 @@ fn main() {
                     eprintln!("{}", render_diagnostic(&compiled.source, d));
                 }
             }
-            // if diagnostics
-            //     .iter()
-            //     .any(|d| matches!(d.severity, xu_syntax::Severity::Error))
-            // {
-            //     std::process::exit(1);
-            // }
+            // 如果有错误级别的诊断，退出
+            if compiled
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.severity, xu_syntax::Severity::Error))
+            {
+                std::process::exit(1);
+            }
 
             let mut rt = Runtime::new();
             rt.set_strict_vars(strict);

@@ -29,6 +29,15 @@ pub(crate) fn run(args: &CliArgs, driver: &Driver, render_opts: RenderOptions) {
         );
     }
 
+    // 如果有错误级别的诊断，退出
+    let has_errors = compiled
+        .diagnostics
+        .iter()
+        .any(|d| d.severity == xu_syntax::Severity::Error);
+    if has_errors {
+        std::process::exit(1);
+    }
+
     let mut rt = Runtime::new();
     rt.set_strict_vars(args.strict.unwrap_or(true));
     rt.set_frontend(Box::new(Driver::new()));
