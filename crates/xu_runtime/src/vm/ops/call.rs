@@ -460,7 +460,7 @@ fn try_dict_insert_int_fast(
     let key_int = key_val.as_i64();
 
     // Fast path for small integers - use elements array
-    if key_int >= 0 && key_int < 1024 {
+    if key_int >= 0 && key_int < crate::core::value::ELEMENTS_MAX {
         let idx = key_int as usize;
         // Write barrier for generational GC (before getting mutable reference)
     rt.write_barrier(dict_id);

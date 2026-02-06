@@ -18,8 +18,8 @@ use xu_ir::{Bytecode, FuncDef, BinaryOp};
 
 /// Maximum integer key to store in elements array (0 to ELEMENTS_MAX-1).
 /// Keys in this range use O(1) array lookup instead of hash map.
-/// Increased from 1024 to 65536 for better performance with larger integer keys.
-pub const ELEMENTS_MAX: i64 = 65536;
+/// Set to 4096 as a balance between memory (32KB max) and performance.
+pub const ELEMENTS_MAX: i64 = 4096;
 
 // ============================================================================
 // Dictionary key types
