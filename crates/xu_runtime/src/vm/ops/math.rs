@@ -164,7 +164,7 @@ pub(crate) fn op_not(
         op: '!',
         expected: "?".to_string(),
     });
-    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(err_msg.into())));
+    let err_val = Value::str(rt.alloc(ManagedObject::Str(err_msg.into())));
     if let Some(flow) = throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val) {
         return Ok(Some(flow));
     }

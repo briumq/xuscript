@@ -138,7 +138,7 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                 match crate::modules::import_path(rt, path) {
                     Ok(module_obj) => rt.env.define(alias.to_string(), module_obj),
                     Err(e) => {
-                        let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(e.into())));
+                        let err_val = Value::str(rt.alloc(ManagedObject::Str(e.into())));
                         if let Some(flow) = throw_value(rt, &mut ip, &mut handlers, &mut stack, &mut iters, &mut pending, &mut thrown, err_val) {
                             return Ok(flow);
                         }
@@ -349,7 +349,7 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
                     }
                 } else {
                     let msg = rt.error(xu_syntax::DiagnosticKind::InvalidConditionType(v.type_name().to_string()));
-                    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(msg.into())));
+                    let err_val = Value::str(rt.alloc(ManagedObject::Str(msg.into())));
                     if let Some(flow) = throw_value(rt, &mut ip, &mut handlers, &mut stack, &mut iters, &mut pending, &mut thrown, err_val) {
                         return Ok(flow);
                     }

@@ -375,6 +375,9 @@ fn try_dict_insert_fast(
         }
     }
 
+    // Write barrier for generational GC (before getting mutable reference)
+    rt.write_barrier(dict_id);
+
     if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
         let key_hash = if let Some(h) = cached_hash {
             h
@@ -458,7 +461,10 @@ fn try_dict_insert_int_fast(
     // Fast path for small integers - use elements array
     if key_int >= 0 && key_int < 1024 {
         let idx = key_int as usize;
-        if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
+        // Write barrier for generational GC (before getting mutable reference)
+    rt.write_barrier(dict_id);
+
+    if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
             if me.elements.len() <= idx {
                 me.elements.resize(idx + 1, Value::UNIT);
             }
@@ -472,6 +478,9 @@ fn try_dict_insert_int_fast(
     }
 
     // Slow path for large integers
+    // Write barrier for generational GC (before getting mutable reference)
+    rt.write_barrier(dict_id);
+
     if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
         let key_hash = Runtime::hash_dict_key_int(me.map.hasher(), key_int);
         let key = DictKey::Int(key_int);

@@ -50,7 +50,7 @@ pub(crate) fn try_throw_error(
     thrown: &mut Option<Value>,
     err: String,
 ) -> Option<Flow> {
-    let err_val = Value::str(rt.heap.alloc(ManagedObject::Str(err.into())));
+    let err_val = Value::str(rt.alloc(ManagedObject::Str(err.into())));
     throw_value(rt, ip, handlers, stack, iters, pending, thrown, err_val)
 }
 

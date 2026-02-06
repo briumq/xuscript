@@ -33,6 +33,8 @@ pub struct Runtime {
     // ==================== 核心执行状态 ====================
     pub(crate) env: Env,
     pub(crate) heap: crate::core::heap::Heap,
+    #[cfg(feature = "generational-gc")]
+    pub(crate) gen_heap: crate::core::generational_heap::GenerationalHeap,
     caps: capabilities::Capabilities,
     pub(crate) output: String,
     pub(crate) main_invoked: bool,
@@ -95,6 +97,8 @@ impl Runtime {
         let mut rt = Self {
             env,
             heap: crate::core::heap::Heap::new(),
+            #[cfg(feature = "generational-gc")]
+            gen_heap: crate::core::generational_heap::GenerationalHeap::new(),
             caps: capabilities::Capabilities::default(),
             output: String::new(),
             main_invoked: false,
@@ -133,6 +137,56 @@ impl Runtime {
         rt
     }
 
+    /// Allocate an object on the heap.
+    /// When generational-gc feature is enabled, allocates on gen_heap.
+    /// Otherwise, allocates on the original heap.
+    #[inline]
+    #[cfg(not(feature = "generational-gc"))]
+    pub fn alloc(&mut self, obj: crate::core::heap::ManagedObject) -> crate::core::heap::ObjectId {
+        self.heap.alloc(obj)
+    }
+
+    /// Allocate an object on the heap (generational GC version).
+    /// Allocates on the original heap and tracks allocation count.
+    #[inline]
+    #[cfg(feature = "generational-gc")]
+    pub fn alloc(&mut self, obj: crate::core::heap::ManagedObject) -> crate::core::heap::ObjectId {
+        let id = self.heap.alloc(obj);
+        self.gen_heap.track_alloc(id);
+        id
+    }
+
+    /// Write barrier for generational GC.
+    /// Call this when storing a reference into a container object.
+    #[inline]
+    #[cfg(feature = "generational-gc")]
+    pub fn write_barrier(&mut self, container_id: crate::core::heap::ObjectId) {
+        self.gen_heap.write_barrier(container_id.0);
+    }
+
+    /// Write barrier (no-op when generational GC is disabled)
+    #[inline]
+    #[cfg(not(feature = "generational-gc"))]
+    pub fn write_barrier(&mut self, _container_id: crate::core::heap::ObjectId) {
+        // No-op
+    }
+
+    /// Get mutable reference to heap object with automatic write barrier.
+    /// Use this instead of heap.get_mut() when modifying container objects.
+    #[inline]
+    #[cfg(feature = "generational-gc")]
+    pub fn heap_get_mut(&mut self, id: crate::core::heap::ObjectId) -> &mut crate::core::heap::ManagedObject {
+        self.gen_heap.write_barrier(id.0);
+        self.heap.get_mut(id)
+    }
+
+    /// Get mutable reference to heap object (no write barrier needed).
+    #[inline]
+    #[cfg(not(feature = "generational-gc"))]
+    pub fn heap_get_mut(&mut self, id: crate::core::heap::ObjectId) -> &mut crate::core::heap::ManagedObject {
+        self.heap.get_mut(id)
+    }
+
     pub fn intern_string(&mut self, s: &str) -> Text {
         if s.len() <= 22 {
             // Text::INLINE_CAP
@@ -158,7 +212,7 @@ impl Runtime {
         }
         // Slow path: create and cache the value
         let text = self.intern_string(s);
-        let val = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(text)));
+        let val = Value::str(self.alloc(crate::core::heap::ManagedObject::Str(text)));
 
         let cache = self.caches.bytecode_string_cache.entry(bc_ptr).or_default();
         let idx_usize = idx as usize;
@@ -175,7 +229,7 @@ impl Runtime {
         }
         static OPTION: &str = "Option";
         static NONE: &str = "none";
-        let v = Value::enum_obj(self.heap.alloc(crate::core::heap::ManagedObject::Enum(Box::new((
+        let v = Value::enum_obj(self.alloc(crate::core::heap::ManagedObject::Enum(Box::new((
             crate::Text::from_str(OPTION),
             crate::Text::from_str(NONE),
             Box::new([]),
@@ -189,7 +243,9 @@ impl Runtime {
     /// Uses lazy initialization to avoid upfront memory allocation
     #[inline]
     pub fn get_small_int_string(&mut self, i: i64) -> Option<Value> {
-        const MAX_CACHED: usize = 10_000_000; // Cache first 10M integers
+        // Cache integers 0-99999 (100K) - balances performance and memory
+        // This covers most common use cases while keeping memory reasonable
+        const MAX_CACHED: usize = 100_000;
         if i < 0 || i >= MAX_CACHED as i64 {
             return None;
         }
@@ -203,7 +259,7 @@ impl Runtime {
             Some(v)
         } else {
             let text = crate::core::value::i64_to_text_fast(i);
-            let v = Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(text)));
+            let v = Value::str(self.alloc(crate::core::heap::ManagedObject::Str(text)));
             self.caches.small_int_strings[idx] = Some(v);
             Some(v)
         }
@@ -211,7 +267,7 @@ impl Runtime {
 
     pub(crate) fn option_some(&mut self, v: Value) -> Value {
         // Use optimized OptionSome variant to avoid Box allocation
-        Value::option_some(self.heap.alloc(crate::core::heap::ManagedObject::OptionSome(v)))
+        Value::option_some(self.alloc(crate::core::heap::ManagedObject::OptionSome(v)))
     }
 
     /// Get a String from the builder pool, or create a new one with the given capacity
@@ -283,7 +339,7 @@ impl Runtime {
         if ty == "Option" && variant == "some" && payload.len() == 1 {
             return Ok(self.option_some(payload[0]));
         }
-        let id = self.heap.alloc(crate::core::heap::ManagedObject::Enum(Box::new((
+        let id = self.alloc(crate::core::heap::ManagedObject::Enum(Box::new((
             ty.to_string().into(),
             variant.to_string().into(),
             payload,

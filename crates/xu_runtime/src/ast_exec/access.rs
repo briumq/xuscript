@@ -125,7 +125,7 @@ impl Runtime {
                 } else {
                     ty.clone()
                 };
-                Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(s))))
+                Ok(Value::str(self.alloc(crate::core::heap::ManagedObject::Str(s))))
             } else {
                 Err(self.error(xu_syntax::DiagnosticKind::Raw("Not an enum".into())))
             }
@@ -153,8 +153,8 @@ impl Runtime {
             if let crate::core::heap::ManagedObject::OptionSome(_inner) = self.heap.get(id) {
                 match field {
                     "has" => Ok(Value::from_bool(true)),
-                    "name" => Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str("some".into())))),
-                    "type_name" => Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str("Option".into())))),
+                    "name" => Ok(Value::str(self.alloc(crate::core::heap::ManagedObject::Str("some".into())))),
+                    "type_name" => Ok(Value::str(self.alloc(crate::core::heap::ManagedObject::Str("Option".into())))),
                     _ => unreachable!(),
                 }
             } else {
@@ -423,7 +423,7 @@ impl Runtime {
                     return Err(self.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
                 }
                 let ch: String = s.chars().skip(ui).take(1).collect();
-                Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(
+                Ok(Value::str(self.alloc(crate::core::heap::ManagedObject::Str(
                     crate::Text::from_string(ch),
                 ))))
             } else if index.get_tag() == crate::core::value::TAG_RANGE {
@@ -460,7 +460,7 @@ impl Runtime {
                     end - start
                 };
                 let sub: String = s.chars().skip(start).take(len).collect();
-                Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(
+                Ok(Value::str(self.alloc(crate::core::heap::ManagedObject::Str(
                     crate::Text::from_string(sub),
                 ))))
             } else {

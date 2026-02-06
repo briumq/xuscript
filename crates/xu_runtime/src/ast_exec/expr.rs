@@ -79,7 +79,7 @@ impl Runtime {
                     sb.append_value(&v, &self.heap);
                 }
                 Ok(Value::str(
-                    self.heap.alloc(crate::core::heap::ManagedObject::Str(sb.into())),
+                    self.alloc(crate::core::heap::ManagedObject::Str(sb.into())),
                 ))
             }
             Expr::Group(e) => self.eval_expr(e),
@@ -136,7 +136,7 @@ impl Runtime {
                                         let mut out = Text::from_str(prefix.as_str());
                                         out.push_str(d.as_str());
                                         return Ok(Value::str(
-                                            self.heap.alloc(crate::core::heap::ManagedObject::Str(out)),
+                                            self.alloc(crate::core::heap::ManagedObject::Str(out)),
                                         ));
                                     }
                                 }
@@ -196,7 +196,7 @@ impl Runtime {
                 for e in items {
                     v.push(self.eval_expr(e)?);
                 }
-                Ok(Value::list(self.heap.alloc(crate::core::heap::ManagedObject::List(v))))
+                Ok(Value::list(self.alloc(crate::core::heap::ManagedObject::List(v))))
             }
             Expr::Tuple(items) => {
                 if items.is_empty() {
@@ -206,7 +206,7 @@ impl Runtime {
                 for e in items {
                     v.push(self.eval_expr(e)?);
                 }
-                Ok(Value::tuple(self.heap.alloc(crate::core::heap::ManagedObject::Tuple(v))))
+                Ok(Value::tuple(self.alloc(crate::core::heap::ManagedObject::Tuple(v))))
             }
             Expr::Range(r) => {
                 let a = self.eval_expr(&r.start)?;
@@ -299,7 +299,7 @@ impl Runtime {
                     skip_local_map,
                     type_sig_ic: std::cell::Cell::new(None),
                 };
-                Ok(Value::function(self.heap.alloc(
+                Ok(Value::function(self.alloc(
                     crate::core::heap::ManagedObject::Function(Function::User(Rc::new(func))),
                 )))
             }
@@ -310,7 +310,7 @@ impl Runtime {
                     let key = DictKey::from_str_alloc(k, &mut self.heap);
                     map.map.insert(key, self.eval_expr(v)?);
                 }
-                Ok(Value::dict(self.heap.alloc(crate::core::heap::ManagedObject::Dict(map))))
+                Ok(Value::dict(self.alloc(crate::core::heap::ManagedObject::Dict(map))))
             }
             Expr::StructInit(s) => {
                 let layout = self.types.struct_layouts.get(&s.ty).cloned().ok_or_else(|| {
@@ -390,7 +390,7 @@ impl Runtime {
                         }
                     }
                 }
-                Ok(Value::struct_obj(self.heap.alloc(
+                Ok(Value::struct_obj(self.alloc(
                     crate::core::heap::ManagedObject::Struct(Box::new(StructInstance {
                         ty: s.ty.clone(),
                         ty_hash: xu_ir::stable_hash64(s.ty.as_str()),

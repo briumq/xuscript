@@ -72,7 +72,7 @@ pub(crate) fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Valu
             };
             crate::core::text::Text::concat_str_int(sa, b.as_i64())
         };
-        return Ok(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
+        return Ok(Value::str(rt.alloc(ManagedObject::Str(result))));
     }
 
     // Fast path: int + string
@@ -85,7 +85,7 @@ pub(crate) fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Valu
             };
             crate::core::text::Text::concat_int_str(a.as_i64(), sb)
         };
-        return Ok(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
+        return Ok(Value::str(rt.alloc(ManagedObject::Str(result))));
     }
 
     if at == TAG_STR && bt == TAG_STR {
@@ -103,7 +103,7 @@ pub(crate) fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Valu
             };
             crate::core::text::Text::concat2(sa, sb)
         };
-        Ok(Value::str(rt.heap.alloc(ManagedObject::Str(result))))
+        Ok(Value::str(rt.alloc(ManagedObject::Str(result))))
     } else if at == TAG_STR || bt == TAG_STR {
         // Slow path: one is string, one is not
         // Pre-calculate lengths to avoid reallocations
@@ -147,7 +147,7 @@ pub(crate) fn add_with_heap(rt: &mut Runtime, a: Value, b: Value) -> Result<Valu
             result.append_value(&b, &rt.heap);
         }
 
-        Ok(Value::str(rt.heap.alloc(ManagedObject::Str(result.into()))))
+        Ok(Value::str(rt.alloc(ManagedObject::Str(result.into()))))
     } else {
         a.bin_op(xu_ir::BinaryOp::Add, b)
     }

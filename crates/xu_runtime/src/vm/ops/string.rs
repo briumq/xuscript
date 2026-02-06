@@ -70,7 +70,7 @@ pub(crate) fn op_str_append(
                 };
                 Text::concat2(sa, sb)
             };
-            stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(result))));
+            stack.push(Value::str(rt.alloc(ManagedObject::Str(result))));
         } else {
             // Slow path: need to convert b to string
             let mut sa = if let ManagedObject::Str(s) = rt.heap.get(a.as_obj_id()) {
@@ -79,7 +79,7 @@ pub(crate) fn op_str_append(
                 return Err(NOT_A_STRING.into());
             };
             sa.append_value(&b, &rt.heap);
-            stack.push(Value::str(rt.heap.alloc(ManagedObject::Str(sa))));
+            stack.push(Value::str(rt.alloc(ManagedObject::Str(sa))));
         }
     } else {
         return handle_str_op_fallback(rt, a, b, stack, ip, handlers, iters, pending, thrown);
@@ -91,7 +91,7 @@ pub(crate) fn op_str_append(
 #[inline(always)]
 pub(crate) fn op_builder_new_cap(rt: &mut Runtime, stack: &mut Vec<Value>, cap: usize) {
     let s = rt.builder_pool_get(cap);
-    let id = rt.heap.alloc(ManagedObject::Builder(s));
+    let id = rt.alloc(ManagedObject::Builder(s));
     stack.push(Value::builder(id));
 }
 
@@ -114,7 +114,7 @@ pub(crate) fn op_builder_append(
     if v.is_int() {
         let mut buf = itoa::Buffer::new();
         let digits = buf.format(v.as_i64());
-        if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+        if let ManagedObject::Builder(s) = rt.heap_get_mut(id) {
             s.push_str(digits);
         }
     } else if v.get_tag() == TAG_STR {
@@ -130,7 +130,7 @@ pub(crate) fn op_builder_append(
         } else {
             0
         };
-        if let ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let ManagedObject::Builder(sb) = rt.heap_get_mut(id) {
             // SAFETY: ptr/len are valid, builder and string are different objects
             let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
             let s_ref = unsafe { std::str::from_utf8_unchecked(slice) };
@@ -141,28 +141,28 @@ pub(crate) fn op_builder_append(
         if f.fract() == 0.0 {
             let mut buf = itoa::Buffer::new();
             let digits = buf.format(f as i64);
-            if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+            if let ManagedObject::Builder(s) = rt.heap_get_mut(id) {
                 s.push_str(digits);
             }
         } else {
             let mut buf = ryu::Buffer::new();
             let digits = buf.format(f);
-            if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+            if let ManagedObject::Builder(s) = rt.heap_get_mut(id) {
                 s.push_str(digits);
             }
         }
     } else if v.is_bool() {
         let piece = if v.as_bool() { "true" } else { "false" };
-        if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+        if let ManagedObject::Builder(s) = rt.heap_get_mut(id) {
             s.push_str(piece);
         }
     } else if v.is_unit() {
-        if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+        if let ManagedObject::Builder(s) = rt.heap_get_mut(id) {
             s.push_str("()");
         }
     } else {
         let piece = crate::util::value_to_string(&v, &rt.heap);
-        if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+        if let ManagedObject::Builder(s) = rt.heap_get_mut(id) {
             s.push_str(&piece);
         }
     }
@@ -182,7 +182,7 @@ pub(crate) fn op_builder_finalize(rt: &mut Runtime, stack: &mut Vec<Value>) -> R
     }
     let id = b.as_obj_id();
     // Take ownership of the builder string and return it to pool
-    let (out, builder_str) = if let ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+    let (out, builder_str) = if let ManagedObject::Builder(s) = rt.heap_get_mut(id) {
         let text = crate::core::text::Text::from_str(s.as_str());
         let taken = std::mem::take(s);
         (text, Some(taken))
@@ -193,7 +193,7 @@ pub(crate) fn op_builder_finalize(rt: &mut Runtime, stack: &mut Vec<Value>) -> R
     if let Some(s) = builder_str {
         rt.builder_pool_return(s);
     }
-    let sid = rt.heap.alloc(ManagedObject::Str(out));
+    let sid = rt.alloc(ManagedObject::Str(out));
     stack.push(Value::str(sid));
     Ok(())
 }

@@ -46,7 +46,7 @@ impl Runtime {
                         Text::new()
                     };
                     let result = Text::concat2(&ta, &tb);
-                    Ok(Value::str(self.heap.alloc(ManagedObject::Str(result))))
+                    Ok(Value::str(self.alloc(ManagedObject::Str(result))))
                 } else if at == crate::core::value::TAG_STR || bt == crate::core::value::TAG_STR {
                     let sa = value_to_string(&a, &self.heap);
                     let sb = value_to_string(&b, &self.heap);
@@ -55,7 +55,7 @@ impl Runtime {
                     result.push_str(&sa);
                     result.push_str(&sb);
                     Ok(Value::str(
-                        self.heap.alloc(ManagedObject::Str(result.into())),
+                        self.alloc(ManagedObject::Str(result.into())),
                     ))
                 } else {
                     a.bin_op(op, b)

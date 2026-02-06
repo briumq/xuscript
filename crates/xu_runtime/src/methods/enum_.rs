@@ -7,7 +7,7 @@ use super::MethodKind;
 use super::Runtime;
 
 fn enum_new(rt: &mut Runtime, ty: &str, variant: &str, payload: Vec<Value>) -> Value {
-    Value::enum_obj(rt.heap.alloc(ManagedObject::Enum(Box::new((
+    Value::enum_obj(rt.alloc(ManagedObject::Enum(Box::new((
         ty.to_string().into(),
         variant.to_string().into(),
         payload.into_boxed_slice(),
@@ -48,15 +48,15 @@ pub(super) fn dispatch(
     match kind {
         MethodKind::EnumName => {
             validate_arity(rt, method, args.len(), 0, 0)?;
-            return Ok(Value::str(rt.heap.alloc(ManagedObject::Str(variant))));
+            return Ok(Value::str(rt.alloc(ManagedObject::Str(variant))));
         }
         MethodKind::EnumTypeName => {
             validate_arity(rt, method, args.len(), 0, 0)?;
-            return Ok(Value::str(rt.heap.alloc(ManagedObject::Str(ty))));
+            return Ok(Value::str(rt.alloc(ManagedObject::Str(ty))));
         }
         MethodKind::ToString => {
             validate_arity(rt, method, args.len(), 0, 0)?;
-            return Ok(Value::str(rt.heap.alloc(ManagedObject::Str(
+            return Ok(Value::str(rt.alloc(ManagedObject::Str(
                 format!("{}#{}", ty, variant).into(),
             ))));
         }

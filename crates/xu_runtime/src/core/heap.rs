@@ -302,11 +302,18 @@ impl Heap {
             }
         }
 
-        // Aggressively shrink if we have too much unused capacity
+        // Aggressively shrink if we have too many free slots
+        // If more than half of the slots are free, try to compact
         let used = self.objects.len();
+        let free_count = self.free_list.len();
+        let live_objects = used - free_count;
         let cap = self.objects.capacity();
-        if cap > 4096 && cap > used * 3 {
-            self.objects.shrink_to(used * 2);
+
+        // Shrink if: capacity > 4096 AND (capacity > live_objects * 4 OR free_count > live_objects)
+        if cap > 4096 && (cap > live_objects * 4 || free_count > live_objects) {
+            // Target capacity: 2x live objects
+            let target = (live_objects * 2).max(4096);
+            self.objects.shrink_to(target);
         }
 
         // Shrink free_list if too large
@@ -355,5 +362,132 @@ impl Heap {
             counts[3] + counts[7] + counts[8] + counts[9] + counts[10] + counts[11] + counts[12],
             self.free_list.len()
         )
+    }
+
+    /// Get the set of marked (live) object IDs after mark phase
+    /// Must be called after mark_all() and before sweep()
+    #[cfg(feature = "generational-gc")]
+    pub fn get_marked_ids(&self) -> std::collections::HashSet<usize> {
+        let mut live_ids = std::collections::HashSet::with_capacity(self.objects.len() / 2);
+        for i in 0..self.objects.len() {
+            if self.objects[i].is_some() && self.is_marked_idx(i) {
+                live_ids.insert(i);
+            }
+        }
+        live_ids
+    }
+
+    /// Free specific objects by their IDs (for young GC)
+    #[cfg(feature = "generational-gc")]
+    pub fn free_objects(&mut self, ids: &[usize]) {
+        for &id in ids {
+            if id < self.objects.len() {
+                if let Some(ref obj) = self.objects[id] {
+                    let size = obj.size();
+                    if self.alloc_bytes >= size {
+                        self.alloc_bytes -= size;
+                    }
+                }
+                self.objects[id] = None;
+                self.free_list.push(id);
+            }
+        }
+        if self.alloc_count >= ids.len() {
+            self.alloc_count -= ids.len();
+        }
+    }
+
+    /// Collect references from an object (for young GC tracing)
+    #[cfg(feature = "generational-gc")]
+    pub fn collect_refs(&self, id: usize, out: &mut Vec<usize>) {
+        if id >= self.objects.len() {
+            return;
+        }
+        if let Some(obj) = &self.objects[id] {
+            match obj {
+                ManagedObject::List(list) | ManagedObject::Tuple(list) => {
+                    for item in list {
+                        if item.is_obj() {
+                            out.push(item.as_obj_id().0);
+                        }
+                    }
+                }
+                ManagedObject::Dict(dict) => {
+                    for key in dict.map.keys() {
+                        if let Some(obj_id) = key.str_obj_id() {
+                            out.push(obj_id.0);
+                        }
+                    }
+                    for value in dict.map.values() {
+                        if value.is_obj() {
+                            out.push(value.as_obj_id().0);
+                        }
+                    }
+                    for value in &dict.prop_values {
+                        if value.is_obj() {
+                            out.push(value.as_obj_id().0);
+                        }
+                    }
+                    for value in &dict.elements {
+                        if value.is_obj() {
+                            out.push(value.as_obj_id().0);
+                        }
+                    }
+                }
+                ManagedObject::DictStr(dict) => {
+                    for value in dict.map.values() {
+                        if value.is_obj() {
+                            out.push(value.as_obj_id().0);
+                        }
+                    }
+                }
+                ManagedObject::Struct(s) => {
+                    for field in s.fields.iter() {
+                        if field.is_obj() {
+                            out.push(field.as_obj_id().0);
+                        }
+                    }
+                }
+                ManagedObject::Enum(e) => {
+                    for item in e.2.iter() {
+                        if item.is_obj() {
+                            out.push(item.as_obj_id().0);
+                        }
+                    }
+                }
+                ManagedObject::OptionSome(v) => {
+                    if v.is_obj() {
+                        out.push(v.as_obj_id().0);
+                    }
+                }
+                ManagedObject::Function(func) => {
+                    match func {
+                        Function::User(uf) => {
+                            for val in &uf.env.stack {
+                                if val.is_obj() {
+                                    out.push(val.as_obj_id().0);
+                                }
+                            }
+                        }
+                        Function::Bytecode(bf) => {
+                            for val in &bf.env.stack {
+                                if val.is_obj() {
+                                    out.push(val.as_obj_id().0);
+                                }
+                            }
+                        }
+                        Function::Builtin(_) => {}
+                    }
+                }
+                ManagedObject::Module(m) => {
+                    for value in m.exports.map.values() {
+                        if value.is_obj() {
+                            out.push(value.as_obj_id().0);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 }

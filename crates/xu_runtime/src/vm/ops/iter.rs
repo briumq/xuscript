@@ -153,7 +153,7 @@ pub(crate) fn op_foreach_init(
                         }
                         DictKey::Int(i) => Value::from_i64(i),
                     };
-                    Value::tuple(rt.heap.alloc(ManagedObject::Tuple(vec![key_val, v])))
+                    Value::tuple(rt.alloc(ManagedObject::Tuple(vec![key_val, v])))
                 })
                 .collect();
             let first = items[0];

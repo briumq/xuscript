@@ -21,12 +21,12 @@ pub(super) fn dispatch(
                 return Err(rt.error(xu_syntax::DiagnosticKind::FileClosed));
             }
             let content = rt.fs_read_to_string(&path)?;
-            Ok(Value::str(rt.heap.alloc(crate::core::heap::ManagedObject::Str(
+            Ok(Value::str(rt.alloc(crate::core::heap::ManagedObject::Str(
                 content.trim_end_matches(['\n', '\r']).to_string().into(),
             ))))
         }
         MethodKind::FileClose => {
-            if let crate::core::heap::ManagedObject::File(h) = rt.heap.get_mut(id) {
+            if let crate::core::heap::ManagedObject::File(h) = rt.heap_get_mut(id) {
                 h.open = false;
             }
             Ok(Value::UNIT)

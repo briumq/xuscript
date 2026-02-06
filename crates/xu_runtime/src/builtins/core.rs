@@ -43,7 +43,7 @@ pub fn builtin_open(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> {
         return Err("open expects text".into());
     };
     rt.fs_metadata(&path)?;
-    Ok(Value::file(rt.heap.alloc(crate::core::heap::ManagedObject::File(
+    Ok(Value::file(rt.alloc(crate::core::heap::ManagedObject::File(
         Box::new(crate::core::value::FileHandle {
             path,
             open: true,
@@ -62,7 +62,7 @@ pub fn builtin_input(rt: &mut Runtime, args: &[Value]) -> Result<Value, String> 
     let mut line = String::new();
     let mut stdin = std::io::stdin().lock();
     let _ = stdin.read_line(&mut line);
-    Ok(Value::str(rt.heap.alloc(crate::core::heap::ManagedObject::Str(
+    Ok(Value::str(rt.alloc(crate::core::heap::ManagedObject::Str(
         line.trim_end_matches(['\n', '\r']).to_string().into(),
     ))))
 }

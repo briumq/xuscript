@@ -3,29 +3,14 @@
 //! This module contains:
 //! - gc: Full garbage collection
 //! - maybe_gc_with_roots: Conditional GC with extra roots
+//! - Generational GC support (when feature enabled)
 
 use crate::core::Value;
 use crate::Runtime;
 
 impl Runtime {
-    /// Perform a full garbage collection cycle.
-    pub fn gc(&mut self, extra_roots: &[Value]) {
-        // Clear runtime caches that don't hold heap references
-        self.caches.method_cache.clear();
-        self.caches.dict_cache_last = None;
-        self.caches.dict_cache_int_last = None;
-        self.caches.dict_version_last = None;
-        self.caches.ic_slots.clear();
-        self.caches.ic_method_slots.clear();
-
-        // Clear object pools that may hold references to heap objects
-        // These pools are just for performance optimization and can be rebuilt
-        self.pools.env_pool.clear();
-        self.pools.vm_stack_pool.clear();
-        self.pools.small_list_pool.clear();
-
-        // Estimate capacity for roots vector
-        // Include string caches as roots to preserve them across GC
+    /// Collect all GC roots from the runtime state
+    fn collect_gc_roots(&self, extra_roots: &[Value]) -> Vec<Value> {
         let small_int_count = self.caches.small_int_strings.iter().filter(|v| v.is_some()).count();
         let bytecode_cache_count = self.caches.bytecode_string_cache.len();
         let estimated_roots = extra_roots.len()
@@ -60,8 +45,6 @@ impl Runtime {
             roots.push(*val);
         }
 
-        // Add string caches as roots - these are performance-critical
-        // and should be preserved across GC cycles
         for val in self.caches.small_int_strings.iter().flatten() {
             roots.push(*val);
         }
@@ -71,14 +54,62 @@ impl Runtime {
             }
         }
 
-        // Mark all reachable objects
-        self.heap.mark_all(&roots, &[&self.env], &[&self.locals]);
+        roots
+    }
 
-        // Sweep phase
+    /// Clear runtime caches before GC
+    fn clear_caches_for_gc(&mut self) {
+        self.caches.method_cache.clear();
+        self.caches.dict_cache_last = None;
+        self.caches.dict_cache_int_last = None;
+        self.caches.dict_version_last = None;
+        self.caches.ic_slots.clear();
+        self.caches.ic_method_slots.clear();
+        self.pools.env_pool.clear();
+        self.pools.vm_stack_pool.clear();
+        self.pools.small_list_pool.clear();
+    }
+
+    /// Perform a full garbage collection cycle.
+    #[cfg(not(feature = "generational-gc"))]
+    pub fn gc(&mut self, extra_roots: &[Value]) {
+        self.clear_caches_for_gc();
+        let roots = self.collect_gc_roots(extra_roots);
+        self.heap.mark_all(&roots, &[&self.env], &[&self.locals]);
         self.heap.sweep();
     }
 
-    /// Perform garbage collection if the heap has grown enough, with extra roots.
+    /// Perform garbage collection (generational GC version).
+    /// Currently only uses full GC - young GC is disabled for stability.
+    #[cfg(feature = "generational-gc")]
+    pub fn gc(&mut self, extra_roots: &[Value]) {
+        self.clear_caches_for_gc();
+        let roots = self.collect_gc_roots(extra_roots);
+        self.full_gc(&roots);
+    }
+
+    /// Perform full garbage collection (generational GC version)
+    #[cfg(feature = "generational-gc")]
+    fn full_gc(&mut self, roots: &[Value]) {
+        // Standard mark-sweep
+        self.heap.mark_all(roots, &[&self.env], &[&self.locals]);
+        self.heap.sweep();
+
+        // Update gen_heap after full GC
+        let max_heap_id = self.heap.objects.len();
+        self.gen_heap.after_full_gc(max_heap_id);
+    }
+
+    /// Perform garbage collection if the heap has grown enough.
+    #[cfg(not(feature = "generational-gc"))]
+    pub(crate) fn maybe_gc_with_roots(&mut self, roots: &[Value]) {
+        if self.heap.should_gc() {
+            self.gc(roots);
+        }
+    }
+
+    /// Perform garbage collection if needed (generational GC version).
+    #[cfg(feature = "generational-gc")]
     pub(crate) fn maybe_gc_with_roots(&mut self, roots: &[Value]) {
         if self.heap.should_gc() {
             self.gc(roots);

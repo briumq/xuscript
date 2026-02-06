@@ -45,7 +45,7 @@ pub fn expect_list_mut(rt: &mut Runtime, value: Value) -> Result<&mut Vec<Value>
 
     // 然后获取可变引用
     let id = value.as_obj_id();
-    let obj = rt.heap.get_mut(id);
+    let obj = rt.heap_get_mut(id);
     // 由于前面已经检查过类型，这里可以安全地使用unwrap
     match obj {
         crate::core::heap::ManagedObject::List(list) => Ok(list),
@@ -77,7 +77,7 @@ pub fn expect_dict_mut(rt: &mut Runtime, value: Value) -> Result<&mut crate::cor
 
     // 然后获取可变引用
     let id = value.as_obj_id();
-    let obj = rt.heap.get_mut(id);
+    let obj = rt.heap_get_mut(id);
     // 由于前面已经检查过类型，这里可以安全地使用unwrap
     match obj {
         crate::core::heap::ManagedObject::Dict(dict) => Ok(dict),
@@ -143,12 +143,12 @@ pub fn get_dict_key_from_value(rt: &mut Runtime, value: &Value) -> Result<crate:
 
 /// 创建字符串Value的辅助函数
 pub fn create_str_value(rt: &mut Runtime, s: &str) -> Value {
-    Value::str(rt.heap.alloc(crate::core::heap::ManagedObject::Str(s.into())))
+    Value::str(rt.alloc(crate::core::heap::ManagedObject::Str(s.into())))
 }
 
 /// 创建列表Value的辅助函数
 pub fn create_list_value(rt: &mut Runtime, items: Vec<Value>) -> Value {
-    Value::list(rt.heap.alloc(crate::core::heap::ManagedObject::List(items)))
+    Value::list(rt.alloc(crate::core::heap::ManagedObject::List(items)))
 }
 
 /// 验证参数是否为字符串类型

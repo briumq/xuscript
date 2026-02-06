@@ -30,7 +30,7 @@ pub(crate) fn op_list_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) ->
         items.push(pop_stack(stack)?);
     }
     items.reverse();
-    let id = rt.heap.alloc(ManagedObject::List(items));
+    let id = rt.alloc(ManagedObject::List(items));
     stack.push(Value::list(id));
     Ok(())
 }
@@ -52,7 +52,7 @@ pub(crate) fn op_tuple_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) -
         items.push(pop_stack(stack)?);
     }
     items.reverse();
-    let id = rt.heap.alloc(ManagedObject::Tuple(items));
+    let id = rt.alloc(ManagedObject::Tuple(items));
     stack.push(Value::tuple(id));
     Ok(false)
 }
@@ -79,7 +79,7 @@ pub(crate) fn op_dict_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) ->
         };
         map.map.insert(key, v);
     }
-    let id = rt.heap.alloc(ManagedObject::Dict(map));
+    let id = rt.alloc(ManagedObject::Dict(map));
     stack.push(Value::dict(id));
     Ok(())
 }
@@ -106,7 +106,7 @@ pub(crate) fn op_list_append(
     }
 
     let id = recv.as_obj_id();
-    if let ManagedObject::List(vs) = rt.heap.get_mut(id) {
+    if let ManagedObject::List(vs) = rt.heap_get_mut(id) {
         vs.reserve(items.len());
         for v in items {
             vs.push(v);
@@ -126,7 +126,7 @@ pub(crate) fn op_make_range(
     let (a, b) = pop2_stack(stack)?;
     let start = to_i64(&a)?;
     let end = to_i64(&b)?;
-    let id = rt.heap.alloc(ManagedObject::Range(start, end, inclusive));
+    let id = rt.alloc(ManagedObject::Range(start, end, inclusive));
     stack.push(Value::range(id));
     Ok(())
 }

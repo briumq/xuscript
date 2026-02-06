@@ -106,5 +106,5 @@ pub fn builtin_set_from_list(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
         dict.map.insert(key, Value::UNIT);
     }
 
-    Ok(Value::dict(rt.heap.alloc(crate::core::heap::ManagedObject::Dict(dict))))
+    Ok(Value::dict(rt.alloc(crate::core::heap::ManagedObject::Dict(dict))))
 }

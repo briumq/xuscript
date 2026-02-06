@@ -27,7 +27,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
         let key_int = k.as_i64();
         if key_int >= 0 && key_int < ELEMENTS_MAX {
             let idx = key_int as usize;
-            if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
+            if let ManagedObject::Dict(d) = rt.heap_get_mut(id) {
                 // Ensure elements array is large enough
                 if d.elements.len() <= idx {
                     d.elements.resize(idx + 1, Value::UNIT);
@@ -71,7 +71,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
             (hash, dict_key_hash)
         };
 
-        let d = if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
+        let d = if let ManagedObject::Dict(d) = rt.heap_get_mut(id) {
             d
         } else {
             return Err(NOT_A_DICT.into());
@@ -113,7 +113,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
     // Slow path for large integer keys
     if k.is_int() {
         let key = DictKey::Int(k.as_i64());
-        if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
+        if let ManagedObject::Dict(d) = rt.heap_get_mut(id) {
             let h = d.map.hasher().hash_one(&key);
             match d.map.raw_entry_mut().from_hash(h, |kk| kk == &key) {
                 hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
@@ -164,7 +164,7 @@ pub(crate) fn op_dict_merge(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<
         return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
     };
 
-    if let ManagedObject::Dict(a) = rt.heap.get_mut(aid) {
+    if let ManagedObject::Dict(a) = rt.heap_get_mut(aid) {
         a.map.reserve(other_dict_map.len());
         let mut changed = false;
         for (k, v) in other_dict_map {

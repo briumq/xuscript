@@ -56,18 +56,18 @@ pub fn builtin_os_args(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
     if !args.is_empty() {
         return Err("os_args expects 0 arguments".into());
     }
-    let items = rt
-        .args
+    // Clone args first to avoid borrow conflict
+    let args_clone: Vec<String> = rt.args.clone();
+    let items = args_clone
         .iter()
         .map(|s| {
             Value::str(
-                rt.heap
-                    .alloc(crate::core::heap::ManagedObject::Str(s.clone().into())),
+                rt.alloc(crate::core::heap::ManagedObject::Str(s.clone().into())),
             )
         })
         .collect::<Vec<_>>();
     Ok(Value::list(
-        rt.heap.alloc(crate::core::heap::ManagedObject::List(items)),
+        rt.alloc(crate::core::heap::ManagedObject::List(items)),
     ))
 }
 
@@ -202,7 +202,7 @@ pub fn builtin_builder_new_with_capacity(
     } else {
         return Err("builder_new_cap expects non-negative number".into());
     };
-    Ok(Value::builder(rt.heap.alloc(
+    Ok(Value::builder(rt.alloc(
         crate::core::heap::ManagedObject::Builder(String::with_capacity(cap)),
     )))
 }
@@ -219,18 +219,18 @@ pub fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<Value, S
 
     let v = &args[1];
     if v.is_unit() {
-        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap_get_mut(id) {
             sb.push_str("()");
         }
     } else if v.is_bool() {
         let s = if v.as_bool() { "true" } else { "false" };
-        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap_get_mut(id) {
             sb.push_str(s);
         }
     } else if v.is_int() {
         let mut buf = itoa::Buffer::new();
         let digits = buf.format(v.as_i64());
-        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap_get_mut(id) {
             sb.push_str(digits);
         }
     } else if v.is_f64() {
@@ -241,7 +241,7 @@ pub fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<Value, S
         } else {
             f.to_string()
         };
-        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap_get_mut(id) {
             sb.push_str(&s);
         }
     } else if v.get_tag() == crate::core::value::TAG_STR {
@@ -257,7 +257,7 @@ pub fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<Value, S
             // during this operation since we're not allocating
             let str_slice = unsafe { std::slice::from_raw_parts(ptr, len) };
             let str_ref = unsafe { std::str::from_utf8_unchecked(str_slice) };
-            if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+            if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap_get_mut(id) {
                 sb.push_str(str_ref);
             }
         }
@@ -267,12 +267,12 @@ pub fn builtin_builder_push(rt: &mut Runtime, args: &[Value]) -> Result<Value, S
         } else {
             String::new()
         };
-        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap_get_mut(id) {
             sb.push_str(&s);
         }
     } else {
         let s = super::super::util::value_to_string(v, &rt.heap);
-        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(sb) = rt.heap_get_mut(id) {
             sb.push_str(&s);
         }
     }
@@ -288,7 +288,7 @@ pub fn builtin_builder_finalize(rt: &mut Runtime, args: &[Value]) -> Result<Valu
     if v.get_tag() == crate::core::value::TAG_BUILDER {
         let id = v.as_obj_id();
         // Use std::mem::take to move the string instead of cloning
-        if let crate::core::heap::ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+        if let crate::core::heap::ManagedObject::Builder(s) = rt.heap_get_mut(id) {
             let owned = std::mem::take(s);
             Ok(Value::str(
                 rt.heap

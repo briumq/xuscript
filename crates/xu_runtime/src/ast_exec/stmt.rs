@@ -28,7 +28,7 @@ impl Runtime {
     /// 创建错误值
     #[inline]
     fn throw_err(&mut self, e: String) -> Flow {
-        Flow::Throw(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(e.into()))))
+        Flow::Throw(Value::str(self.alloc(crate::core::heap::ManagedObject::Str(e.into()))))
     }
 
     /// 设置循环变量
@@ -160,7 +160,7 @@ impl Runtime {
                     skip_local_map,
                     type_sig_ic: std::cell::Cell::new(None),
                 };
-                let func_val = Value::function(self.heap.alloc(
+                let func_val = Value::function(self.alloc(
                     crate::core::heap::ManagedObject::Function(Function::User(Rc::new(func))),
                 ));
                 self.env.define(def.name.clone(), func_val);
@@ -258,7 +258,7 @@ impl Runtime {
                         let pairs = self.collect_dict_pairs(id, true);
                         for (k, v) in pairs {
                             let key_val = dict_key_to_value(self, &k);
-                            let tuple = Value::tuple(self.heap.alloc(crate::core::heap::ManagedObject::Tuple(vec![key_val, v])));
+                            let tuple = Value::tuple(self.alloc(crate::core::heap::ManagedObject::Tuple(vec![key_val, v])));
                             self.set_loop_var(&s.var, local_idx, use_local, tuple);
                             match self.exec_stmts(&s.body) {
                                 Flow::None | Flow::Continue => {}
@@ -545,7 +545,7 @@ impl Runtime {
                             return Err(NOT_A_STRING.to_string());
                         };
                         s.append_value(&rhs, &self.heap);
-                        return Ok(Value::str(self.heap.alloc(crate::core::heap::ManagedObject::Str(s))));
+                        return Ok(Value::str(self.alloc(crate::core::heap::ManagedObject::Str(s))));
                     }
                 }
                 let mut v = cur.unwrap_or(Value::from_i64(0));
@@ -579,7 +579,7 @@ impl Runtime {
                 prev = Some(s.fields[pos]);
             }
             let v = self.apply_assign_op(prev, op, rhs)?;
-            if let crate::core::heap::ManagedObject::Struct(s) = self.heap.get_mut(id) {
+            if let crate::core::heap::ManagedObject::Struct(s) = self.heap_get_mut(id) {
                 s.fields[pos] = v;
             }
             Ok(())
@@ -612,7 +612,7 @@ impl Runtime {
 
             // Fast path for simple assignment (no need to read old value)
             if op == AssignOp::Set {
-                if let crate::core::heap::ManagedObject::List(list) = self.heap.get_mut(id) {
+                if let crate::core::heap::ManagedObject::List(list) = self.heap_get_mut(id) {
                     if ui >= list.len() {
                         return Err(self.error(xu_syntax::DiagnosticKind::IndexOutOfRange));
                     }
@@ -631,7 +631,7 @@ impl Runtime {
             }
 
             let v = self.apply_assign_op(prev, op, rhs)?;
-            if let crate::core::heap::ManagedObject::List(list) = self.heap.get_mut(id) {
+            if let crate::core::heap::ManagedObject::List(list) = self.heap_get_mut(id) {
                 list[ui] = v;
             }
             Ok(())
@@ -654,7 +654,7 @@ impl Runtime {
 
             // Fast path for simple assignment
             if op == AssignOp::Set {
-                if let crate::core::heap::ManagedObject::Dict(me) = self.heap.get_mut(id) {
+                if let crate::core::heap::ManagedObject::Dict(me) = self.heap_get_mut(id) {
                     me.map.insert(key, rhs);
                     me.ver += 1;
                     self.caches.dict_version_last = Some((id.0, me.ver));
@@ -670,7 +670,7 @@ impl Runtime {
 
             let v = self.apply_assign_op(prev, op, rhs)?;
 
-            if let crate::core::heap::ManagedObject::Dict(me) = self.heap.get_mut(id) {
+            if let crate::core::heap::ManagedObject::Dict(me) = self.heap_get_mut(id) {
                 let prev = me.map.insert(key, v);
                 if prev.as_ref() != Some(&v) {
                     me.ver += 1;

@@ -66,7 +66,7 @@ pub fn builtin_to_text(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
         }
         // Fall through to normal path for large integers
         let s = i64_to_text_fast(i);
-        return Ok(Value::str(rt.heap.alloc(crate::core::heap::ManagedObject::Str(s))));
+        return Ok(Value::str(rt.alloc(crate::core::heap::ManagedObject::Str(s))));
     }
     let s = if v.get_tag() == crate::core::value::TAG_STR {
         if let crate::core::heap::ManagedObject::Str(x) = rt.heap.get(v.as_obj_id()) {
@@ -92,5 +92,5 @@ pub fn builtin_to_text(rt: &mut Runtime, args: &[Value]) -> Result<Value, String
     } else {
         super::super::util::value_to_string(v, &rt.heap).into()
     };
-    Ok(Value::str(rt.heap.alloc(crate::core::heap::ManagedObject::Str(s))))
+    Ok(Value::str(rt.alloc(crate::core::heap::ManagedObject::Str(s))))
 }

@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 
+[features]
+default = []
+generational-gc = []
+
 [dependencies]
 xu_ir = { path = "../xu_ir" }
 xu_syntax = { path = "../xu_syntax" }
