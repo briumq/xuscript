@@ -68,11 +68,7 @@ pub(super) fn dispatch(
                 if i >= 0 && i < crate::core::value::ELEMENTS_MAX {
                     let idx = i as usize;
                     let me = expect_dict_mut(rt, recv)?;
-                    if me.elements.len() <= idx {
-                        me.elements.resize(idx + 1, Value::UNIT);
-                    }
-                    let was_unit = me.elements[idx].get_tag() == crate::core::value::TAG_UNIT;
-                    me.elements[idx] = value;
+                    let was_unit = me.set_element(idx, value);
                     if was_unit {
                         me.ver += 1;
                         rt.caches.dict_version_last = Some((id, me.ver));
@@ -144,11 +140,7 @@ pub(super) fn dispatch(
             if i >= 0 && i < crate::core::value::ELEMENTS_MAX {
                 let idx = i as usize;
                 let me = expect_dict_mut(rt, recv)?;
-                if me.elements.len() <= idx {
-                    me.elements.resize(idx + 1, Value::UNIT);
-                }
-                let was_unit = me.elements[idx].get_tag() == crate::core::value::TAG_UNIT;
-                me.elements[idx] = value;
+                let was_unit = me.set_element(idx, value);
                 if was_unit {
                     me.ver += 1;
                     rt.caches.dict_version_last = Some((id, me.ver));
@@ -221,11 +213,8 @@ pub(super) fn dispatch(
                 let me = expect_dict(rt, recv)?;
                 let v = if i >= 0 && i < crate::core::value::ELEMENTS_MAX {
                     let idx = i as usize;
-                    if idx < me.elements.len() && me.elements[idx].get_tag() != crate::core::value::TAG_UNIT {
-                        Some(me.elements[idx])
-                    } else {
-                        me.map.get(&DictKey::Int(i)).copied()
-                    }
+                    // 使用辅助方法获取元素
+                    me.get_element(idx).or_else(|| me.map.get(&DictKey::Int(i)).copied())
                 } else {
                     me.map.get(&DictKey::Int(i)).copied()
                 };
@@ -259,7 +248,7 @@ pub(super) fn dispatch(
                     if let crate::core::heap::ManagedObject::Shape(shape) = rt.heap.get(sid) {
                         let key_str = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(key_str_ptr, key_str_len)) };
                         if let Some(&off) = shape.prop_map.get(key_str) {
-                            let ok = me.prop_values.get(off).is_some_and(|v| v.get_tag() != crate::core::value::TAG_UNIT);
+                            let ok = me.get_prop_value(off).is_some_and(|v| v.get_tag() != crate::core::value::TAG_UNIT);
                             return Ok(Value::from_bool(ok));
                         }
                     }
@@ -307,9 +296,7 @@ pub(super) fn dispatch(
             validate_arity(rt, method, args.len(), 0, 0)?;
             let id = recv.as_obj_id().0;
             let me = expect_dict_mut(rt, recv)?;
-            me.map.clear();
-            me.elements.clear();
-            me.prop_values.clear();
+            me.clear();
             me.ver += 1;
             rt.caches.dict_version_last = Some((id, me.ver));
             Ok(Value::UNIT)
@@ -323,10 +310,13 @@ pub(super) fn dispatch(
         MethodKind::DictValues => {
             validate_arity(rt, method, args.len(), 0, 0)?;
             let me = expect_dict(rt, recv)?;
-            let mut values = Vec::with_capacity(me.map.len() + me.elements.len());
-            for ev in &me.elements {
-                if ev.get_tag() != crate::core::value::TAG_UNIT {
-                    values.push(*ev);
+            let elements_len = me.elements().map_or(0, |e| e.len());
+            let mut values = Vec::with_capacity(me.map.len() + elements_len);
+            if let Some(elements) = me.elements() {
+                for ev in elements {
+                    if ev.get_tag() != crate::core::value::TAG_UNIT {
+                        values.push(*ev);
+                    }
                 }
             }
             values.extend(me.map.values().copied());
@@ -350,9 +340,7 @@ pub(super) fn dispatch(
         MethodKind::Len => {
             validate_arity(rt, method, args.len(), 0, 0)?;
             let me = expect_dict(rt, recv)?;
-            let mut n = me.map.len() + me.prop_values.len();
-            n += me.elements.iter().filter(|ev| ev.get_tag() != crate::core::value::TAG_UNIT).count();
-            Ok(Value::from_i64(n as i64))
+            Ok(Value::from_i64(me.len() as i64))
         }
         _ => Err(err(rt, xu_syntax::DiagnosticKind::UnknownDictMethod(method.to_string()))),
     }
@@ -360,11 +348,14 @@ pub(super) fn dispatch(
 
 fn collect_dict_keys(rt: &Runtime, recv: Value) -> Result<Vec<TempKey>, String> {
     let me = expect_dict(rt, recv)?;
-    let mut keys = Vec::with_capacity(me.map.len() + me.elements.len());
+    let elements_len = me.elements().map_or(0, |e| e.len());
+    let mut keys = Vec::with_capacity(me.map.len() + elements_len);
 
-    for (i, ev) in me.elements.iter().enumerate() {
-        if ev.get_tag() != crate::core::value::TAG_UNIT {
-            keys.push(TempKey::Int(i as i64));
+    if let Some(elements) = me.elements() {
+        for (i, ev) in elements.iter().enumerate() {
+            if ev.get_tag() != crate::core::value::TAG_UNIT {
+                keys.push(TempKey::Int(i as i64));
+            }
         }
     }
 
@@ -384,11 +375,14 @@ fn collect_dict_keys(rt: &Runtime, recv: Value) -> Result<Vec<TempKey>, String> 
 
 fn collect_dict_items(rt: &Runtime, recv: Value) -> Result<Vec<(TempKey, Value)>, String> {
     let me = expect_dict(rt, recv)?;
-    let mut items = Vec::with_capacity(me.map.len() + me.elements.len());
+    let elements_len = me.elements().map_or(0, |e| e.len());
+    let mut items = Vec::with_capacity(me.map.len() + elements_len);
 
-    for (i, ev) in me.elements.iter().enumerate() {
-        if ev.get_tag() != crate::core::value::TAG_UNIT {
-            items.push((TempKey::Int(i as i64), *ev));
+    if let Some(elements) = me.elements() {
+        for (i, ev) in elements.iter().enumerate() {
+            if ev.get_tag() != crate::core::value::TAG_UNIT {
+                items.push((TempKey::Int(i as i64), *ev));
+            }
         }
     }
 

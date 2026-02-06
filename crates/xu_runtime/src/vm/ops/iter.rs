@@ -105,11 +105,15 @@ pub(crate) fn op_foreach_init(
                     // Collect shape keys as strings
                     let shape_keys: Vec<(String, Value)> = if let Some(sid) = d.shape {
                         if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
-                            shape.prop_map.iter()
-                                .filter_map(|(k, off)| {
-                                    d.prop_values.get(*off).map(|v| (k.clone(), *v))
-                                })
-                                .collect()
+                            if let Some(pv) = d.prop_values() {
+                                shape.prop_map.iter()
+                                    .filter_map(|(k, off)| {
+                                        pv.get(*off).map(|v| (k.clone(), *v))
+                                    })
+                                    .collect()
+                            } else {
+                                Vec::new()
+                            }
                         } else {
                             Vec::new()
                         }
@@ -117,10 +121,12 @@ pub(crate) fn op_foreach_init(
                         Vec::new()
                     };
                     // Collect elements
-                    let elements: Vec<(i64, Value)> = d.elements.iter().enumerate()
-                        .filter(|(_, v)| v.get_tag() != crate::core::value::TAG_UNIT)
-                        .map(|(i, v)| (i as i64, *v))
-                        .collect();
+                    let elements: Vec<(i64, Value)> = d.elements().map_or(Vec::new(), |e| {
+                        e.iter().enumerate()
+                            .filter(|(_, v)| v.get_tag() != crate::core::value::TAG_UNIT)
+                            .map(|(i, v)| (i as i64, *v))
+                            .collect()
+                    });
                     (result, shape_keys, elements)
                 }
                 _ => {

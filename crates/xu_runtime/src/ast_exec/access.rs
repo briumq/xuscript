@@ -177,14 +177,7 @@ impl Runtime {
         } else if tag == crate::core::value::TAG_DICT && field == "length" {
             let id = obj.as_obj_id();
             if let crate::core::heap::ManagedObject::Dict(v) = self.heap.get(id) {
-                let mut n = v.map.len();
-                n += v.prop_values.len();
-                for ev in &v.elements {
-                    if ev.get_tag() != crate::core::value::TAG_UNIT {
-                        n += 1;
-                    }
-                }
-                Ok(Value::from_i64(n as i64))
+                Ok(Value::from_i64(v.len() as i64))
             } else {
                 Err(self.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())))
             }

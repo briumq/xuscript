@@ -237,12 +237,132 @@ impl fmt::Display for DictKey {
 
 pub type FastHashMap<K, V> = HashMap<K, V, RandomState>;
 
+/// 延迟分配的 elements 数组阈值
+/// 超过此值的整数键将使用 map 存储
+pub const ELEMENTS_DENSE_MAX: usize = 1024;
+
 pub struct DictInstance {
     pub map: FastHashMap<DictKey, Value>,
-    pub elements: Vec<Value>,
+    /// 延迟分配的整数键数组 (0 到 ELEMENTS_MAX-1)
+    /// 使用 Option<Box<>> 避免为不使用整数键的 dict 分配内存
+    pub elements: Option<Box<Vec<Value>>>,
     pub shape: Option<ObjectId>,
-    pub prop_values: Vec<Value>,
+    /// 延迟分配的 Shape 属性值数组
+    /// 使用 Option<Box<>> 避免为不使用 Shape 的 dict 分配内存
+    pub prop_values: Option<Box<Vec<Value>>>,
     pub ver: u64,
+}
+
+impl DictInstance {
+    /// 获取 elements 数组的引用（如果存在）
+    #[inline]
+    pub fn elements(&self) -> Option<&Vec<Value>> {
+        self.elements.as_ref().map(|b| b.as_ref())
+    }
+
+    /// 获取 elements 数组的可变引用（如果存在）
+    #[inline]
+    pub fn elements_mut(&mut self) -> Option<&mut Vec<Value>> {
+        self.elements.as_mut().map(|b| b.as_mut())
+    }
+
+    /// 确保 elements 数组存在并返回可变引用
+    #[inline]
+    pub fn ensure_elements(&mut self) -> &mut Vec<Value> {
+        if self.elements.is_none() {
+            self.elements = Some(Box::new(Vec::new()));
+        }
+        self.elements.as_mut().unwrap()
+    }
+
+    /// 获取指定索引的元素值
+    #[inline]
+    pub fn get_element(&self, idx: usize) -> Option<Value> {
+        self.elements.as_ref().and_then(|e| {
+            e.get(idx).and_then(|v| {
+                if v.get_tag() != TAG_UNIT {
+                    Some(*v)
+                } else {
+                    None
+                }
+            })
+        })
+    }
+
+    /// 设置指定索引的元素值，必要时扩展数组
+    /// 返回是否是新键（之前是 UNIT 或不存在）
+    #[inline]
+    pub fn set_element(&mut self, idx: usize, value: Value) -> bool {
+        let elements = self.ensure_elements();
+        if elements.len() <= idx {
+            elements.resize(idx + 1, Value::UNIT);
+        }
+        let was_unit = elements[idx].get_tag() == TAG_UNIT;
+        elements[idx] = value;
+        was_unit
+    }
+
+    /// 获取 prop_values 数组的引用（如果存在）
+    #[inline]
+    pub fn prop_values(&self) -> Option<&Vec<Value>> {
+        self.prop_values.as_ref().map(|b| b.as_ref())
+    }
+
+    /// 获取 prop_values 数组的可变引用（如果存在）
+    #[inline]
+    pub fn prop_values_mut(&mut self) -> Option<&mut Vec<Value>> {
+        self.prop_values.as_mut().map(|b| b.as_mut())
+    }
+
+    /// 确保 prop_values 数组存在并返回可变引用
+    #[inline]
+    pub fn ensure_prop_values(&mut self) -> &mut Vec<Value> {
+        if self.prop_values.is_none() {
+            self.prop_values = Some(Box::new(Vec::new()));
+        }
+        self.prop_values.as_mut().unwrap()
+    }
+
+    /// 获取指定偏移的属性值
+    #[inline]
+    pub fn get_prop_value(&self, offset: usize) -> Option<Value> {
+        self.prop_values.as_ref().and_then(|pv| pv.get(offset).copied())
+    }
+
+    /// 设置指定偏移的属性值
+    #[inline]
+    pub fn set_prop_value(&mut self, offset: usize, value: Value) {
+        let pv = self.ensure_prop_values();
+        if pv.len() <= offset {
+            pv.resize(offset + 1, Value::UNIT);
+        }
+        pv[offset] = value;
+    }
+
+    /// 计算 dict 中的元素数量
+    #[inline]
+    pub fn len(&self) -> usize {
+        let mut n = self.map.len();
+        if let Some(pv) = &self.prop_values {
+            n += pv.len();
+        }
+        if let Some(elements) = &self.elements {
+            n += elements.iter().filter(|v| v.get_tag() != TAG_UNIT).count();
+        }
+        n
+    }
+
+    /// 清空所有数据
+    #[inline]
+    pub fn clear(&mut self) {
+        self.map.clear();
+        if let Some(elements) = &mut self.elements {
+            elements.clear();
+        }
+        if let Some(pv) = &mut self.prop_values {
+            pv.clear();
+        }
+    }
 }
 
 impl Clone for DictInstance {
@@ -253,9 +373,9 @@ impl Clone for DictInstance {
         }
         Self {
             map,
-            elements: self.elements.clone(),
+            elements: self.elements.as_ref().map(|e| Box::new(e.as_ref().clone())),
             shape: self.shape,
-            prop_values: self.prop_values.clone(),
+            prop_values: self.prop_values.as_ref().map(|pv| Box::new(pv.as_ref().clone())),
             ver: self.ver,
         }
     }
@@ -302,9 +422,9 @@ pub fn fast_map_with_capacity<K: Eq + Hash, V>(cap: usize) -> FastHashMap<K, V> 
 pub fn dict_with_capacity(cap: usize) -> Dict {
     Box::new(DictInstance {
         map: fast_map_with_capacity(cap),
-        elements: Vec::new(),
+        elements: None,  // 延迟分配
         shape: None,
-        prop_values: Vec::new(),
+        prop_values: None,  // 延迟分配
         ver: 0,
     })
 }

@@ -1,0 +1,251 @@
+// Xu 语言综合示例 v1.1
+// 展示语言核心特性和最佳实践
+
+// 枚举定义
+Status with [ pending | approved | rejected ]
+
+// 带数据的枚举
+Response with [
+    success(data: string) |
+    error(code: int, msg: string)
+]
+
+// 结构体定义
+User has {
+    name: string
+    age: int = 0
+    status: Status = Status#pending
+
+    func greet() {
+        println("Hello, {self.name}!")
+    }
+
+    func is_adult() -> bool {
+        return self.age >= 18
+    }
+
+    static func create(name: string, age: int) -> User {
+        return User{ name: name, age: age }
+    }
+}
+
+// 扩展方法
+User does {
+    func to_json() -> string {
+        return """{"name": "{self.name}", "age": {self.age}, "status": "{self.status.name}"} """
+    }
+
+    func update_status(new_status: Status) {
+        self.status = new_status
+    }
+}
+
+// 产品结构体
+Product has {
+    id: string
+    name: string
+    price: float
+    stock: int
+
+    func is_available() -> bool {
+        return self.stock > 0
+    }
+
+    func get_discounted_price(percent: float) -> float {
+        return self.price * (1 - percent / 100)
+    }
+}
+
+// 购物车结构体
+ShoppingCart has {
+    items: [(Product, int)] = [] // 商品和数量的列表
+
+    func add_item(product: Product, quantity: int) {
+        if product.is_available() {
+            self.items.push((product, quantity))
+            println("添加 {quantity} 个 {product.name} 到购物车")
+        } else {
+            println("{product.name} 缺货")
+        }
+    }
+
+    func remove_item(product_id: string) {
+        var new_items: [(Product, int)] = []
+        for (product, quantity) in self.items {
+            if product.id != product_id {
+                new_items.push((product, quantity))
+            }
+        }
+        self.items = new_items
+        println("从购物车移除商品 {product_id}")
+    }
+
+    func calculate_total() -> float {
+        var total = 0.0
+        for (product, quantity) in self.items {
+            total += product.price * quantity
+        }
+        return total
+    }
+
+    func checkout() -> Response {
+        if self.items.length == 0 {
+            return Response#error(400, "购物车为空")
+        }
+        let total = self.calculate_total()
+        return Response#success("结账成功，总金额: ${total}")
+    }
+}
+
+// 工具函数
+func generate_id() -> string {
+    // 简单的 ID 生成
+    return "id_" + (10000 * rand()).to_string()
+}
+
+// 主函数
+func main() {
+    println("=== Xu 语言综合示例 ===")
+
+    // 创建用户
+    let alice = User.create("Alice", 25)
+    let bob = User.create("Bob", 17)
+
+    // 测试用户方法
+    alice.greet()
+    bob.greet()
+
+    println("Alice 是成年人: {alice.is_adult()}")
+    println("Bob 是成年人: {bob.is_adult()}")
+
+    // 测试结构体展开
+    let older_alice = User{ ...alice, age: alice.age + 1 }
+    println("{older_alice.name} 明年 {older_alice.age} 岁")
+
+    // 测试扩展方法
+    println("Alice 的 JSON 表示: {alice.to_json()}")
+
+    // 更新状态
+    alice.update_status(Status#approved)
+    println("Alice 的新状态: {alice.status.name}")
+
+    // 创建产品
+    let apple = Product{
+        id: generate_id(),
+        name: "苹果",
+        price: 5.99,
+        stock: 100
+    }
+
+    let banana = Product{
+        id: generate_id(),
+        name: "香蕉",
+        price: 3.49,
+        stock: 0
+    }
+
+    let orange = Product{
+        id: generate_id(),
+        name: "橙子",
+        price: 4.99,
+        stock: 50
+    }
+
+    // 测试产品方法
+    println("苹果是否有货: {apple.is_available()}")
+    println("香蕉是否有货: {banana.is_available()}")
+    println("苹果打 10% 折后价格: ${apple.get_discounted_price(10)}")
+
+    // 创建购物车
+    let cart = ShoppingCart{}
+
+    // 测试购物车方法
+    cart.add_item(apple, 3)
+    cart.add_item(banana, 2) // 应该显示缺货
+    cart.add_item(orange, 1)
+
+    println("购物车商品数量: {cart.items.length}")
+    println("购物车总金额: ${cart.calculate_total()}")
+
+    // 移除商品
+    cart.remove_item(apple.id)
+    println("移除苹果后商品数量: {cart.items.length}")
+
+    // 结账
+    let checkout_result = cart.checkout()
+    match checkout_result {
+        Response#success(msg): println(msg)
+        Response#error(code, msg): println("结账失败 [${code}]: ${msg}")
+        _: println("未知响应")
+    }
+
+    // 测试 when 条件绑定
+    println("\n=== 测试 when 条件绑定 ===")
+    when user = find_user_by_name("Alice") {
+        println("找到用户: {user.name}")
+    } else {
+        println("未找到用户")
+    }
+
+    // 测试多绑定
+    when first = get_first_product(), second = get_second_product() {
+        println("第一个产品: {first.name}")
+        println("第二个产品: {second.name}")
+    } else {
+        println("获取产品失败")
+    }
+
+    // 测试集合操作
+    println("\n=== 测试集合操作 ===")
+    let numbers = [1, 2, 3, 4, 5]
+    println("原始列表: {numbers}")
+
+    // 映射操作
+    let doubled = numbers.map(|x| x * 2)
+    println("翻倍后: {doubled}")
+
+    // 过滤操作
+    let even = numbers.filter(|x| x % 2 == 0)
+    println("偶数: {even}")
+
+    // 字典操作
+    let user_dict = {"alice": alice, "bob": bob}
+    println("字典大小: {user_dict.length}")
+
+    // 遍历字典
+    for (key, value) in user_dict {
+        println("{key}: {value.name}")
+    }
+
+    println("\n=== 示例结束 ===")
+}
+
+// 辅助函数
+func find_user_by_name(name: string) -> Option[User] {
+    // 模拟查找用户
+    if name == "Alice" {
+        return Option#some(User.create("Alice", 25))
+    }
+    return Option#none
+}
+
+func get_first_product() -> Option[Product] {
+    return Option#some(Product{
+        id: generate_id(),
+        name: "测试产品 1",
+        price: 9.99,
+        stock: 10
+    })
+}
+
+func get_second_product() -> Option[Product] {
+    return Option#some(Product{
+        id: generate_id(),
+        name: "测试产品 2",
+        price: 19.99,
+        stock: 5
+    })
+}
+
+// 运行主函数
+main()

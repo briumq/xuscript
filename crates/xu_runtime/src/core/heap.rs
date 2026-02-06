@@ -31,7 +31,11 @@ impl ManagedObject {
         match self {
             ManagedObject::List(v) => 64 + v.capacity() * 8,
             ManagedObject::Tuple(v) => 64 + v.capacity() * 8,
-            ManagedObject::Dict(d) => 128 + d.map.capacity() * 48 + d.elements.capacity() * 8,
+            ManagedObject::Dict(d) => {
+                let elements_cap = d.elements.as_ref().map_or(0, |e| e.capacity());
+                let prop_values_cap = d.prop_values.as_ref().map_or(0, |pv| pv.capacity());
+                128 + d.map.capacity() * 48 + elements_cap * 8 + prop_values_cap * 8
+            }
             ManagedObject::DictStr(d) => 64 + d.map.capacity() * 48,
             ManagedObject::Builder(s) => 32 + s.capacity(),
             ManagedObject::Struct(s) => 64 + s.fields.len() * 8,
@@ -202,11 +206,15 @@ impl Heap {
                         for value in dict.map.values() {
                             push_if_obj(&mut stack, *value);
                         }
-                        for value in &dict.prop_values {
-                            push_if_obj(&mut stack, *value);
+                        if let Some(pv) = &dict.prop_values {
+                            for value in pv.as_ref() {
+                                push_if_obj(&mut stack, *value);
+                            }
                         }
-                        for value in &dict.elements {
-                            push_if_obj(&mut stack, *value);
+                        if let Some(elements) = &dict.elements {
+                            for value in elements.as_ref() {
+                                push_if_obj(&mut stack, *value);
+                            }
                         }
                     }
                     ManagedObject::DictStr(dict) => {
@@ -423,14 +431,18 @@ impl Heap {
                             out.push(value.as_obj_id().0);
                         }
                     }
-                    for value in &dict.prop_values {
-                        if value.is_obj() {
-                            out.push(value.as_obj_id().0);
+                    if let Some(pv) = &dict.prop_values {
+                        for value in pv.as_ref() {
+                            if value.is_obj() {
+                                out.push(value.as_obj_id().0);
+                            }
                         }
                     }
-                    for value in &dict.elements {
-                        if value.is_obj() {
-                            out.push(value.as_obj_id().0);
+                    if let Some(elements) = &dict.elements {
+                        for value in elements.as_ref() {
+                            if value.is_obj() {
+                                out.push(value.as_obj_id().0);
+                            }
                         }
                     }
                 }

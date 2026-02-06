@@ -365,8 +365,8 @@ impl Runtime {
                                             {
                                                 if let Some(&off) = shape.prop_map.get(fname.as_str())
                                                 {
-                                                    if let Some(v) = db.prop_values.get(off) {
-                                                        values[pos] = *v;
+                                                    if let Some(v) = db.get_prop_value(off) {
+                                                        values[pos] = v;
                                                         continue;
                                                     }
                                                 }

@@ -2,7 +2,7 @@ use std::hash::{BuildHasher, Hasher};
 
 use crate::core::Value;
 use crate::core::heap::ManagedObject;
-use crate::core::value::{DictKey, TAG_DICT, TAG_STR, TAG_UNIT, ELEMENTS_MAX};
+use crate::core::value::{DictKey, TAG_DICT, TAG_STR, ELEMENTS_MAX};
 use crate::errors::messages::{NOT_A_DICT, NOT_A_STRING};
 use crate::vm::ops::helpers::pop_stack;
 
@@ -28,13 +28,8 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
         if key_int >= 0 && key_int < ELEMENTS_MAX {
             let idx = key_int as usize;
             if let ManagedObject::Dict(d) = rt.heap_get_mut(id) {
-                // Ensure elements array is large enough
-                if d.elements.len() <= idx {
-                    d.elements.resize(idx + 1, Value::UNIT);
-                }
-                // Check if this is a new key (was VOID before)
-                let was_unit = d.elements[idx].get_tag() == TAG_UNIT;
-                d.elements[idx] = v;
+                // 使用辅助方法设置元素
+                let was_unit = d.set_element(idx, v);
                 if was_unit {
                     d.ver += 1;
                     rt.caches.dict_version_last = Some((id.0, d.ver));

@@ -465,11 +465,7 @@ fn try_dict_insert_int_fast(
     rt.write_barrier(dict_id);
 
     if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
-            if me.elements.len() <= idx {
-                me.elements.resize(idx + 1, Value::UNIT);
-            }
-            let was_unit = me.elements[idx].get_tag() == crate::core::value::TAG_UNIT;
-            me.elements[idx] = value;
+            let was_unit = me.set_element(idx, value);
             if was_unit {
                 me.ver += 1;
             }

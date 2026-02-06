@@ -363,19 +363,25 @@ impl Runtime {
             }
             if include_all {
                 // Collect elements
-                for (i, v) in dict.elements.iter().enumerate() {
-                    if v.get_tag() != crate::core::value::TAG_UNIT {
-                        pairs.push((DictKey::Int(i as i64), *v));
+                if let Some(elements) = dict.elements() {
+                    for (i, v) in elements.iter().enumerate() {
+                        if v.get_tag() != crate::core::value::TAG_UNIT {
+                            pairs.push((DictKey::Int(i as i64), *v));
+                        }
                     }
                 }
                 // Collect shape keys
                 if let Some(sid) = dict.shape {
                     if let crate::core::heap::ManagedObject::Shape(shape) = self.heap.get(sid) {
-                        shape.prop_map.iter()
-                            .filter_map(|(k, off)| {
-                                dict.prop_values.get(*off).map(|v| (k.clone(), *v))
-                            })
-                            .collect()
+                        if let Some(pv) = dict.prop_values() {
+                            shape.prop_map.iter()
+                                .filter_map(|(k, off)| {
+                                    pv.get(*off).map(|v| (k.clone(), *v))
+                                })
+                                .collect()
+                        } else {
+                            Vec::new()
+                        }
                     } else {
                         Vec::new()
                     }

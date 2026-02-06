@@ -90,12 +90,8 @@ pub(crate) fn op_get_index(
                 let key = idx.as_i64();
                 if key >= 0 && key < ELEMENTS_MAX {
                     let ui = key as usize;
-                    if ui < me.elements.len() {
-                        let v = me.elements[ui];
-                        if v.get_tag() != crate::core::value::TAG_UNIT {
-                            val = Some(v);
-                        }
-                    }
+                    // 使用辅助方法获取元素
+                    val = me.get_element(ui);
                 }
 
                 if val.is_none() {
@@ -126,7 +122,7 @@ pub(crate) fn op_get_index(
                     if let Some(shape_id) = me.shape {
                         if let ManagedObject::Shape(shape) = rt.heap.get(shape_id) {
                             if let Some(&off) = shape.prop_map.get(key_text.as_str()) {
-                                val = Some(me.prop_values[off]);
+                                val = me.get_prop_value(off);
                             }
                         }
                     }

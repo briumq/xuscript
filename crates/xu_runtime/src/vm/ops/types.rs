@@ -199,8 +199,8 @@ pub(crate) fn op_struct_init_spread(
                 if let Some(sid) = db.shape {
                     if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
                         if let Some(&off) = shape.prop_map.get(fname.as_str()) {
-                            if let Some(v) = db.prop_values.get(off) {
-                                values[pos] = *v;
+                            if let Some(v) = db.get_prop_value(off) {
+                                values[pos] = v;
                                 continue;
                             }
                         }
