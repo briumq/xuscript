@@ -29,9 +29,9 @@ First user name: Alice
 
 === 字典操作 ===
 User map size: 3
-charlie: Charlie, 30
-bob: Bob, 18
 alice: Alice, 20
+bob: Bob, 18
+charlie: Charlie, 30
 
 === 函数示例 ===
 Discounted price: 80

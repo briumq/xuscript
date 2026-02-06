@@ -9,6 +9,7 @@
 //! - SetStaticField: Assign to static fields
 //! - InitStaticField: Initialize static fields
 
+use indexmap::map::RawEntryApiV1;
 use xu_ir::Bytecode;
 
 use crate::core::heap::ManagedObject;
@@ -104,7 +105,7 @@ pub(crate) fn op_get_index(
                 if val.is_none() {
                     // Use raw_entry to avoid creating DictKey
                     let hash = Runtime::hash_dict_key_int(me.map.hasher(), key);
-                    if let Some((_, v)) = me.map.raw_entry().from_hash(hash, |k| matches!(k, crate::core::value::DictKey::Int(i) if *i == key)) {
+                    if let Some((_, v)) = me.map.raw_entry_v1().from_hash(hash, |k| matches!(k, crate::core::value::DictKey::Int(i) if *i == key)) {
                         val = Some(*v);
                         rt.caches.dict_cache_int_last = Some(DictCacheIntLast {
                             id: id.0,

@@ -2,6 +2,7 @@ use std::hash::{BuildHasher, Hash, Hasher};
 use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use indexmap::map::RawEntryApiV1;
 use xu_ir::{Executable, Expr, Module, Stmt};
 
 use crate::core::Value;
@@ -309,7 +310,7 @@ impl Runtime {
         let hash = h.finish();
 
         me.map
-            .raw_entry()
+            .raw_entry_v1()
             .from_hash(hash, |k| {
                 // Compare by hash only - hash collision is rare
                 if let DictKey::StrRef { hash: kh, .. } = k {

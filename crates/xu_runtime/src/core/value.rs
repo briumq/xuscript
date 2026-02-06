@@ -6,7 +6,7 @@ use super::heap::{Heap, ManagedObject, ObjectId};
 use super::text::Text;
 use crate::errors::messages::NOT_A_STRING;
 use ahash::RandomState;
-use hashbrown::HashMap;
+use indexmap::IndexMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
@@ -232,10 +232,10 @@ impl fmt::Display for DictKey {
 }
 
 // ============================================================================
-// HashMap and Dict types
+// IndexMap and Dict types (IndexMap preserves insertion order)
 // ============================================================================
 
-pub type FastHashMap<K, V> = HashMap<K, V, RandomState>;
+pub type FastHashMap<K, V> = IndexMap<K, V, RandomState>;
 
 /// 延迟分配的 elements 数组阈值
 /// 超过此值的整数键将使用 map 存储
@@ -412,11 +412,11 @@ pub fn fast_hasher() -> RandomState {
 }
 
 pub fn fast_map_new<K: Eq + Hash, V>() -> FastHashMap<K, V> {
-    HashMap::with_hasher(fast_hasher())
+    IndexMap::with_hasher(fast_hasher())
 }
 
 pub fn fast_map_with_capacity<K: Eq + Hash, V>(cap: usize) -> FastHashMap<K, V> {
-    HashMap::with_capacity_and_hasher(cap, fast_hasher())
+    IndexMap::with_capacity_and_hasher(cap, fast_hasher())
 }
 
 pub fn dict_with_capacity(cap: usize) -> Dict {

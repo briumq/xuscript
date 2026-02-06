@@ -2,7 +2,8 @@
 
 use std::hash::{BuildHasher, Hash, Hasher};
 
-use hashbrown::hash_map::RawEntryMut;
+use indexmap::map::RawEntryApiV1;
+use indexmap::map::raw_entry_v1::RawEntryMut;
 use smallvec::SmallVec;
 
 use crate::core::Value;
@@ -142,7 +143,7 @@ impl Runtime {
                 };
                 match self
                     .caches.method_cache
-                    .raw_entry_mut()
+                    .raw_entry_mut_v1()
                     .from_hash(hash, |(t, m)| t == ty && m == method)
                 {
                     RawEntryMut::Occupied(o) => {
@@ -238,7 +239,7 @@ impl Runtime {
                     };
                     match self
                         .caches.method_cache
-                        .raw_entry_mut()
+                        .raw_entry_mut_v1()
                         .from_hash(hash, |(t, m)| t == ty_str && m == method)
                     {
                         RawEntryMut::Occupied(o) => Ok((*o.get(), xu_ir::stable_hash64(ty_str))),

@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
-use hashbrown::hash_map::RawEntryMut;
+use indexmap::map::RawEntryApiV1;
+use indexmap::map::raw_entry_v1::RawEntryMut;
 
 use crate::Value;
 use crate::util::to_i64;
@@ -45,7 +46,7 @@ pub(super) fn dispatch(
 
             for (k, v) in entries {
                 let h = me.map.hasher().hash_one(&k);
-                match me.map.raw_entry_mut().from_hash(h, |kk| kk == &k) {
+                match me.map.raw_entry_mut_v1().from_hash(h, |kk| kk == &k) {
                     RawEntryMut::Occupied(mut o) => { *o.get_mut() = v; }
                     RawEntryMut::Vacant(vac) => { vac.insert(k, v); changed = true; }
                 }
@@ -97,7 +98,7 @@ pub(super) fn dispatch(
 
                 let me = expect_dict_mut(rt, recv)?;
 
-                match me.map.raw_entry_mut().from_hash(hash, |k| {
+                match me.map.raw_entry_mut_v1().from_hash(hash, |k| {
                     if let DictKey::StrRef { hash: h, obj_id } = k {
                         *h == dict_key_hash && (*obj_id == key_id.0 || *h == dict_key_hash)
                     } else {
@@ -120,7 +121,7 @@ pub(super) fn dispatch(
             let me = expect_dict_mut(rt, recv)?;
             let h = me.map.hasher().hash_one(&key);
 
-            match me.map.raw_entry_mut().from_hash(h, |kk| kk == &key) {
+            match me.map.raw_entry_mut_v1().from_hash(h, |kk| kk == &key) {
                 RawEntryMut::Occupied(mut o) => { *o.get_mut() = value; }
                 RawEntryMut::Vacant(vac) => {
                     vac.insert(key, value);
@@ -153,7 +154,7 @@ pub(super) fn dispatch(
             let h = Runtime::hash_dict_key_int(me.map.hasher(), i);
             let key = DictKey::Int(i);
 
-            match me.map.raw_entry_mut().from_hash(h, |kk| kk == &key) {
+            match me.map.raw_entry_mut_v1().from_hash(h, |kk| kk == &key) {
                 RawEntryMut::Occupied(mut o) => { *o.get_mut() = value; }
                 RawEntryMut::Vacant(vac) => {
                     vac.insert(key, value);
@@ -260,7 +261,7 @@ pub(super) fn dispatch(
                 h.write_u8(0);
                 h.write_u64(dict_key_hash);
                 let hash = h.finish();
-                let found = me.map.raw_entry().from_hash(hash, |k| {
+                let found = me.map.raw_entry_v1().from_hash(hash, |k| {
                     if let DictKey::StrRef { hash: kh, obj_id } = k {
                         *kh == dict_key_hash && (*obj_id == key_id.0 || *kh == dict_key_hash)
                     } else {
@@ -284,7 +285,7 @@ pub(super) fn dispatch(
             let id = recv.as_obj_id().0;
             let me = expect_dict_mut(rt, recv)?;
 
-            if me.map.remove(&key).is_some() {
+            if me.map.shift_remove(&key).is_some() {
                 me.ver += 1;
                 rt.caches.dict_version_last = Some((id, me.ver));
                 Ok(Value::from_bool(true))

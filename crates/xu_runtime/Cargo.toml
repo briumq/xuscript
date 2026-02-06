@@ -12,6 +12,7 @@ generational-gc = []
 xu_ir = { path = "../xu_ir" }
 xu_syntax = { path = "../xu_syntax" }
 hashbrown = "0.14"
+indexmap = "2"
 ahash = "0.8"
 smallvec = "1"
 itoa = "1"

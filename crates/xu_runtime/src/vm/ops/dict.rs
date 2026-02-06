@@ -1,5 +1,7 @@
 use std::hash::{BuildHasher, Hasher};
 
+use indexmap::map::RawEntryApiV1;
+
 use crate::core::Value;
 use crate::core::heap::ManagedObject;
 use crate::core::value::{DictKey, TAG_DICT, TAG_STR, ELEMENTS_MAX};
@@ -73,7 +75,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
         };
 
         // Look up by hash, comparing ObjectId or string content
-        match d.map.raw_entry_mut().from_hash(hash, |dk| {
+        match d.map.raw_entry_mut_v1().from_hash(hash, |dk| {
             if let DictKey::StrRef { hash: h, obj_id } = dk {
                 if *h != dict_key_hash {
                     return false;
@@ -90,10 +92,10 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
                 false
             }
         }) {
-            hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
+            indexmap::map::raw_entry_v1::RawEntryMut::Occupied(mut o) => {
                 *o.get_mut() = v;
             }
-            hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
+            indexmap::map::raw_entry_v1::RawEntryMut::Vacant(vac) => {
                 // Create DictKey with ObjectId reference (no string copy!)
                 let key = DictKey::from_str_obj(key_obj_id, dict_key_hash);
                 vac.insert(key, v);
@@ -110,11 +112,11 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
         let key = DictKey::Int(k.as_i64());
         if let ManagedObject::Dict(d) = rt.heap_get_mut(id) {
             let h = d.map.hasher().hash_one(&key);
-            match d.map.raw_entry_mut().from_hash(h, |kk| kk == &key) {
-                hashbrown::hash_map::RawEntryMut::Occupied(mut o) => {
+            match d.map.raw_entry_mut_v1().from_hash(h, |kk| kk == &key) {
+                indexmap::map::raw_entry_v1::RawEntryMut::Occupied(mut o) => {
                     *o.get_mut() = v;
                 }
-                hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
+                indexmap::map::raw_entry_v1::RawEntryMut::Vacant(vac) => {
                     vac.insert(key, v);
                     d.ver += 1;
                     rt.caches.dict_version_last = Some((id.0, d.ver));
@@ -164,11 +166,11 @@ pub(crate) fn op_dict_merge(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result<
         let mut changed = false;
         for (k, v) in other_dict_map {
             match a.map.entry(k) {
-                hashbrown::hash_map::Entry::Vacant(e) => {
+                indexmap::map::Entry::Vacant(e) => {
                     e.insert(v);
                     changed = true;
                 }
-                hashbrown::hash_map::Entry::Occupied(mut e) => {
+                indexmap::map::Entry::Occupied(mut e) => {
                     *e.get_mut() = v;
                 }
             }

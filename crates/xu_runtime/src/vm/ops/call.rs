@@ -1,5 +1,6 @@
 //! Function call operations for the VM.
 
+use indexmap::map::RawEntryApiV1;
 use smallvec::SmallVec;
 use xu_ir::{Bytecode, Op};
 
@@ -322,7 +323,7 @@ fn try_dict_contains_fast(
         // Use raw_entry for efficient lookup - compare by hash
         let found = me
             .map
-            .raw_entry()
+            .raw_entry_v1()
             .from_hash(key_hash, |k| k.eq_str(key_str, dict_key_hash, &rt.heap))
             .is_some();
 
@@ -406,8 +407,8 @@ fn try_dict_insert_fast(
             hash
         };
 
-        use hashbrown::hash_map::RawEntryMut;
-        match me.map.raw_entry_mut().from_hash(key_hash, |kk| {
+        use indexmap::map::raw_entry_v1::RawEntryMut;
+        match me.map.raw_entry_mut_v1().from_hash(key_hash, |kk| {
             // Compare by hash - if hash matches, it's the same key
             if let DictKey::StrRef { hash, obj_id } = kk {
                 if *hash != dict_key_hash {
@@ -481,8 +482,8 @@ fn try_dict_insert_int_fast(
         let key_hash = Runtime::hash_dict_key_int(me.map.hasher(), key_int);
         let key = DictKey::Int(key_int);
 
-        use hashbrown::hash_map::RawEntryMut;
-        match me.map.raw_entry_mut().from_hash(key_hash, |kk| kk == &key) {
+        use indexmap::map::raw_entry_v1::RawEntryMut;
+        match me.map.raw_entry_mut_v1().from_hash(key_hash, |kk| kk == &key) {
             RawEntryMut::Occupied(mut o) => {
                 *o.get_mut() = value;
             }

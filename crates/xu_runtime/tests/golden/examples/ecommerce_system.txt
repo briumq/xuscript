@@ -1,16 +1,16 @@
 === Available Products ===
 Products:
-[ProductCategory#electronics] Laptop Pro - ¥9999.99 (Stock: 30)
-[ProductCategory#books] Book: Rust Programming - ¥89.99 (Stock: 20)
-[ProductCategory#food] Coffee Beans - ¥49.99 (Stock: 60)
 [ProductCategory#electronics] Smartphone X - ¥5999.99 (Stock: 50)
+[ProductCategory#electronics] Laptop Pro - ¥9999.99 (Stock: 30)
 [ProductCategory#clothing] T-Shirt - ¥99.99 (Stock: 100)
 [ProductCategory#clothing] Jeans - ¥199.99 (Stock: 80)
+[ProductCategory#books] Book: Rust Programming - ¥89.99 (Stock: 20)
+[ProductCategory#food] Coffee Beans - ¥49.99 (Stock: 60)
 
 === Electronics Products ===
 Products:
-[ProductCategory#electronics] Laptop Pro - ¥9999.99 (Stock: 30)
 [ProductCategory#electronics] Smartphone X - ¥5999.99 (Stock: 50)
+[ProductCategory#electronics] Laptop Pro - ¥9999.99 (Stock: 30)
 
 === Shopping Cart Operations ===
 Added Smartphone X to cart
