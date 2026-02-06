@@ -13,6 +13,11 @@ impl Runtime {
     ) -> Result<Value, String> {
         let tag = obj.get_tag();
         if tag == crate::core::value::TAG_DICT {
+            // length 同时支持属性和方法，需要走通用路径
+            if field == "length" {
+                return self.get_member(obj, field);
+            }
+
             let id = obj.as_obj_id();
             let (cur_ver, key_hash) = if let crate::core::heap::ManagedObject::Dict(me) = self.heap.get(id)
             {

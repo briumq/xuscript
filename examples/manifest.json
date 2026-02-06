@@ -1,4 +1,4 @@
 {
-  "check_skip_prefixes": ["bank_system/", "feature_showcase/", "inventory_system/", "task_manager/", "xu_comprehensive_demo"],
+  "check_skip_prefixes": ["bank_system/", "feature_showcase/", "inventory_system/", "task_manager/"],
   "run_expect_fail": []
 }
