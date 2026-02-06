@@ -7,8 +7,7 @@
 
 use xu_ir::Bytecode;
 
-use crate::core::heap::ManagedObject;
-use crate::core::text::Text;
+use crate::core::heap::{ManagedObject, ObjectId};
 use crate::core::value::{DictKey, TAG_DICT, TAG_LIST, TAG_RANGE};
 use crate::core::Value;
 use crate::errors::messages::{NOT_A_DICT, NOT_A_LIST};
@@ -97,45 +96,60 @@ pub(crate) fn op_foreach_init(
         if is_kv_loop {
             // Key-value pair loop: return (key, value) tuples
             // First collect raw data to avoid borrow conflicts
-            let raw_pairs: Vec<(DictKey, Value)> = match rt.heap.get(id) {
+            let (raw_pairs, shape_keys, elements): (Vec<(DictKey, Value)>, Vec<(String, Value)>, Vec<(i64, Value)>) = match rt.heap.get(id) {
                 ManagedObject::Dict(d) => {
                     let mut result = Vec::with_capacity(d.map.len());
                     for (k, v) in d.map.iter() {
-                        result.push((k.clone(), *v));
+                        result.push((*k, *v));
                     }
-                    // Handle shape properties
-                    if let Some(sid) = d.shape {
+                    // Collect shape keys as strings
+                    let shape_keys: Vec<(String, Value)> = if let Some(sid) = d.shape {
                         if let ManagedObject::Shape(shape) = rt.heap.get(sid) {
-                            for (k, off) in shape.prop_map.iter() {
-                                if let Some(v) = d.prop_values.get(*off) {
-                                    result.push((DictKey::from_str(k.as_str()), *v));
-                                }
-                            }
+                            shape.prop_map.iter()
+                                .filter_map(|(k, off)| {
+                                    d.prop_values.get(*off).map(|v| (k.clone(), *v))
+                                })
+                                .collect()
+                        } else {
+                            Vec::new()
                         }
-                    }
-                    // Handle elements array
-                    for (i, v) in d.elements.iter().enumerate() {
-                        if v.get_tag() != crate::core::value::TAG_UNIT {
-                            result.push((DictKey::Int(i as i64), *v));
-                        }
-                    }
-                    result
+                    } else {
+                        Vec::new()
+                    };
+                    // Collect elements
+                    let elements: Vec<(i64, Value)> = d.elements.iter().enumerate()
+                        .filter(|(_, v)| v.get_tag() != crate::core::value::TAG_UNIT)
+                        .map(|(i, v)| (i as i64, *v))
+                        .collect();
+                    (result, shape_keys, elements)
                 }
                 _ => {
                     return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
                 }
             };
-            if raw_pairs.is_empty() {
+
+            // Now allocate strings for shape keys (outside the borrow)
+            let mut all_pairs = raw_pairs;
+            for (k, v) in shape_keys {
+                let key = DictKey::from_str_alloc(&k, &mut rt.heap);
+                all_pairs.push((key, v));
+            }
+            for (i, v) in elements {
+                all_pairs.push((DictKey::Int(i), v));
+            }
+
+            if all_pairs.is_empty() {
                 *ip = end;
                 return Ok(true); // Signal to continue (skip loop)
             }
             // Now allocate memory to create tuples
-            let items: Vec<Value> = raw_pairs
+            let items: Vec<Value> = all_pairs
                 .into_iter()
                 .map(|(k, v)| {
                     let key_val = match k {
-                        DictKey::StrInline { .. } | DictKey::Str { .. } => {
-                            Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(k.as_str()))))
+                        DictKey::StrRef { obj_id, .. } => {
+                            // Directly use the ObjectId - no string copy!
+                            Value::str(ObjectId(obj_id))
                         }
                         DictKey::Int(i) => Value::from_i64(i),
                     };
@@ -148,7 +162,7 @@ pub(crate) fn op_foreach_init(
         } else {
             // Normal dict loop: only return keys
             let raw_keys: Vec<DictKey> = match rt.heap.get(id) {
-                ManagedObject::Dict(d) => d.map.keys().cloned().collect(),
+                ManagedObject::Dict(d) => d.map.keys().copied().collect(),
                 _ => {
                     return Err(rt.error(xu_syntax::DiagnosticKind::Raw(NOT_A_DICT.into())));
                 }
@@ -160,8 +174,9 @@ pub(crate) fn op_foreach_init(
             let keys: Vec<Value> = raw_keys
                 .into_iter()
                 .map(|k| match k {
-                    DictKey::StrInline { .. } | DictKey::Str { .. } => {
-                        Value::str(rt.heap.alloc(ManagedObject::Str(Text::from_str(k.as_str()))))
+                    DictKey::StrRef { obj_id, .. } => {
+                        // Directly use the ObjectId - no string copy!
+                        Value::str(ObjectId(obj_id))
                     }
                     DictKey::Int(i) => Value::from_i64(i),
                 })

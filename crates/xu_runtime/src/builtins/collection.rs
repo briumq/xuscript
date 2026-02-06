@@ -91,8 +91,10 @@ pub fn builtin_set_from_list(rt: &mut Runtime, args: &[Value]) -> Result<Value, 
     let mut dict = crate::core::value::dict_with_capacity(items.len());
     for item in items {
         let key = if item.get_tag() == crate::core::value::TAG_STR {
-            if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(item.as_obj_id()) {
-                crate::core::value::DictKey::from_text(s)
+            let key_id = item.as_obj_id();
+            if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(key_id) {
+                // Use ObjectId directly - no string copy!
+                crate::core::value::DictKey::from_str_obj(key_id, crate::core::value::DictKey::hash_str(s.as_str()))
             } else {
                 return Err("Invalid set item".into());
             }

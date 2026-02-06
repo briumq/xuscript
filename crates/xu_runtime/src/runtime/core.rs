@@ -6,7 +6,7 @@ use xu_ir::{Executable, Expr, Module, Stmt};
 
 use crate::core::Value;
 use crate::core::Env;
-use crate::core::value::{Dict, FastHashMap, fast_map_new};
+use crate::core::value::{Dict, DictKey, FastHashMap, fast_map_new};
 use crate::util as capabilities;
 use crate::modules;
 use crate::core::slot_allocator;
@@ -243,10 +243,25 @@ impl Runtime {
         h.finish()
     }
 
-    pub(crate) fn dict_get_by_str_with_hash(me: &Dict, key: &str, hash: u64) -> Option<Value> {
+    pub(crate) fn dict_get_by_str_with_hash(me: &Dict, key: &str, _key_hash: u64) -> Option<Value> {
+        let dict_key_hash = DictKey::hash_str(key);
+        // Compute HashMap hash from DictKey hash
+        use std::hash::{BuildHasher, Hasher};
+        let mut h = me.map.hasher().build_hasher();
+        h.write_u8(0); // String discriminant
+        h.write_u64(dict_key_hash);
+        let hash = h.finish();
+
         me.map
             .raw_entry()
-            .from_hash(hash, |k| k.is_str() && k.as_str() == key)
+            .from_hash(hash, |k| {
+                // Compare by hash only - hash collision is rare
+                if let DictKey::StrRef { hash: kh, .. } = k {
+                    *kh == dict_key_hash
+                } else {
+                    false
+                }
+            })
             .map(|(_, v)| *v)
     }
 

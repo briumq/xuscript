@@ -3,8 +3,8 @@ use std::rc::Rc;
 use xu_ir::{AssignOp, AssignStmt, BinaryOp, Expr, Stmt};
 
 use crate::errors::messages::NOT_A_STRING;
-use crate::Text;
 use crate::Value;
+use crate::core::heap::ObjectId;
 use crate::core::value::{DictKey, Function, UserFunction, ValueExt};
 
 use super::closure::{has_ident_assign, needs_env_frame, params_all_slotted};
@@ -14,11 +14,12 @@ use crate::{Flow, Runtime};
 
 /// 将 DictKey 转换为 Value
 #[inline]
-fn dict_key_to_value(rt: &mut Runtime, k: &DictKey) -> Value {
+fn dict_key_to_value(_rt: &mut Runtime, k: &DictKey) -> Value {
     match k {
-        DictKey::StrInline { .. } | DictKey::Str { .. } => Value::str(
-            rt.heap.alloc(crate::core::heap::ManagedObject::Str(Text::from_str(k.as_str()))),
-        ),
+        DictKey::StrRef { obj_id, .. } => {
+            // Directly use the ObjectId - no string copy!
+            Value::str(ObjectId(*obj_id))
+        }
         DictKey::Int(i) => Value::from_i64(*i),
     }
 }
@@ -353,28 +354,44 @@ impl Runtime {
     }
 
     /// 收集字典键值对
-    fn collect_dict_pairs(&self, id: crate::core::ObjectId, include_all: bool) -> Vec<(DictKey, Value)> {
+    fn collect_dict_pairs(&mut self, id: crate::core::ObjectId, include_all: bool) -> Vec<(DictKey, Value)> {
         let mut pairs = Vec::new();
-        if let crate::core::heap::ManagedObject::Dict(dict) = self.heap.get(id) {
+        // First collect shape keys as strings (to avoid borrow issues)
+        let shape_keys: Vec<(String, Value)> = if let crate::core::heap::ManagedObject::Dict(dict) = self.heap.get(id) {
             for (k, v) in dict.map.iter() {
-                pairs.push((k.clone(), *v));
+                pairs.push((*k, *v));
             }
             if include_all {
-                if let Some(sid) = dict.shape {
-                    if let crate::core::heap::ManagedObject::Shape(shape) = self.heap.get(sid) {
-                        for (k, off) in shape.prop_map.iter() {
-                            if let Some(v) = dict.prop_values.get(*off) {
-                                pairs.push((DictKey::from_str(k.as_str()), *v));
-                            }
-                        }
-                    }
-                }
+                // Collect elements
                 for (i, v) in dict.elements.iter().enumerate() {
                     if v.get_tag() != crate::core::value::TAG_UNIT {
                         pairs.push((DictKey::Int(i as i64), *v));
                     }
                 }
+                // Collect shape keys
+                if let Some(sid) = dict.shape {
+                    if let crate::core::heap::ManagedObject::Shape(shape) = self.heap.get(sid) {
+                        shape.prop_map.iter()
+                            .filter_map(|(k, off)| {
+                                dict.prop_values.get(*off).map(|v| (k.clone(), *v))
+                            })
+                            .collect()
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
             }
+        } else {
+            Vec::new()
+        };
+        // Now allocate strings for shape keys
+        for (k, v) in shape_keys {
+            let key = DictKey::from_str_alloc(&k, &mut self.heap);
+            pairs.push((key, v));
         }
         pairs
     }
@@ -621,12 +638,14 @@ impl Runtime {
         } else if tag == crate::core::value::TAG_DICT {
             let id = obj.as_obj_id();
             let key = if idx.get_tag() == crate::core::value::TAG_STR {
-                let s = if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(idx.as_obj_id()) {
-                    s.clone()
+                let key_id = idx.as_obj_id();
+                let hash = if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(key_id) {
+                    DictKey::hash_str(s.as_str())
                 } else {
                     return Err(NOT_A_STRING.to_string());
                 };
-                DictKey::from_text(&s)
+                // Use ObjectId directly - no string copy!
+                DictKey::from_str_obj(key_id, hash)
             } else if idx.is_int() {
                 DictKey::Int(idx.as_i64())
             } else {

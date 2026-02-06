@@ -1,4 +1,3 @@
-use std::hash::{BuildHasher, Hash, Hasher};
 use std::rc::Rc;
 
 use hashbrown::hash_map::RawEntryMut;
@@ -10,15 +9,6 @@ use crate::core::value::DictKey;
 use super::super::runtime::{DictCacheIntLast, DictCacheLast};
 use super::{MethodKind, Runtime};
 use super::common::*;
-
-/// 计算字符串键的 hash
-#[inline]
-fn hash_str_key<S: BuildHasher>(hasher: &S, key: &str) -> u64 {
-    let mut h = hasher.build_hasher();
-    h.write_u8(0);
-    key.as_bytes().hash(&mut h);
-    h.finish()
-}
 
 /// 字典键的临时表示
 enum TempKey {
@@ -93,19 +83,35 @@ pub(super) fn dispatch(
 
             // 字符串键快速路径
             if args[0].get_tag() == crate::core::value::TAG_STR {
-                let (key_ptr, key_len, hash) = {
+                let key_id = args[0].as_obj_id();
+                let dict_key_hash = {
                     let key_str = expect_str(rt, args[0])?;
+                    DictKey::hash_str(key_str.as_str())
+                };
+
+                // Compute HashMap hash from DictKey hash
+                let hash = {
                     let me = expect_dict(rt, recv)?;
-                    (key_str.as_str().as_ptr(), key_str.len(), hash_str_key(me.map.hasher(), key_str.as_str()))
+                    use std::hash::{BuildHasher, Hasher};
+                    let mut h = me.map.hasher().build_hasher();
+                    h.write_u8(0); // String discriminant
+                    h.write_u64(dict_key_hash);
+                    h.finish()
                 };
 
                 let me = expect_dict_mut(rt, recv)?;
-                let key_str = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(key_ptr, key_len)) };
 
-                match me.map.raw_entry_mut().from_hash(hash, |k| k.is_str() && k.as_str() == key_str) {
+                match me.map.raw_entry_mut().from_hash(hash, |k| {
+                    if let DictKey::StrRef { hash: h, obj_id } = k {
+                        *h == dict_key_hash && (*obj_id == key_id.0 || *h == dict_key_hash)
+                    } else {
+                        false
+                    }
+                }) {
                     RawEntryMut::Occupied(mut o) => { *o.get_mut() = value; }
                     RawEntryMut::Vacant(vac) => {
-                        vac.insert(DictKey::from_str(key_str), value);
+                        // Use ObjectId directly - no string copy!
+                        vac.insert(DictKey::from_str_obj(key_id, dict_key_hash), value);
                         me.ver += 1;
                         rt.caches.dict_version_last = Some((id, me.ver));
                     }
@@ -241,12 +247,17 @@ pub(super) fn dispatch(
             }
 
             if args[0].get_tag() == crate::core::value::TAG_STR {
-                let key_str = expect_str(rt, args[0])?.as_str();
+                let key_id = args[0].as_obj_id();
+                let (key_str_ptr, key_str_len, dict_key_hash) = {
+                    let key_str = expect_str(rt, args[0])?;
+                    (key_str.as_str().as_ptr(), key_str.len(), DictKey::hash_str(key_str.as_str()))
+                };
                 let me = expect_dict(rt, recv)?;
 
                 // 检查 shape
                 if let Some(sid) = me.shape {
                     if let crate::core::heap::ManagedObject::Shape(shape) = rt.heap.get(sid) {
+                        let key_str = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(key_str_ptr, key_str_len)) };
                         if let Some(&off) = shape.prop_map.get(key_str) {
                             let ok = me.prop_values.get(off).is_some_and(|v| v.get_tag() != crate::core::value::TAG_UNIT);
                             return Ok(Value::from_bool(ok));
@@ -254,8 +265,19 @@ pub(super) fn dispatch(
                     }
                 }
 
-                let hash = hash_str_key(me.map.hasher(), key_str);
-                let found = me.map.raw_entry().from_hash(hash, |k| k.is_str() && k.as_str() == key_str).is_some();
+                // Compute HashMap hash from DictKey hash
+                use std::hash::{BuildHasher, Hasher};
+                let mut h = me.map.hasher().build_hasher();
+                h.write_u8(0);
+                h.write_u64(dict_key_hash);
+                let hash = h.finish();
+                let found = me.map.raw_entry().from_hash(hash, |k| {
+                    if let DictKey::StrRef { hash: kh, obj_id } = k {
+                        *kh == dict_key_hash && (*obj_id == key_id.0 || *kh == dict_key_hash)
+                    } else {
+                        false
+                    }
+                }).is_some();
                 Ok(Value::from_bool(found))
             } else if args[0].is_int() {
                 let me = expect_dict(rt, recv)?;
@@ -348,8 +370,11 @@ fn collect_dict_keys(rt: &Runtime, recv: Value) -> Result<Vec<TempKey>, String> 
 
     for k in me.map.keys() {
         match k {
-            DictKey::StrInline { .. } | DictKey::Str { .. } => {
-                keys.push(TempKey::Str(Rc::new(k.as_str().to_string())));
+            DictKey::StrRef { obj_id, .. } => {
+                // Get string from heap
+                if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(crate::core::heap::ObjectId(*obj_id)) {
+                    keys.push(TempKey::Str(Rc::new(s.as_str().to_string())));
+                }
             }
             DictKey::Int(i) => keys.push(TempKey::Int(*i)),
         }
@@ -369,8 +394,11 @@ fn collect_dict_items(rt: &Runtime, recv: Value) -> Result<Vec<(TempKey, Value)>
 
     for (k, v) in me.map.iter() {
         match k {
-            DictKey::StrInline { .. } | DictKey::Str { .. } => {
-                items.push((TempKey::Str(Rc::new(k.as_str().to_string())), *v));
+            DictKey::StrRef { obj_id, .. } => {
+                // Get string from heap
+                if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(crate::core::heap::ObjectId(*obj_id)) {
+                    items.push((TempKey::Str(Rc::new(s.as_str().to_string())), *v));
+                }
             }
             DictKey::Int(i) => items.push((TempKey::Int(*i), *v)),
         }

@@ -306,8 +306,9 @@ impl Runtime {
             Expr::Dict(entries) => {
                 let mut map: Dict = crate::core::value::dict_with_capacity(entries.len());
                 for (k, v) in entries {
-                    map.map
-                        .insert(DictKey::from_str(k), self.eval_expr(v)?);
+                    // Allocate string key on heap
+                    let key = DictKey::from_str_alloc(k, &mut self.heap);
+                    map.map.insert(key, self.eval_expr(v)?);
                 }
                 Ok(Value::dict(self.heap.alloc(crate::core::heap::ManagedObject::Dict(map))))
             }

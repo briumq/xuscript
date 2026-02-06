@@ -193,6 +193,12 @@ impl Heap {
                         }
                     }
                     ManagedObject::Dict(dict) => {
+                        // Mark string keys (DictKey::StrRef stores ObjectId)
+                        for key in dict.map.keys() {
+                            if let Some(obj_id) = key.str_obj_id() {
+                                stack.push(obj_id.0);
+                            }
+                        }
                         for value in dict.map.values() {
                             push_if_obj(&mut stack, *value);
                         }

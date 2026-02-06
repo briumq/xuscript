@@ -79,7 +79,14 @@ fn value_to_string_impl(v: &Value, heap: &Heap, visited: &mut HashSet<usize>) ->
                         .iter()
                         .map(|(k, v)| {
                             let ks = match k {
-                                DictKey::StrInline { .. } | DictKey::Str { .. } => k.as_str().to_string(),
+                                DictKey::StrRef { obj_id, .. } => {
+                                    // Get string from heap
+                                    if let crate::core::heap::ManagedObject::Str(s) = heap.get(crate::core::heap::ObjectId(*obj_id)) {
+                                        s.as_str().to_string()
+                                    } else {
+                                        "<invalid>".to_string()
+                                    }
+                                }
                                 DictKey::Int(i) => i.to_string(),
                             };
                             format!("\"{}\":{}", ks, value_to_string_impl(v, heap, visited))

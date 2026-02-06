@@ -297,8 +297,8 @@ fn try_dict_contains_fast(
     let key_id = key_val.as_obj_id();
 
     // Get key pointer/len without cloning
-    let (key_ptr, key_len) = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
-        (s.as_str().as_ptr(), s.as_str().len())
+    let (key_ptr, key_len, dict_key_hash) = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
+        (s.as_str().as_ptr(), s.as_str().len(), DictKey::hash_str(s.as_str()))
     } else {
         return None;
     };
@@ -307,17 +307,23 @@ fn try_dict_contains_fast(
     let key_bytes = unsafe { std::slice::from_raw_parts(key_ptr, key_len) };
 
     if let ManagedObject::Dict(me) = rt.heap.get(dict_id) {
-        // Compute hash and check if key exists
-        let key_hash = Runtime::hash_bytes(me.map.hasher(), key_bytes);
+        // Compute hash using DictKey hash (not string bytes)
+        let key_hash = {
+            use std::hash::{BuildHasher, Hasher};
+            let mut h = me.map.hasher().build_hasher();
+            h.write_u8(0); // String discriminant
+            h.write_u64(dict_key_hash);
+            h.finish()
+        };
 
         // SAFETY: key_ptr still valid
         let key_str = unsafe { std::str::from_utf8_unchecked(key_bytes) };
 
-        // Use raw_entry for efficient lookup without allocating DictKey
+        // Use raw_entry for efficient lookup - compare by hash
         let found = me
             .map
             .raw_entry()
-            .from_hash(key_hash, |k| k.is_str() && k.as_str() == key_str)
+            .from_hash(key_hash, |k| k.eq_str(key_str, dict_key_hash, &rt.heap))
             .is_some();
 
         return Some(Value::from_bool(found));
@@ -350,11 +356,11 @@ fn try_dict_insert_fast(
     let dict_id = recv.as_obj_id();
     let key_id = key_val.as_obj_id();
 
-    // Get key pointer/len without cloning
-    let (key_ptr, key_len) = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
-        (s.as_str().as_ptr(), s.as_str().len())
+    // Get key hash
+    let dict_key_hash = if let ManagedObject::Str(s) = rt.heap.get(key_id) {
+        DictKey::hash_str(s.as_str())
     } else {
-        ("".as_ptr(), 0)
+        return false;
     };
 
     // IC optimization for insert
@@ -370,15 +376,15 @@ fn try_dict_insert_fast(
     }
 
     if let ManagedObject::Dict(me) = rt.heap.get_mut(dict_id) {
-        // SAFETY: key_ptr is valid during this operation
-        let key_str = unsafe {
-            std::str::from_utf8_unchecked(std::slice::from_raw_parts(key_ptr, key_len))
-        };
-
         let key_hash = if let Some(h) = cached_hash {
             h
         } else {
-            let h = Runtime::hash_bytes(me.map.hasher(), key_str.as_bytes());
+            // Compute HashMap hash from DictKey hash
+            use std::hash::{BuildHasher, Hasher};
+            let mut h = me.map.hasher().build_hasher();
+            h.write_u8(0); // String discriminant
+            h.write_u64(dict_key_hash);
+            let hash = h.finish();
             // Update IC cache
             if let Some(idx) = slot_idx {
                 while rt.caches.ic_slots.len() <= *idx {
@@ -386,28 +392,36 @@ fn try_dict_insert_fast(
                 }
                 rt.caches.ic_slots[*idx] = crate::ICSlot {
                     id: dict_id.0,
-                    key_hash: h,
+                    key_hash: hash,
                     key_id: key_id.0,
-                    // We don't need short key for insert as we rely on object identity
                     key_len: 0,
-                    ver: 0, // Not used for hash caching
+                    ver: 0,
                     value: Value::UNIT,
                     ..Default::default()
                 };
             }
-            h
+            hash
         };
 
         use hashbrown::hash_map::RawEntryMut;
         match me.map.raw_entry_mut().from_hash(key_hash, |kk| {
-            kk.is_str() && kk.as_str() == key_str
+            // Compare by hash - if hash matches, it's the same key
+            if let DictKey::StrRef { hash, obj_id } = kk {
+                if *hash != dict_key_hash {
+                    return false;
+                }
+                // Same ObjectId or same hash means same key
+                *obj_id == key_id.0 || *hash == dict_key_hash
+            } else {
+                false
+            }
         }) {
             RawEntryMut::Occupied(mut o) => {
                 *o.get_mut() = value;
             }
             RawEntryMut::Vacant(vac) => {
-                // Only allocate key when inserting new entry
-                let key = DictKey::from_str(key_str);
+                // Use ObjectId directly - no string copy!
+                let key = DictKey::from_str_obj(key_id, dict_key_hash);
                 vac.insert(key, value);
             }
         }

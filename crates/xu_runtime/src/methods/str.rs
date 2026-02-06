@@ -54,13 +54,20 @@ pub(super) fn dispatch(
 
             let s = expect_str(rt, recv)?;
             let mut out = s.clone();
-            
+
             {
                 let dict = expect_dict(rt, args[0])?;
-                
+
                 for (k, v) in dict.map.iter() {
                     let key = match k {
-                        crate::core::value::DictKey::StrInline { .. } | crate::core::value::DictKey::Str { .. } => crate::Text::from_str(k.as_str()),
+                        crate::core::value::DictKey::StrRef { obj_id, .. } => {
+                            // Get string from heap
+                            if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(crate::core::heap::ObjectId(*obj_id)) {
+                                crate::Text::from_str(s.as_str())
+                            } else {
+                                continue;
+                            }
+                        }
                         crate::core::value::DictKey::Int(i) => crate::core::value::i64_to_text_fast(*i),
                     };
                     let needle = format!("{{{}}}", key);
@@ -68,7 +75,7 @@ pub(super) fn dispatch(
                     out = out.as_str().replace(&needle, &repl).into();
                 }
             }
-            
+
             Ok(create_str_value(rt, out.as_str()))
         }
         MethodKind::StrSplit => {

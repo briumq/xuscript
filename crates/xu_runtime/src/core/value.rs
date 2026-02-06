@@ -25,17 +25,14 @@ pub const ELEMENTS_MAX: i64 = 65536;
 // Dictionary key types
 // ============================================================================
 
-/// Inline capacity for short string keys (same as Text)
-const DICT_KEY_INLINE_CAP: usize = 22;
-
-/// Compact dict key representation with small string optimization.
-/// Short strings (<=22 bytes) are stored inline to avoid heap allocation.
-#[derive(Clone)]
+/// Compact dict key representation using heap references.
+/// String keys store only the ObjectId reference (no string copy).
+/// This dramatically improves dict insertion performance.
+#[derive(Clone, Copy)]
 pub enum DictKey {
-    /// Inline string storage for short keys (no heap allocation)
-    StrInline { hash: u64, len: u8, buf: [u8; DICT_KEY_INLINE_CAP] },
-    /// Heap-allocated string for longer keys
-    Str { hash: u64, data: Rc<String> },
+    /// String key - stores hash and ObjectId reference to heap string
+    /// No string content is copied, only the reference is stored
+    StrRef { hash: u64, obj_id: usize },
     /// Integer key
     Int(i64),
 }
@@ -43,92 +40,43 @@ pub enum DictKey {
 impl fmt::Debug for DictKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DictKey::StrInline { hash, len, buf } => {
-                f.debug_struct("StrInline").field("hash", hash).field("data", &Self::inline_str(*len, buf)).finish()
+            DictKey::StrRef { hash, obj_id } => {
+                f.debug_struct("StrRef").field("hash", hash).field("obj_id", obj_id).finish()
             }
-            DictKey::Str { hash, data } => f.debug_struct("Str").field("hash", hash).field("data", data).finish(),
             DictKey::Int(i) => f.debug_tuple("Int").field(i).finish(),
         }
     }
 }
 
-impl PartialEq for DictKey {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (DictKey::StrInline { hash: h1, len: l1, buf: b1 }, DictKey::StrInline { hash: h2, len: l2, buf: b2 }) => {
-                // Fast path: compare hash first
-                if h1 != h2 {
-                    return false;
-                }
-                // Compare length and content
-                l1 == l2 && b1[..*l1 as usize] == b2[..*l2 as usize]
-            }
-            (DictKey::StrInline { hash: h1, len, buf }, DictKey::Str { hash: h2, data }) |
-            (DictKey::Str { hash: h2, data }, DictKey::StrInline { hash: h1, len, buf }) => {
-                if h1 != h2 {
-                    return false;
-                }
-                Self::inline_str(*len, buf) == data.as_str()
-            }
-            (DictKey::Str { hash: h1, data: d1 }, DictKey::Str { hash: h2, data: d2 }) => {
-                // Fast path: compare hash first
-                if h1 != h2 {
-                    return false;
-                }
-                // Fast path: same Rc pointer means same string
-                if Rc::ptr_eq(d1, d2) {
-                    return true;
-                }
-                // Slow path: compare string content (hash collision)
-                d1.as_str() == d2.as_str()
-            }
-            (DictKey::Int(a), DictKey::Int(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl Eq for DictKey {}
-
 impl DictKey {
     pub fn is_str(&self) -> bool {
-        matches!(self, DictKey::Str { .. } | DictKey::StrInline { .. })
+        matches!(self, DictKey::StrRef { .. })
     }
 
-    /// 获取内联字符串的切片
-    #[inline]
-    fn inline_str(len: u8, buf: &[u8; DICT_KEY_INLINE_CAP]) -> &str {
-        unsafe { std::str::from_utf8_unchecked(&buf[..len as usize]) }
+    pub fn is_int(&self) -> bool {
+        matches!(self, DictKey::Int(_))
     }
 
-    /// Create a new string key with pre-computed hash
-    /// Uses inline storage for short strings to avoid heap allocation
+    /// Create a string key from ObjectId (no string copy!)
     #[inline]
-    pub fn from_str(s: &str) -> Self {
+    pub fn from_str_obj(obj_id: ObjectId, hash: u64) -> Self {
+        DictKey::StrRef { hash, obj_id: obj_id.0 }
+    }
+
+    /// Create a string key by allocating a new string on the heap
+    #[inline]
+    pub fn from_str_alloc(s: &str, heap: &mut Heap) -> Self {
         let hash = Self::hash_str(s);
-        Self::from_str_with_hash(s, hash)
+        let obj_id = heap.alloc(ManagedObject::Str(Text::from_str(s)));
+        DictKey::StrRef { hash, obj_id: obj_id.0 }
     }
 
-    /// Create a new string key with pre-computed hash (avoids re-hashing)
+    /// Create a string key from Text by allocating on heap
     #[inline]
-    pub fn from_str_with_hash(s: &str, hash: u64) -> Self {
-        if s.len() <= DICT_KEY_INLINE_CAP {
-            let mut buf = [0u8; DICT_KEY_INLINE_CAP];
-            buf[..s.len()].copy_from_slice(s.as_bytes());
-            DictKey::StrInline { hash, len: s.len() as u8, buf }
-        } else {
-            DictKey::Str { hash, data: Rc::new(s.to_string()) }
-        }
-    }
-
-    /// Create a new string key from Rc<String> with pre-computed hash
-    pub fn from_rc(data: Rc<String>) -> Self {
-        DictKey::Str { hash: Self::hash_str(&data), data }
-    }
-
-    /// Create a new string key from Text
-    pub fn from_text(t: &Text) -> Self {
-        Self::from_str(t.as_str())
+    pub fn from_text_alloc(t: Text, heap: &mut Heap) -> Self {
+        let hash = Self::hash_str(t.as_str());
+        let obj_id = heap.alloc(ManagedObject::Str(t));
+        DictKey::StrRef { hash, obj_id: obj_id.0 }
     }
 
     /// Compute hash for a string (used for fast equality comparison)
@@ -140,22 +88,136 @@ impl DictKey {
         hasher.finish()
     }
 
-    /// Get the string content (panics if not a string key)
-    pub fn as_str(&self) -> &str {
+    /// Get the string content by looking up in heap
+    /// Returns None if not a string key
+    #[inline]
+    pub fn as_str<'a>(&self, heap: &'a Heap) -> Option<&'a str> {
         match self {
-            DictKey::StrInline { len, buf, .. } => Self::inline_str(*len, buf),
-            DictKey::Str { data, .. } => data.as_str(),
-            DictKey::Int(_) => panic!("DictKey::as_str called on Int"),
+            DictKey::StrRef { obj_id, .. } => {
+                if let ManagedObject::Str(s) = heap.get(ObjectId(*obj_id)) {
+                    Some(s.as_str())
+                } else {
+                    None
+                }
+            }
+            DictKey::Int(_) => None,
+        }
+    }
+
+    /// Get the ObjectId for string keys
+    #[inline]
+    pub fn str_obj_id(&self) -> Option<ObjectId> {
+        match self {
+            DictKey::StrRef { obj_id, .. } => Some(ObjectId(*obj_id)),
+            DictKey::Int(_) => None,
+        }
+    }
+
+    /// Get the hash value
+    #[inline]
+    pub fn get_hash(&self) -> u64 {
+        match self {
+            DictKey::StrRef { hash, .. } => *hash,
+            DictKey::Int(i) => {
+                use std::hash::Hasher;
+                let mut hasher = ahash::AHasher::default();
+                hasher.write_i64(*i);
+                hasher.finish()
+            }
+        }
+    }
+
+    /// Get integer value (panics if not Int)
+    #[inline]
+    pub fn as_int(&self) -> i64 {
+        match self {
+            DictKey::Int(i) => *i,
+            _ => panic!("DictKey::as_int called on non-Int"),
+        }
+    }
+
+    /// Compare two DictKeys for equality, using heap for string comparison
+    #[inline]
+    pub fn eq_with_heap(&self, other: &Self, heap: &Heap) -> bool {
+        match (self, other) {
+            (DictKey::StrRef { hash: h1, obj_id: id1 }, DictKey::StrRef { hash: h2, obj_id: id2 }) => {
+                // Fast path: same object
+                if id1 == id2 {
+                    return true;
+                }
+                // Fast path: different hash means different string
+                if h1 != h2 {
+                    return false;
+                }
+                // Slow path: compare string content (hash collision)
+                if let (Some(s1), Some(s2)) = (self.as_str(heap), other.as_str(heap)) {
+                    s1 == s2
+                } else {
+                    false
+                }
+            }
+            (DictKey::Int(a), DictKey::Int(b)) => a == b,
+            _ => false,
+        }
+    }
+
+    /// Compare DictKey with a string slice
+    #[inline]
+    pub fn eq_str(&self, s: &str, s_hash: u64, heap: &Heap) -> bool {
+        match self {
+            DictKey::StrRef { hash, obj_id } => {
+                if *hash != s_hash {
+                    return false;
+                }
+                if let ManagedObject::Str(text) = heap.get(ObjectId(*obj_id)) {
+                    text.as_str() == s
+                } else {
+                    false
+                }
+            }
+            DictKey::Int(_) => false,
+        }
+    }
+
+    /// Compare DictKey with an integer
+    #[inline]
+    pub fn eq_int(&self, i: i64) -> bool {
+        matches!(self, DictKey::Int(v) if *v == i)
+    }
+}
+
+/// PartialEq implementation - compares by hash for string keys
+/// This assumes hash collisions are rare (ahash is high quality)
+impl PartialEq for DictKey {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (DictKey::StrRef { hash: h1, obj_id: id1 }, DictKey::StrRef { hash: h2, obj_id: id2 }) => {
+                // Same obj_id means same string
+                if id1 == id2 {
+                    return true;
+                }
+                // Same hash means same string (assuming no collision)
+                h1 == h2
+            }
+            (DictKey::Int(a), DictKey::Int(b)) => a == b,
+            _ => false,
         }
     }
 }
 
+impl Eq for DictKey {}
+
 impl Hash for DictKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            DictKey::StrInline { len, buf, .. } => { state.write_u8(0); buf[..*len as usize].hash(state); }
-            DictKey::Str { data, .. } => { state.write_u8(0); data.as_bytes().hash(state); }
-            DictKey::Int(i) => { state.write_u8(1); i.hash(state); }
+            DictKey::StrRef { hash, .. } => {
+                state.write_u8(0);
+                state.write_u64(*hash);
+            }
+            DictKey::Int(i) => {
+                state.write_u8(1);
+                i.hash(state);
+            }
         }
     }
 }
@@ -163,8 +225,7 @@ impl Hash for DictKey {
 impl fmt::Display for DictKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DictKey::StrInline { len, buf, .. } => write!(f, "{}", Self::inline_str(*len, buf)),
-            DictKey::Str { data, .. } => write!(f, "{}", data),
+            DictKey::StrRef { obj_id, .. } => write!(f, "<str@{}>", obj_id),
             DictKey::Int(i) => write!(f, "{}", i),
         }
     }

@@ -65,8 +65,10 @@ pub(crate) fn op_dict_new(rt: &mut Runtime, stack: &mut Vec<Value>, n: usize) ->
         let v = pop_stack(stack)?;
         let k = pop_stack(stack)?;
         let key = if k.get_tag() == TAG_STR {
-            if let ManagedObject::Str(s) = rt.heap.get(k.as_obj_id()) {
-                DictKey::from_text(s)
+            let key_id = k.as_obj_id();
+            if let ManagedObject::Str(s) = rt.heap.get(key_id) {
+                // Use ObjectId directly - no string copy!
+                DictKey::from_str_obj(key_id, DictKey::hash_str(s.as_str()))
             } else {
                 return Err(NOT_A_STRING.into());
             }

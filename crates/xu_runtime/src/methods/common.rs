@@ -121,10 +121,16 @@ pub fn get_str_from_value(rt: &Runtime, value: &Value) -> Result<String, String>
 }
 
 /// 从Value中获取字典键的辅助函数
-pub fn get_dict_key_from_value(rt: &Runtime, value: &Value) -> Result<crate::core::value::DictKey, String> {
+pub fn get_dict_key_from_value(rt: &mut Runtime, value: &Value) -> Result<crate::core::value::DictKey, String> {
     if value.get_tag() == crate::core::value::TAG_STR {
-        let s = expect_str(rt, *value)?;
-        Ok(crate::core::value::DictKey::from_text(s))
+        let key_id = value.as_obj_id();
+        let hash = if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(key_id) {
+            crate::core::value::DictKey::hash_str(s.as_str())
+        } else {
+            return Err("Not a string".into());
+        };
+        // Use ObjectId directly - no string copy!
+        Ok(crate::core::value::DictKey::from_str_obj(key_id, hash))
     } else if value.is_int() {
         Ok(crate::core::value::DictKey::Int(value.as_i64()))
     } else {
