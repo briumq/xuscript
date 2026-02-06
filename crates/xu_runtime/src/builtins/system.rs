@@ -287,10 +287,12 @@ pub fn builtin_builder_finalize(rt: &mut Runtime, args: &[Value]) -> Result<Valu
     let v = &args[0];
     if v.get_tag() == crate::core::value::TAG_BUILDER {
         let id = v.as_obj_id();
-        if let crate::core::heap::ManagedObject::Builder(s) = rt.heap.get(id) {
+        // Use std::mem::take to move the string instead of cloning
+        if let crate::core::heap::ManagedObject::Builder(s) = rt.heap.get_mut(id) {
+            let owned = std::mem::take(s);
             Ok(Value::str(
                 rt.heap
-                    .alloc(crate::core::heap::ManagedObject::Str(s.clone().into())),
+                    .alloc(crate::core::heap::ManagedObject::Str(owned.into())),
             ))
         } else {
             Err("Not a builder".into())

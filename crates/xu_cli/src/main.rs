@@ -4,6 +4,11 @@ use xu_driver::Driver;
 use xu_runtime::Runtime;
 use xu_syntax::{TokenKind, render_diagnostic};
 
+// Use mimalloc for better memory management (returns memory to OS more aggressively)
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 const USAGE: &str =
     "Usage: xu <tokens|check|ast|run> [--nonstrict] [--timing] [--no-diags] <args>";
 

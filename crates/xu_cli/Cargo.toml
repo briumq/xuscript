@@ -13,6 +13,10 @@ xu_driver = { path = "../xu_driver" }
 xu_runtime = { path = "../xu_runtime" }
 xu_syntax = { path = "../xu_syntax" }
 
+# Use mimalloc for better memory management
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+mimalloc = { version = "0.1", default-features = false }
+
 [dev-dependencies]
 assert_cmd = "2"
 tempfile = "3"

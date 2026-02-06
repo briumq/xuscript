@@ -15,7 +15,7 @@ use crate::core::heap::ManagedObject;
 use crate::core::value::{TAG_DICT, TAG_LIST, TAG_STR, TAG_TUPLE, ELEMENTS_MAX};
 use crate::core::Value;
 use crate::errors::messages::NOT_A_LIST;
-use crate::runtime::{DictCacheIntLast, DictCacheLast};
+use crate::runtime::DictCacheIntLast;
 use crate::vm::ops::helpers::{pop_stack, pop2_stack, try_throw_error, handle_result, handle_result_push};
 use crate::vm::stack::{Handler, IterState, Pending};
 use crate::{Flow, Runtime};
@@ -141,19 +141,14 @@ pub(crate) fn op_get_index(
                             }
                         }
                     }
-                    // Hash lookup
+                    // Hash lookup - don't update cache for every lookup
+                    // (cache is only useful for repeated access to same key)
                     if val.is_none() {
                         let key_hash = Runtime::hash_bytes(me.map.hasher(), key_text.as_bytes());
                         if let Some(v) =
                             Runtime::dict_get_by_str_with_hash(me, key_text.as_str(), key_hash)
                         {
                             val = Some(v);
-                            rt.caches.dict_cache_last = Some(DictCacheLast {
-                                id: id.0,
-                                ver: cur_ver,
-                                key: key_text.clone(),
-                                value: v,
-                            });
                         }
                     }
                 }

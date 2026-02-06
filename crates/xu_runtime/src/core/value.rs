@@ -106,6 +106,12 @@ impl DictKey {
     #[inline]
     pub fn from_str(s: &str) -> Self {
         let hash = Self::hash_str(s);
+        Self::from_str_with_hash(s, hash)
+    }
+
+    /// Create a new string key with pre-computed hash (avoids re-hashing)
+    #[inline]
+    pub fn from_str_with_hash(s: &str, hash: u64) -> Self {
         if s.len() <= DICT_KEY_INLINE_CAP {
             let mut buf = [0u8; DICT_KEY_INLINE_CAP];
             buf[..s.len()].copy_from_slice(s.as_bytes());

@@ -48,7 +48,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
     // Fast path for string keys - avoid creating DictKey for existing keys
     if k.get_tag() == TAG_STR {
         // Get key string and compute hash first
-        let (key_ptr, key_len, hash) = {
+        let (key_ptr, key_len, hash, dict_key_hash) = {
             let key_str = if let ManagedObject::Str(s) = rt.heap.get(k.as_obj_id()) {
                 s
             } else {
@@ -59,14 +59,17 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
             } else {
                 return Err(NOT_A_DICT.into());
             };
+            // Compute hash for HashMap lookup
             let hash = {
                 let mut h = d.map.hasher().build_hasher();
                 h.write_u8(0); // String discriminant
                 key_str.as_bytes().hash(&mut h);
                 h.finish()
             };
+            // Pre-compute DictKey hash (using ahash, different from HashMap hash)
+            let dict_key_hash = DictKey::hash_str(key_str.as_str());
             // Store pointer and length for later use
-            (key_str.as_str().as_ptr(), key_str.len(), hash)
+            (key_str.as_str().as_ptr(), key_str.len(), hash, dict_key_hash)
         };
 
         let d = if let ManagedObject::Dict(d) = rt.heap.get_mut(id) {
@@ -83,8 +86,8 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
                 *o.get_mut() = v;
             }
             hashbrown::hash_map::RawEntryMut::Vacant(vac) => {
-                // Only create DictKey when inserting new key
-                let key = DictKey::from_str(key_str);
+                // Use pre-computed hash to avoid re-hashing
+                let key = DictKey::from_str_with_hash(key_str, dict_key_hash);
                 vac.insert(key, v);
                 d.ver += 1;
                 rt.caches.dict_version_last = Some((id.0, d.ver));

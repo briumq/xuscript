@@ -184,16 +184,17 @@ impl Runtime {
         v
     }
 
-    /// Get cached string Value for small integers (0-499999)
+    /// Get cached string Value for small integers (0-9999999)
     /// Returns None if the integer is out of range
+    /// Uses lazy initialization to avoid upfront memory allocation
     #[inline]
     pub fn get_small_int_string(&mut self, i: i64) -> Option<Value> {
-        const MAX_CACHED: usize = 500000;
+        const MAX_CACHED: usize = 10_000_000; // Cache first 10M integers
         if i < 0 || i >= MAX_CACHED as i64 {
             return None;
         }
         let idx = i as usize;
-        // Ensure cache is large enough
+        // Ensure cache is large enough (lazy resize)
         if self.caches.small_int_strings.len() <= idx {
             self.caches.small_int_strings.resize(idx + 1, None);
         }

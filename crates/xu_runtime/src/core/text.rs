@@ -273,6 +273,31 @@ impl Text {
         Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
     }
 
+    /// Concatenate an integer with a string efficiently (avoids cloning)
+    #[inline]
+    pub fn concat_int_str(i: i64, b: &Text) -> Text {
+        let mut int_buf = [0u8; 32];
+        let digits = write_i64_to_buf(i, &mut int_buf);
+        let al = digits.len();
+        let bl = b.len();
+        let total = al + bl;
+        if total <= INLINE_CAP {
+            let mut buf = [0u8; INLINE_CAP];
+            buf[..al].copy_from_slice(digits);
+            buf[al..total].copy_from_slice(b.as_str().as_bytes());
+            return Text::Inline {
+                len: total as u8,
+                buf,
+            };
+        }
+
+        let mut out = String::with_capacity(total);
+        // SAFETY: digits is valid UTF-8 (ASCII digits)
+        out.push_str(unsafe { str::from_utf8_unchecked(digits) });
+        out.push_str(b.as_str());
+        Text::Heap { data: Rc::new(out), char_count: Cell::new(CHAR_COUNT_UNKNOWN) }
+    }
+
     /// Concatenate a string with a bool efficiently (avoids cloning)
     #[inline]
     pub fn concat_str_bool(a: &Text, b: bool) -> Text {
