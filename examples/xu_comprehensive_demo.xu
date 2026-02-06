@@ -98,9 +98,11 @@ ShoppingCart has {
 }
 
 // 工具函数
+var _id_counter = 0
 func generate_id() -> string {
-    // 简单的 ID 生成
-    return "id_" + (10000 * rand()).to_string()
+    // 确定性的 ID 生成
+    _id_counter += 1
+    return "id_" + _id_counter.to_string()
 }
 
 // 主函数
