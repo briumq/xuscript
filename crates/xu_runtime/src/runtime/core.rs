@@ -357,11 +357,7 @@ impl Runtime {
     pub(crate) fn dict_get_by_str_with_hash(me: &Dict, key: &str, _key_hash: u64) -> Option<Value> {
         let dict_key_hash = DictKey::hash_str(key);
         // Compute HashMap hash from DictKey hash
-        use std::hash::{BuildHasher, Hasher};
-        let mut h = me.map.hasher().build_hasher();
-        h.write_u8(0); // String discriminant
-        h.write_u64(dict_key_hash);
-        let hash = h.finish();
+        let hash = super::dict_helpers::compute_map_hash(me.map.hasher(), dict_key_hash);
 
         me.map
             .raw_entry_v1()

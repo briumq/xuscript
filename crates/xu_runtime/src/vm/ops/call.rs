@@ -309,13 +309,7 @@ fn try_dict_contains_fast(
 
     if let ManagedObject::Dict(me) = rt.heap.get(dict_id) {
         // Compute hash using DictKey hash (not string bytes)
-        let key_hash = {
-            use std::hash::{BuildHasher, Hasher};
-            let mut h = me.map.hasher().build_hasher();
-            h.write_u8(0); // String discriminant
-            h.write_u64(dict_key_hash);
-            h.finish()
-        };
+        let key_hash = crate::runtime::dict_helpers::compute_map_hash(me.map.hasher(), dict_key_hash);
 
         // SAFETY: key_ptr still valid
         let key_str = unsafe { std::str::from_utf8_unchecked(key_bytes) };
@@ -384,11 +378,7 @@ fn try_dict_insert_fast(
             h
         } else {
             // Compute HashMap hash from DictKey hash
-            use std::hash::{BuildHasher, Hasher};
-            let mut h = me.map.hasher().build_hasher();
-            h.write_u8(0); // String discriminant
-            h.write_u64(dict_key_hash);
-            let hash = h.finish();
+            let hash = crate::runtime::dict_helpers::compute_map_hash(me.map.hasher(), dict_key_hash);
             // Update IC cache
             if let Some(idx) = slot_idx {
                 while rt.caches.ic_slots.len() <= *idx {

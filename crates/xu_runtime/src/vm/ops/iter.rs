@@ -15,6 +15,9 @@ use crate::vm::ops::helpers::pop_stack;
 use crate::vm::stack::IterState;
 use crate::Runtime;
 
+/// Dict iteration data: (raw_pairs, shape_keys, elements)
+type DictIterData = (Vec<(DictKey, Value)>, Vec<(String, Value)>, Vec<(i64, Value)>);
+
 /// Set loop variable value
 #[inline(always)]
 fn set_loop_var(rt: &mut Runtime, var: &str, var_idx: Option<usize>, val: Value) {
@@ -96,7 +99,7 @@ pub(crate) fn op_foreach_init(
         if is_kv_loop {
             // Key-value pair loop: return (key, value) tuples
             // First collect raw data to avoid borrow conflicts
-            let (raw_pairs, shape_keys, elements): (Vec<(DictKey, Value)>, Vec<(String, Value)>, Vec<(i64, Value)>) = match rt.heap.get(id) {
+            let (raw_pairs, shape_keys, elements): DictIterData = match rt.heap.get(id) {
                 ManagedObject::Dict(d) => {
                     let mut result = Vec::with_capacity(d.map.len());
                     for (k, v) in d.map.iter() {

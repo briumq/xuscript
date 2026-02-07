@@ -14,6 +14,7 @@ mod object_pools;
 mod locals;
 mod precompile;
 mod method_call;
+pub(crate) mod dict_helpers;
 
 // Re-export all public types
 pub use config::{ExecResult, Flow, RuntimeConfig};

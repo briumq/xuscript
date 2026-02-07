@@ -732,24 +732,19 @@ impl Runtime {
 
                 // Compute map hash
                 let map_hash = if let crate::core::heap::ManagedObject::Dict(me) = self.heap.get(id) {
-                    use std::hash::{BuildHasher, Hasher};
-                    let mut h = me.map.hasher().build_hasher();
-                    h.write_u8(0); // String discriminant
-                    h.write_u64(key_hash);
-                    h.finish()
+                    crate::runtime::dict_helpers::compute_map_hash(me.map.hasher(), key_hash)
                 } else {
                     return Err("Not a dict".to_string());
                 };
 
                 // Update cache for next call
-                self.caches.dict_insert_cache_last = Some(crate::runtime::DictInsertCacheLast {
-                    dict_id: id.0,
-                    key_obj_id: key_id.0,
+                crate::runtime::dict_helpers::update_hot_key_cache(
+                    &mut self.caches.dict_insert_cache_last,
+                    id.0,
+                    key_id.0,
                     key_hash,
                     map_hash,
-                    map_index: None,
-                    dict_ver: 0,
-                });
+                );
 
                 let key = DictKey::from_str_obj(key_id, key_hash);
                 if let crate::core::heap::ManagedObject::Dict(me) = self.heap_get_mut(id) {

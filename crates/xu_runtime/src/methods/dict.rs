@@ -36,7 +36,7 @@ pub(super) fn dispatch(
 
             let entries: Vec<_> = {
                 let other = expect_dict(rt, args[0])?;
-                other.map.iter().map(|(k, v)| (k.clone(), *v)).collect()
+                other.map.iter().map(|(k, v)| (*k, *v)).collect()
             };
 
             let id = recv.as_obj_id().0;
@@ -45,7 +45,7 @@ pub(super) fn dispatch(
             me.map.reserve(entries.len());
 
             for (k, v) in entries {
-                let h = me.map.hasher().hash_one(&k);
+                let h = me.map.hasher().hash_one(k);
                 match me.map.raw_entry_mut_v1().from_hash(h, |kk| kk == &k) {
                     RawEntryMut::Occupied(mut o) => { *o.get_mut() = v; }
                     RawEntryMut::Vacant(vac) => { vac.insert(k, v); changed = true; }
@@ -89,18 +89,14 @@ pub(super) fn dispatch(
                 // Compute HashMap hash from DictKey hash
                 let hash = {
                     let me = expect_dict(rt, recv)?;
-                    use std::hash::{BuildHasher, Hasher};
-                    let mut h = me.map.hasher().build_hasher();
-                    h.write_u8(0); // String discriminant
-                    h.write_u64(dict_key_hash);
-                    h.finish()
+                    crate::runtime::dict_helpers::compute_map_hash(me.map.hasher(), dict_key_hash)
                 };
 
                 let me = expect_dict_mut(rt, recv)?;
 
                 match me.map.raw_entry_mut_v1().from_hash(hash, |k| {
-                    if let DictKey::StrRef { hash: h, obj_id } = k {
-                        *h == dict_key_hash && (*obj_id == key_id.0 || *h == dict_key_hash)
+                    if let DictKey::StrRef { hash: h, .. } = k {
+                        *h == dict_key_hash
                     } else {
                         false
                     }
@@ -119,7 +115,7 @@ pub(super) fn dispatch(
             // 慢速路径
             let key = get_dict_key_from_value(rt, &args[0])?;
             let me = expect_dict_mut(rt, recv)?;
-            let h = me.map.hasher().hash_one(&key);
+            let h = me.map.hasher().hash_one(key);
 
             match me.map.raw_entry_mut_v1().from_hash(h, |kk| kk == &key) {
                 RawEntryMut::Occupied(mut o) => { *o.get_mut() = value; }
@@ -237,7 +233,6 @@ pub(super) fn dispatch(
             }
 
             if args[0].get_tag() == crate::core::value::TAG_STR {
-                let key_id = args[0].as_obj_id();
                 let (key_str_ptr, key_str_len, dict_key_hash) = {
                     let key_str = expect_str(rt, args[0])?;
                     (key_str.as_str().as_ptr(), key_str.len(), DictKey::hash_str(key_str.as_str()))
@@ -262,8 +257,8 @@ pub(super) fn dispatch(
                 h.write_u64(dict_key_hash);
                 let hash = h.finish();
                 let found = me.map.raw_entry_v1().from_hash(hash, |k| {
-                    if let DictKey::StrRef { hash: kh, obj_id } = k {
-                        *kh == dict_key_hash && (*obj_id == key_id.0 || *kh == dict_key_hash)
+                    if let DictKey::StrRef { hash: kh, .. } = k {
+                        *kh == dict_key_hash
                     } else {
                         false
                     }

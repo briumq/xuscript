@@ -353,6 +353,12 @@ impl DictInstance {
         n
     }
 
+    /// 检查 dict 是否为空
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// 清空所有数据
     #[inline]
     pub fn clear(&mut self) {
@@ -370,7 +376,7 @@ impl Clone for DictInstance {
     fn clone(&self) -> Self {
         let mut map = fast_map_with_capacity(self.map.len());
         for (k, v) in self.map.iter() {
-            map.insert(k.clone(), *v);
+            map.insert(*k, *v);
         }
         Self {
             map,

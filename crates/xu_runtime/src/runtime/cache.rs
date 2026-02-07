@@ -41,16 +41,19 @@ pub(crate) struct DictCacheLast {
 }
 
 /// Last dict insert cache for hot key optimization.
+///
+/// 用于优化重复更新同一个键的场景（如循环中的 `d[key] = value`）。
+/// 当检测到相同的字典和键对象时，跳过哈希计算直接使用缓存的哈希值。
 #[derive(Clone)]
 pub(crate) struct DictInsertCacheLast {
+    /// 字典对象 ID
     pub(crate) dict_id: usize,
+    /// 键字符串对象 ID
     pub(crate) key_obj_id: usize,
+    /// DictKey 的哈希值
     pub(crate) key_hash: u64,
+    /// IndexMap 的哈希值
     pub(crate) map_hash: u64,
-    #[allow(dead_code)]
-    pub(crate) map_index: Option<usize>,  // Cached index in the map (reserved for future use)
-    #[allow(dead_code)]
-    pub(crate) dict_ver: u64,             // Dict version when index was cached
 }
 
 /// Last dict cache entry for integer keys.

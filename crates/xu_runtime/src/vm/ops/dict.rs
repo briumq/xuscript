@@ -1,5 +1,3 @@
-use std::hash::{BuildHasher, Hasher};
-
 use indexmap::map::RawEntryApiV1;
 
 use crate::core::Value;
@@ -7,7 +5,7 @@ use crate::core::heap::ManagedObject;
 use crate::core::value::{DictKey, TAG_DICT, TAG_STR, ELEMENTS_MAX};
 use crate::errors::messages::{NOT_A_DICT, NOT_A_STRING};
 use crate::vm::ops::helpers::pop_stack;
-use crate::runtime::DictInsertCacheLast;
+use crate::runtime::dict_helpers::{compute_map_hash, update_hot_key_cache};
 
 use crate::Runtime;
 
@@ -97,24 +95,18 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
             };
             // Compute hash for HashMap lookup (uses pre-computed DictKey hash)
             let dict_key_hash = DictKey::hash_str(key_str.as_str());
-            let hash = {
-                let mut h = d.map.hasher().build_hasher();
-                h.write_u8(0); // String discriminant
-                h.write_u64(dict_key_hash);
-                h.finish()
-            };
+            let hash = compute_map_hash(d.map.hasher(), dict_key_hash);
             (hash, dict_key_hash)
         };
 
         // Update cache for next call
-        rt.caches.dict_insert_cache_last = Some(DictInsertCacheLast {
-            dict_id: id.0,
-            key_obj_id: key_obj_id.0,
-            key_hash: dict_key_hash,
-            map_hash: hash,
-            map_index: None,
-            dict_ver: 0,
-        });
+        update_hot_key_cache(
+            &mut rt.caches.dict_insert_cache_last,
+            id.0,
+            key_obj_id.0,
+            dict_key_hash,
+            hash,
+        );
 
         let d = if let ManagedObject::Dict(d) = rt.heap_get_mut(id) {
             d
@@ -159,7 +151,7 @@ pub(crate) fn op_dict_insert(rt: &mut Runtime, stack: &mut Vec<Value>) -> Result
     if k.is_int() {
         let key = DictKey::Int(k.as_i64());
         if let ManagedObject::Dict(d) = rt.heap_get_mut(id) {
-            let h = d.map.hasher().hash_one(&key);
+            let h = d.map.hasher().hash_one(key);
             match d.map.raw_entry_mut_v1().from_hash(h, |kk| kk == &key) {
                 indexmap::map::raw_entry_v1::RawEntryMut::Occupied(mut o) => {
                     *o.get_mut() = v;

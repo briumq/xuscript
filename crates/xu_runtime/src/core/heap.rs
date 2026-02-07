@@ -363,12 +363,9 @@ impl Heap {
         let growth = if live_count > 50000 { 1.5 } else { 2.0 };
         const MAX_THRESHOLD: usize = 500_000;  // 最大50万对象（恢复原值）
         const MAX_THRESHOLD_BYTES: usize = 256 * 1024 * 1024;  // 最大256MB（恢复原值）
-        self.gc_threshold = ((live_count as f64 * growth) as usize)
-            .max(16384)
-            .min(MAX_THRESHOLD);
-        self.gc_threshold_bytes = ((live_bytes as f64 * growth) as usize)
-            .max(16 * 1024 * 1024)
-            .min(MAX_THRESHOLD_BYTES);
+        self.gc_threshold = ((live_count as f64 * growth) as usize).clamp(16384, MAX_THRESHOLD);
+        self.gc_threshold_bytes =
+            ((live_bytes as f64 * growth) as usize).clamp(16 * 1024 * 1024, MAX_THRESHOLD_BYTES);
     }
 
     pub fn memory_stats(&self) -> String {
