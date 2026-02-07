@@ -43,6 +43,7 @@ pub(crate) enum MethodKind {
     ListFindIndex,
     ListFindOr,
     ListFirst,
+    ListRepeat,
 
     // Dict 专用方法
     DictMerge,
@@ -136,6 +137,7 @@ impl MethodKind {
             "find_index" => Self::ListFindIndex,
             "find_or" => Self::ListFindOr,
             "first" => Self::ListFirst,
+            "repeat" => Self::ListRepeat,
 
             // Dict 专用
             "merge" => Self::DictMerge,

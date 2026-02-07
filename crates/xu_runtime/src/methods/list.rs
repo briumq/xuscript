@@ -81,8 +81,8 @@ pub(super) fn dispatch(
             let list = expect_list(rt, recv)?;
 
             // Optimized: write directly to a single String buffer
-            // Estimate capacity: average 4 chars per item + separator
-            let estimated_cap = list.len() * (4 + sep.len());
+            // Estimate capacity: average 8 chars per item + separator (for unicode)
+            let estimated_cap = list.len() * (8 + sep.len());
             let mut result = String::with_capacity(estimated_cap);
             let mut first = true;
 
@@ -96,6 +96,11 @@ pub(super) fn dispatch(
                 if item.is_int() {
                     let mut buf = itoa::Buffer::new();
                     result.push_str(buf.format(item.as_i64()));
+                } else if item.get_tag() == crate::core::value::TAG_STR {
+                    // Fast path for strings - direct access
+                    if let crate::core::heap::ManagedObject::Str(s) = rt.heap.get(item.as_obj_id()) {
+                        result.push_str(s.as_str());
+                    }
                 } else {
                     result.push_str(&value_to_string(item, &rt.heap));
                 }
@@ -258,6 +263,38 @@ pub(super) fn dispatch(
                 Some(v) => Ok(rt.option_some(*v)),
                 None => Ok(rt.option_none()),
             }
+        }
+        MethodKind::ListRepeat => {
+            // list.repeat(n) - repeat list n times, like Python's [1,2,3] * n
+            validate_arity(rt, method, args.len(), 1, 1)?;
+
+            let n = to_i64(&args[0])?;
+            if n <= 0 {
+                return Ok(create_list_value(rt, Vec::new()));
+            }
+
+            let id = recv.as_obj_id();
+            let n = n as usize;
+
+            // Get list length first
+            let len = if let crate::core::heap::ManagedObject::List(list) = rt.heap.get(id) {
+                list.len()
+            } else {
+                return Err("Expected list".into());
+            };
+
+            // Pre-allocate result with exact capacity
+            let total_len = len * n;
+            let mut result = Vec::with_capacity(total_len);
+
+            // Copy elements n times
+            for _ in 0..n {
+                if let crate::core::heap::ManagedObject::List(list) = rt.heap.get(id) {
+                    result.extend_from_slice(list);
+                }
+            }
+
+            Ok(create_list_value(rt, result))
         }
         _ => Err(rt.error(xu_syntax::DiagnosticKind::UnknownListMethod(
             method.to_string(),

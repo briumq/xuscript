@@ -150,15 +150,9 @@ func bench_dict_update_hot(N: int) -> float {
 func bench_string_unicode(N: int) -> float {
   let t0 = now_us()
   // Match Python: parts = ["こんにちは", "世界🌏", "Xu", "脚本"] * (n // 4); s = ",".join(parts); out = s.split(",")
-  // Build string directly with builder, then split
-  let b = builder_new()
-  let count = N / 4
-  var first = true
-  for _ in [0..count-1] {
-    if !first { builder_push(b, ",") } else { first = false }
-    builder_push(b, "こんにちは,世界🌏,Xu,脚本")
-  }
-  let s = builder_finalize(b)
+  let base = ["こんにちは", "世界🌏", "Xu", "脚本"]
+  let parts = base.repeat(N / 4)
+  let s = parts.join(",")
   let _out = s.split(",")
   let t1 = now_us()
   return (t1 - t0) / 1000.0
@@ -166,12 +160,10 @@ func bench_string_unicode(N: int) -> float {
 
 func bench_string_scan(N: int) -> float {
   // Build string outside of timing (like Python/Node.js)
-  let b = builder_new()
-  for i in [0..N-1] {
-    builder_push(b, to_text(i))
-    builder_push(b, ",")
-  }
-  let s = builder_finalize(b)
+  // Match Python: s = ",".join([str(i) for i in range(n)])
+  let arr: [int] = []
+  for i in [0..N-1] { arr.push(i) }
+  let s = arr.join(",")
   let t0 = now_us()
   let _c1 = contains(s, "999")
   let _c2 = starts_with(s, "0,1")
