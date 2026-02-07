@@ -88,7 +88,7 @@ pub(super) fn dispatch(
             // Clone source string to avoid borrow conflict
             let source = s.as_str().to_string();
 
-            // Collect split results directly without pre-counting
+            // Collect split results
             let mut items = Vec::new();
             for part in source.split(&sep) {
                 items.push(create_str_value(rt, part));

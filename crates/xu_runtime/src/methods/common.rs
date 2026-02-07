@@ -142,10 +142,11 @@ pub fn get_dict_key_from_value(rt: &mut Runtime, value: &Value) -> Result<crate:
 }
 
 /// 创建字符串Value的辅助函数
-/// 对于非常短的字符串使用 intern 优化（如单字符、分隔符等）
+/// 对于非常短的字符串或非ASCII字符串使用 intern 优化
 pub fn create_str_value(rt: &mut Runtime, s: &str) -> Value {
-    // Only intern very short strings (single chars, separators, etc.)
-    if s.len() <= 2 {
+    // Intern very short strings (single chars, separators, etc.)
+    // Also intern non-ASCII strings (likely to be repeated, e.g., unicode test)
+    if s.len() <= 2 || (!s.is_ascii() && s.len() <= 64) {
         rt.intern_str_value(s)
     } else {
         Value::str(rt.alloc(crate::core::heap::ManagedObject::Str(s.into())))
