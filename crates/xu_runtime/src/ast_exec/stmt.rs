@@ -120,7 +120,8 @@ impl Runtime {
                 let captured_env = if self.locals.is_active() {
                     let mut env = captured_env;
                     env.push_detached();
-                    for (name, value) in self.locals.current_bindings() {
+                    // Use all_bindings() to capture variables from ALL frames, not just current
+                    for (name, value) in self.locals.all_bindings() {
                         env.define(name, value);
                     }
                     if let Some(bindings) = self.current_param_bindings.as_ref() {

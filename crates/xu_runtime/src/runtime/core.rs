@@ -706,16 +706,34 @@ impl Runtime {
                 }
             }
         }
+        fn collect_func(out: &mut HashMap<String, Vec<String>>, fd: &xu_ir::FuncDef) {
+            let mut ordered: Vec<String> = Vec::new();
+            let mut names = std::collections::HashSet::new();
+            for p in &fd.params {
+                push_unique(&mut ordered, &mut names, &p.name);
+            }
+            walk_stmts(&mut ordered, &mut names, &fd.body);
+            out.insert(fd.name.clone(), ordered);
+        }
         let mut out: HashMap<String, Vec<String>> = fast_map_new();
         for s in &module.stmts {
-            if let Stmt::FuncDef(fd) = s {
-                let mut ordered: Vec<String> = Vec::new();
-                let mut names = std::collections::HashSet::new();
-                for p in &fd.params {
-                    push_unique(&mut ordered, &mut names, &p.name);
+            match s {
+                Stmt::FuncDef(fd) => {
+                    collect_func(&mut out, fd);
                 }
-                walk_stmts(&mut ordered, &mut names, &fd.body);
-                out.insert(fd.name.clone(), ordered);
+                Stmt::StructDef(sd) => {
+                    // Collect locals for struct methods
+                    for method in sd.methods.iter() {
+                        collect_func(&mut out, method);
+                    }
+                }
+                Stmt::DoesBlock(db) => {
+                    // Collect locals for impl block methods
+                    for method in db.funcs.iter() {
+                        collect_func(&mut out, method);
+                    }
+                }
+                _ => {}
             }
         }
         out

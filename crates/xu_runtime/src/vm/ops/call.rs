@@ -504,7 +504,8 @@ pub(crate) fn op_make_function(
         rt.env.push();
 
         if rt.locals.is_active() {
-            let bindings = rt.locals.current_bindings();
+            // Use all_bindings() to capture variables from ALL frames, not just current
+            let bindings = rt.locals.all_bindings();
             if !bindings.is_empty() {
                 let env = &mut rt.env;
                 for (name, value) in bindings {

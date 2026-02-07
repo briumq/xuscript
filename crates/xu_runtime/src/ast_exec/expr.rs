@@ -273,7 +273,8 @@ impl Runtime {
                     // Use push_detached so values are stored in scope.values, not stack
                     // This is important because the closure's stack will be empty when called
                     env.push_detached();
-                    for (name, value) in self.locals.current_bindings() {
+                    // Use all_bindings() to capture variables from ALL frames, not just current
+                    for (name, value) in self.locals.all_bindings() {
                         env.define(name, value);
                     }
                     if let Some(bindings) = self.current_param_bindings.as_ref() {

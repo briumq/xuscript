@@ -189,6 +189,7 @@ impl LocalSlots {
         }
     }
 
+    #[allow(dead_code)]
     pub fn current_bindings(&self) -> Vec<(String, Value)> {
         let Some(map) = self.maps.last() else {
             return Vec::new();
@@ -203,6 +204,24 @@ impl LocalSlots {
             }
         }
         out
+    }
+
+    /// Capture all bindings from all frames for closure capture.
+    /// Inner scopes shadow outer scopes (later frames take precedence).
+    pub fn all_bindings(&self) -> Vec<(String, Value)> {
+        let mut seen: FastHashMap<String, Value> = fast_map_new();
+        // Iterate from innermost to outermost, so inner shadows outer
+        for (map, values) in self.maps.iter().zip(self.values.iter()).rev() {
+            for (name, idx) in map {
+                // Only add if not already seen (inner scope shadows outer)
+                if !seen.contains_key(name) {
+                    if let Some(v) = values.get(*idx).cloned() {
+                        seen.insert(name.clone(), v);
+                    }
+                }
+            }
+        }
+        seen.into_iter().collect()
     }
 }
 
