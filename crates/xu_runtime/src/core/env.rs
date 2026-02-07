@@ -74,12 +74,8 @@ impl Env {
                 // Move values from stack to scope.values
                 // After this, both the original env and the closure will use scope.values
                 // through the shared Rc<RefCell<Scope>>.
-                let max_idx = scope.names.values().copied().max().unwrap_or(0);
-                let count = if scope.names.is_empty() {
-                    0
-                } else {
-                    max_idx + 1
-                };
+                // Note: indices are allocated consecutively, so count = names.len()
+                let count = scope.names.len();
 
                 scope.values.clear();
                 scope.values.reserve(count);
