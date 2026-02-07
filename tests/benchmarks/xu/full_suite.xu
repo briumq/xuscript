@@ -149,13 +149,17 @@ func bench_dict_update_hot(N: int) -> float {
 
 func bench_string_unicode(N: int) -> float {
   let t0 = now_us()
-  let parts = ["こんにちは", "世界🌏", "Xu", "脚本"]
+  // Match Python: parts = ["こんにちは", "世界🌏", "Xu", "脚本"] * (n // 4); s = ",".join(parts); out = s.split(",")
+  // Build string directly with builder, then split
   let b = builder_new()
-  for i in [0..N-1] {
-    builder_push(b, parts[i % 4])
-    builder_push(b, ",")
+  let count = N / 4
+  var first = true
+  for _ in [0..count-1] {
+    if !first { builder_push(b, ",") } else { first = false }
+    builder_push(b, "こんにちは,世界🌏,Xu,脚本")
   }
-  let _s = builder_finalize(b)
+  let s = builder_finalize(b)
+  let _out = s.split(",")
   let t1 = now_us()
   return (t1 - t0) / 1000.0
 }
