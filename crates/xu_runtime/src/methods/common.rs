@@ -141,9 +141,15 @@ pub fn get_dict_key_from_value(rt: &mut Runtime, value: &Value) -> Result<crate:
     }
 }
 
-/// 创建字符串Value的辅助函数（使用 intern 优化）
+/// 创建字符串Value的辅助函数
+/// 对于非常短的字符串使用 intern 优化（如单字符、分隔符等）
 pub fn create_str_value(rt: &mut Runtime, s: &str) -> Value {
-    rt.intern_str_value(s)
+    // Only intern very short strings (single chars, separators, etc.)
+    if s.len() <= 2 {
+        rt.intern_str_value(s)
+    } else {
+        Value::str(rt.alloc(crate::core::heap::ManagedObject::Str(s.into())))
+    }
 }
 
 /// 创建列表Value的辅助函数

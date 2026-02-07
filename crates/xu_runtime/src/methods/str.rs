@@ -85,16 +85,13 @@ pub(super) fn dispatch(
             let sep = get_str_from_value(rt, &args[0])?;
             let s = expect_str(rt, recv)?;
 
-            // Eagerly create all strings (original behavior for compatibility)
-            let parts: Vec<String> = s
-                .as_str()
-                .split(&sep)
-                .map(|p| p.to_string())
-                .collect();
+            // Clone source string to avoid borrow conflict
+            let source = s.as_str().to_string();
 
-            let mut items = Vec::with_capacity(parts.len());
-            for p_str in parts {
-                items.push(create_str_value(rt, &p_str));
+            // Collect split results directly without pre-counting
+            let mut items = Vec::new();
+            for part in source.split(&sep) {
+                items.push(create_str_value(rt, part));
             }
 
             Ok(create_list_value(rt, items))
