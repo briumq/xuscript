@@ -39,20 +39,8 @@ pub fn analyze_types(
     let mut interner = TypeInterner::new();
     let mut func_sigs: HashMap<String, (Vec<Option<TypeId>>, Option<TypeId>)> = HashMap::new();
 
-    // 收集函数签名
-    for s in &module.stmts {
-        match s {
-            Stmt::FuncDef(def) => {
-                func_sigs.insert(def.name.clone(), collect_func_sig(&mut interner, &def.params, &def.return_ty));
-            }
-            Stmt::StructDef(def) => {
-                for method in def.methods.iter() {
-                    func_sigs.insert(method.name.clone(), collect_func_sig(&mut interner, &method.params, &method.return_ty));
-                }
-            }
-            _ => {}
-        }
-    }
+    // 收集函数签名（包括嵌套函数）
+    collect_all_func_sigs(&module.stmts, &mut func_sigs, &mut interner);
 
     let mut type_env: Vec<HashMap<String, TypeId>> = vec![HashMap::new()];
     let fn_ty = interner.builtin_by_name("func").expect("func type should be registered");
@@ -60,6 +48,60 @@ pub fn analyze_types(
         env_last(&mut type_env).insert(builtin.to_string(), fn_ty);
     }
     analyze_type_stmts(&module.stmts, &func_sigs, structs, &mut type_env, finder, None, &mut interner, out);
+}
+
+/// 递归收集所有函数签名（包括嵌套函数）
+fn collect_all_func_sigs(
+    stmts: &[Stmt],
+    func_sigs: &mut HashMap<String, (Vec<Option<TypeId>>, Option<TypeId>)>,
+    interner: &mut TypeInterner,
+) {
+    for s in stmts {
+        match s {
+            Stmt::FuncDef(def) => {
+                func_sigs.insert(def.name.clone(), collect_func_sig(interner, &def.params, &def.return_ty));
+                // 递归收集嵌套函数
+                collect_all_func_sigs(&def.body, func_sigs, interner);
+            }
+            Stmt::StructDef(def) => {
+                for method in def.methods.iter() {
+                    func_sigs.insert(method.name.clone(), collect_func_sig(interner, &method.params, &method.return_ty));
+                    // 递归收集方法中的嵌套函数
+                    collect_all_func_sigs(&method.body, func_sigs, interner);
+                }
+            }
+            Stmt::DoesBlock(def) => {
+                for f in def.funcs.iter() {
+                    func_sigs.insert(f.name.clone(), collect_func_sig(interner, &f.params, &f.return_ty));
+                    // 递归收集 impl 方法中的嵌套函数
+                    collect_all_func_sigs(&f.body, func_sigs, interner);
+                }
+            }
+            Stmt::If(i) => {
+                for (_, body) in &i.branches {
+                    collect_all_func_sigs(body, func_sigs, interner);
+                }
+                if let Some(b) = &i.else_branch {
+                    collect_all_func_sigs(b, func_sigs, interner);
+                }
+            }
+            Stmt::While(w) => {
+                collect_all_func_sigs(&w.body, func_sigs, interner);
+            }
+            Stmt::ForEach(fe) => {
+                collect_all_func_sigs(&fe.body, func_sigs, interner);
+            }
+            Stmt::Match(m) => {
+                for (_, body) in m.arms.iter() {
+                    collect_all_func_sigs(body, func_sigs, interner);
+                }
+            }
+            Stmt::Block(stmts) => {
+                collect_all_func_sigs(stmts, func_sigs, interner);
+            }
+            _ => {}
+        }
+    }
 }
 
 /// 收集函数签名
@@ -224,7 +266,9 @@ fn analyze_assign_stmt(
     } else if let Expr::Ident(name, _) = &s.target {
         if let Some(expected) = type_env.iter().rev().find_map(|m| m.get(name).cloned()) {
             if let Some(actual) = infer_type(&s.value, func_sigs, structs, type_env, interner) {
-                if type_mismatch_id(interner, expected, actual) {
+                // Skip type check if actual is any (e.g., from lambda return)
+                let any_id = interner.intern(Type::Any);
+                if actual != any_id && type_mismatch_id(interner, expected, actual) {
                     let primary = finder.find_name_or_next(name);
                     out.push(make_type_mismatch_diag(interner, expected, actual, primary, Some("Variable is defined here")));
                 }

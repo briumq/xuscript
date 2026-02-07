@@ -1,0 +1,24 @@
+// Test nested function returning lambda that captures parameter
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+func outer(N: int) {
+  func inner(x: int) {
+    return |y: int| x + y
+  }
+  var s = 0
+  for i in [0..N-1] {
+    let adder = inner(i)
+    s += adder(1)
+  }
+  return s
+}
+
+func main() {
+  // sum = (0+1) + (1+1) + (2+1) + ... + (9+1) = 1+2+3+...+10 = 55
+  let result = outer(10)
+  assert(result == 55, "outer(10) should be 55")
+
+  println("Nested function lambda test passed")
+}
+
+main()

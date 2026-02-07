@@ -542,8 +542,9 @@ pub(crate) fn op_make_function(
             type_sig_ic: std::cell::Cell::new(None),
         };
 
-        // 弹出临时帧，恢复原环境
-        rt.env.pop();
+        // 弹出临时帧，但不清除 scope（因为 freeze() 返回的 Env 共享这个 scope）
+        // 使用 pop_without_clear() 而不是 pop()
+        rt.env.pop_without_clear();
 
         let id = rt
             .heap

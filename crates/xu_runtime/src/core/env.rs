@@ -161,6 +161,19 @@ impl Env {
         self.name_cache.clear();
     }
 
+    /// Pop a frame without clearing the scope.
+    /// This is used when the scope is shared with a closure (via freeze()).
+    pub fn pop_without_clear(&mut self) {
+        if let Some(frame) = self.frames.pop() {
+            if frame.attached {
+                // Restore stack to base (discard locals)
+                self.stack.truncate(frame.base);
+            }
+            // For detached frames, don't clear scope - it's shared with a closure
+        }
+        self.name_cache.clear();
+    }
+
     pub fn local_depth(&self) -> usize {
         self.frames.len().saturating_sub(1) // Excluding global frame
     }

@@ -1,5 +1,5 @@
 // Test stack trace on panic
-// This file is expected to panic
+// expect_panic: "Key not found"
 
 func level3() {
     let d: {string: int} = {}

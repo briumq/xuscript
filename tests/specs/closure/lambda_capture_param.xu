@@ -1,0 +1,20 @@
+// Test lambda capturing function parameter
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+func make_adder(x: int) {
+  return |y: int| x + y
+}
+
+func main() {
+  let adder = make_adder(10)
+  assert(adder(5) == 15, "adder(5) should be 15")
+  assert(adder(0) == 10, "adder(0) should be 10")
+
+  // Test with different base values
+  let add100 = make_adder(100)
+  assert(add100(1) == 101, "add100(1) should be 101")
+
+  println("Lambda capture param test passed")
+}
+
+main()
