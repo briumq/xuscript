@@ -70,6 +70,16 @@ impl Runtime {
         self.pools.small_list_pool.clear();
     }
 
+    /// Clean up string intern cache after GC.
+    /// Removes entries pointing to objects that were garbage collected.
+    fn cleanup_intern_cache(&mut self) {
+        self.caches.string_value_intern.retain(|_, val| {
+            let id = val.as_obj_id();
+            // Check if the object still exists (not freed by GC)
+            id.0 < self.heap.objects.len() && self.heap.objects[id.0].is_some()
+        });
+    }
+
     /// Perform a full garbage collection cycle.
     #[cfg(not(feature = "generational-gc"))]
     pub fn gc(&mut self, extra_roots: &[Value]) {
@@ -77,6 +87,7 @@ impl Runtime {
         let roots = self.collect_gc_roots(extra_roots);
         self.heap.mark_all(&roots, &[&self.env], &[&self.locals]);
         self.heap.sweep();
+        self.cleanup_intern_cache();
     }
 
     /// Perform garbage collection (generational GC version).
@@ -86,6 +97,7 @@ impl Runtime {
         self.clear_caches_for_gc();
         let roots = self.collect_gc_roots(extra_roots);
         self.full_gc(&roots);
+        self.cleanup_intern_cache();
     }
 
     /// Perform full garbage collection (generational GC version)
