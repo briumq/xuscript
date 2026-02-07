@@ -1,6 +1,6 @@
 # XuScript v0.1.2
 
-XuScript (Xu 脚本) is a strongly-typed, structured scripting language designed to be "structured, unambiguous, and executable". It provides a complete Rust implementation with CLI tools.
+XuScript is a strongly-typed, structured scripting language designed to be "structured, unambiguous, and executable". It provides a complete Rust implementation with CLI tools.
 
 ## Features
 
