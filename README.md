@@ -182,6 +182,30 @@ Results are saved to `tests/benchmarks/report.md`.
 
 ## Development
 
+### xtask Commands
+
+The project uses `xtask` for development automation:
+
+```bash
+# Run all quality checks (fmt + lint + test + examples)
+cargo run -p xtask -- verify
+
+# Individual commands
+cargo run -p xtask -- fmt           # Check code formatting
+cargo run -p xtask -- clippy        # Run clippy
+cargo run -p xtask -- lint          # Strict lint (clippy::all + perf + nursery)
+cargo run -p xtask -- test          # Run workspace tests
+cargo run -p xtask -- examples      # Verify all examples
+cargo run -p xtask -- codegen-examples  # Test JS/Python codegen
+cargo run -p xtask -- check-unused  # Check unused dependencies (requires cargo-udeps)
+
+# Performance
+cargo run -p xtask -- perf                    # Run performance tests
+cargo run -p xtask -- perf update-baseline    # Update performance baseline
+cargo run -p xtask -- bench-report            # Generate benchmark report
+cargo run -p xtask -- bench-report 1000000    # Benchmark with custom scale
+```
+
 ### Quality Gate
 
 Before committing, ensure all checks pass:
@@ -189,11 +213,6 @@ Before committing, ensure all checks pass:
 ```bash
 cargo run -p xtask -- verify
 ```
-
-This runs:
-- `cargo fmt --check`
-- `cargo clippy`
-- `cargo test`
 
 ### CLI Commands
 
