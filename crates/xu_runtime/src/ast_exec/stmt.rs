@@ -687,16 +687,71 @@ impl Runtime {
             if idx.get_tag() == crate::core::value::TAG_STR && op == AssignOp::Set {
                 let key_id = idx.as_obj_id();
 
-                // Compute hash for this key
+                // Check hot key cache - if same dict and same key object, use cached hash
+                let cached_hash = self.caches.dict_insert_cache_last.as_ref().and_then(|cache| {
+                    if cache.dict_id == id.0 && cache.key_obj_id == key_id.0 {
+                        Some((cache.key_hash, cache.map_hash))
+                    } else {
+                        None
+                    }
+                });
+
+                if let Some((key_hash, map_hash)) = cached_hash {
+                    // Cache hit - use cached hash, skip string hash computation
+                    if let crate::core::heap::ManagedObject::Dict(me) = self.heap_get_mut(id) {
+                        use indexmap::map::RawEntryApiV1;
+                        match me.map.raw_entry_mut_v1().from_hash(map_hash, |dk| {
+                            if let DictKey::StrRef { hash: h, .. } = dk {
+                                *h == key_hash
+                            } else {
+                                false
+                            }
+                        }) {
+                            indexmap::map::raw_entry_v1::RawEntryMut::Occupied(mut o) => {
+                                *o.get_mut() = rhs;
+                            }
+                            indexmap::map::raw_entry_v1::RawEntryMut::Vacant(vac) => {
+                                let key = DictKey::from_str_obj(key_id, key_hash);
+                                vac.insert(key, rhs);
+                            }
+                        }
+                        // Always increment version to invalidate IC cache
+                        me.ver += 1;
+                        self.caches.dict_version_last = Some((id.0, me.ver));
+                    }
+                    return Ok(());
+                }
+
+                // Cache miss - compute hash
                 let key_str = if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(key_id) {
                     s.as_str().to_string()
                 } else {
                     return Err(NOT_A_STRING.to_string());
                 };
-                let hash = DictKey::hash_str(&key_str);
+                let key_hash = DictKey::hash_str(&key_str);
 
-                let key = DictKey::from_str_obj(key_id, hash);
+                // Compute map hash
+                let map_hash = if let crate::core::heap::ManagedObject::Dict(me) = self.heap.get(id) {
+                    use std::hash::{BuildHasher, Hasher};
+                    let mut h = me.map.hasher().build_hasher();
+                    h.write_u8(0); // String discriminant
+                    h.write_u64(key_hash);
+                    h.finish()
+                } else {
+                    return Err("Not a dict".to_string());
+                };
 
+                // Update cache for next call
+                self.caches.dict_insert_cache_last = Some(crate::runtime::DictInsertCacheLast {
+                    dict_id: id.0,
+                    key_obj_id: key_id.0,
+                    key_hash,
+                    map_hash,
+                    map_index: None,
+                    dict_ver: 0,
+                });
+
+                let key = DictKey::from_str_obj(key_id, key_hash);
                 if let crate::core::heap::ManagedObject::Dict(me) = self.heap_get_mut(id) {
                     me.map.insert(key, rhs);
                     // Always increment version to invalidate IC cache
