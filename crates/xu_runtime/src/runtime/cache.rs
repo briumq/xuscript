@@ -40,6 +40,19 @@ pub(crate) struct DictCacheLast {
     pub(crate) value: Value,
 }
 
+/// Last dict insert cache for hot key optimization.
+#[derive(Clone)]
+pub(crate) struct DictInsertCacheLast {
+    pub(crate) dict_id: usize,
+    pub(crate) key_obj_id: usize,
+    pub(crate) key_hash: u64,
+    pub(crate) map_hash: u64,
+    #[allow(dead_code)]
+    pub(crate) map_index: Option<usize>,  // Cached index in the map (reserved for future use)
+    #[allow(dead_code)]
+    pub(crate) dict_ver: u64,             // Dict version when index was cached
+}
+
 /// Last dict cache entry for integer keys.
 #[derive(Clone)]
 pub(crate) struct DictCacheIntLast {

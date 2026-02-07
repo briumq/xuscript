@@ -18,7 +18,7 @@ mod method_call;
 // Re-export all public types
 pub use config::{ExecResult, Flow, RuntimeConfig};
 pub use cache::{ICSlot, MethodICSlot};
-pub(crate) use cache::{DictCacheLast, DictCacheIntLast};
+pub(crate) use cache::{DictCacheLast, DictCacheIntLast, DictInsertCacheLast};
 
 // Re-export Text for use in submodules
 pub use crate::core::text::Text;

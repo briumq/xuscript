@@ -682,6 +682,30 @@ impl Runtime {
             Ok(())
         } else if tag == crate::core::value::TAG_DICT {
             let id = obj.as_obj_id();
+
+            // Fast path for string keys with hot key cache
+            if idx.get_tag() == crate::core::value::TAG_STR && op == AssignOp::Set {
+                let key_id = idx.as_obj_id();
+
+                // Compute hash for this key
+                let key_str = if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(key_id) {
+                    s.as_str().to_string()
+                } else {
+                    return Err(NOT_A_STRING.to_string());
+                };
+                let hash = DictKey::hash_str(&key_str);
+
+                let key = DictKey::from_str_obj(key_id, hash);
+
+                if let crate::core::heap::ManagedObject::Dict(me) = self.heap_get_mut(id) {
+                    me.map.insert(key, rhs);
+                    // Always increment version to invalidate IC cache
+                    me.ver += 1;
+                    self.caches.dict_version_last = Some((id.0, me.ver));
+                }
+                return Ok(());
+            }
+
             let key = if idx.get_tag() == crate::core::value::TAG_STR {
                 let key_id = idx.as_obj_id();
                 let hash = if let crate::core::heap::ManagedObject::Str(s) = self.heap.get(key_id) {

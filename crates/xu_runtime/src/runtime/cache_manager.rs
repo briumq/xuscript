@@ -4,7 +4,7 @@
 use std::rc::Rc;
 use crate::core::Value;
 use crate::core::value::{FastHashMap, fast_map_new};
-use super::cache::{ICSlot, MethodICSlot, DictCacheLast, DictCacheIntLast};
+use super::cache::{ICSlot, MethodICSlot, DictCacheLast, DictCacheIntLast, DictInsertCacheLast};
 
 type HashMap<K, V> = FastHashMap<K, V>;
 
@@ -24,6 +24,8 @@ pub struct CacheManager {
     pub dict_cache_last: Option<DictCacheLast>,
     /// 字典整数键缓存
     pub dict_cache_int_last: Option<DictCacheIntLast>,
+    /// 字典插入热点键缓存
+    pub dict_insert_cache_last: Option<DictInsertCacheLast>,
     /// 字典版本缓存
     pub dict_version_last: Option<(usize, u64)>,
     /// 内联缓存槽
@@ -51,6 +53,7 @@ impl CacheManager {
             method_cache: fast_map_new(),
             dict_cache_last: None,
             dict_cache_int_last: None,
+            dict_insert_cache_last: None,
             dict_version_last: None,
             ic_slots: Vec::new(),
             ic_method_slots: Vec::new(),
@@ -67,6 +70,7 @@ impl CacheManager {
         self.method_cache.clear();
         self.dict_cache_last = None;
         self.dict_cache_int_last = None;
+        self.dict_insert_cache_last = None;
         self.dict_version_last = None;
         self.ic_slots.clear();
         self.ic_method_slots.clear();
