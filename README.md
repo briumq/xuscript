@@ -20,7 +20,7 @@ XuScript (Xu 脚本) is a strongly-typed, structured scripting language designed
 ### Installation
 
 ```bash
-git clone https://github.com/aspect-build/xuscript.git
+git https://github.com/briumq/xuscript.git
 cd xuscript
 cargo build --release
 ```
