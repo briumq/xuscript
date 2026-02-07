@@ -149,6 +149,13 @@ impl Env {
             if frame.attached {
                 // Restore stack to base (discard locals)
                 self.stack.truncate(frame.base);
+            } else {
+                // For detached frames, clear scope.values to release references
+                // This allows GC to collect objects that were only referenced by this scope
+                let mut scope = frame.scope.borrow_mut();
+                scope.values.clear();
+                scope.names.clear();
+                scope.mut_flags.clear();
             }
         }
         self.name_cache.clear();

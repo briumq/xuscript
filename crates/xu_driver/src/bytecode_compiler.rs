@@ -70,6 +70,7 @@ struct Compiler {
     scopes: Vec<Scope>,
     next_ic_slot: usize,
     known_types: HashSet<String>,
+    in_function: bool,  // Track if we're inside a function body
 }
 
 impl Compiler {
@@ -80,6 +81,7 @@ impl Compiler {
             scopes: vec![Scope { locals: Vec::new() }],
             next_ic_slot: 0,
             known_types: HashSet::new(),
+            in_function: false,
         }
     }
 
@@ -130,7 +132,8 @@ impl Compiler {
     }
 
     fn resolve_local(&self, name: &str) -> Option<usize> {
-        if self.scopes.len() <= 1 {
+        // Only use local variables inside functions
+        if !self.in_function || self.scopes.len() <= 1 {
             return None; // Top-level variables are globals
         }
         let mut offset = 0;
@@ -257,8 +260,20 @@ impl Compiler {
             }
             Stmt::Match(s) => self.compile_match_stmt(s),
             Stmt::Block(stmts) => {
+                // For block scope, we don't need to push/pop runtime frames
+                // because variables are already scoped by the compiler's scope tracking.
+                // We only need EnvPush/EnvPop for top-level blocks to properly release
+                // references for GC.
+                if !self.in_function {
+                    self.bc.ops.push(Op::EnvPush);
+                }
+                self.push_scope();
                 for stmt in stmts.iter() {
                     self.compile_stmt(stmt)?;
+                }
+                self.scopes.pop();
+                if !self.in_function {
+                    self.bc.ops.push(Op::EnvPop);
                 }
                 Some(())
             }
@@ -324,6 +339,7 @@ impl Compiler {
     /// Compile function body and return constant index
     fn compile_func_body(&mut self, def: &xu_ir::FuncDef) -> Option<u32> {
         let mut inner = Compiler::new();
+        inner.in_function = true;  // Mark that we're inside a function
         inner.push_scope();
         for p in &def.params {
             inner.define_local(&p.name);
@@ -424,7 +440,12 @@ impl Compiler {
 
     fn compile_foreach(&mut self, stmt: &xu_ir::ForEachStmt) -> Option<()> {
         self.compile_expr(&stmt.iter)?;
-        let var_idx = if self.scopes.len() > 1 { Some(self.define_local(&stmt.var)) } else { None };
+        // Only use local variables inside functions, not in top-level blocks
+        let var_idx = if self.in_function && self.scopes.len() > 1 {
+            Some(self.define_local(&stmt.var))
+        } else {
+            None
+        };
         let n_idx = self.add_constant(xu_ir::Constant::Str(stmt.var.clone()));
         let init_pos = self.emit_jump(Op::ForEachInit(n_idx, var_idx, usize::MAX));
         self.loops.push(LoopCtx { break_ops: Vec::new(), continue_ops: Vec::new() });
@@ -470,8 +491,8 @@ impl Compiler {
                     }
                     if let Some(idx) = self.resolve_local(name) {
                         self.bc.ops.push(Op::StoreLocal(idx));
-                    } else if self.scopes.len() > 1 && stmt.decl.is_some() {
-                        // Only create new local for declarations (let/var)
+                    } else if self.in_function && stmt.decl.is_some() {
+                        // Only create new local for declarations (let/var) inside functions
                         let idx = self.define_local(name);
                         self.bc.ops.push(Op::StoreLocal(idx));
                     } else {

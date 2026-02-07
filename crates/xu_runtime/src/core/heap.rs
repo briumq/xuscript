@@ -106,6 +106,12 @@ impl Heap {
         self.alloc_count >= self.gc_threshold || self.alloc_bytes >= self.gc_threshold_bytes
     }
 
+    /// Returns the number of free slots in the heap
+    #[inline]
+    pub fn free_slot_count(&self) -> usize {
+        self.free_list.len()
+    }
+
     #[inline]
     pub fn get(&self, id: ObjectId) -> &ManagedObject {
         unsafe { self.objects.get_unchecked(id.0).as_ref().unwrap_unchecked() }
@@ -316,8 +322,10 @@ impl Heap {
         }
 
         // Rebuild free list from remaining None slots
+        // Build in reverse order so pop() returns low IDs first
+        // This helps keep live objects at low IDs, enabling better truncation
         self.free_list.clear();
-        for i in 0..self.objects.len() {
+        for i in (0..self.objects.len()).rev() {
             if self.objects[i].is_none() {
                 self.free_list.push(i);
             }
@@ -358,31 +366,39 @@ impl Heap {
 
     pub fn memory_stats(&self) -> String {
         let mut counts: [usize; 15] = [0; 15];
-        for obj in self.objects.iter().flatten() {
-            let idx = match obj {
-                ManagedObject::Str(_) => 0,
-                ManagedObject::List(_) => 1,
-                ManagedObject::Dict(_) => 2,
-                ManagedObject::DictStr(_) => 3,
-                ManagedObject::Struct(_) => 4,
-                ManagedObject::Enum(_) | ManagedObject::OptionSome(_) => 5,
-                ManagedObject::Function(_) => 6,
-                ManagedObject::Builder(_) => 7,
-                ManagedObject::Range(_, _, _) => 8,
-                ManagedObject::Tuple(_) => 9,
-                ManagedObject::File(_) => 10,
-                ManagedObject::Module(_) => 11,
-                ManagedObject::Shape(_) => 12,
-                ManagedObject::SplitIter(_) => 13,
-            };
-            counts[idx] += 1;
+        let mut last_live_idx = 0usize;
+        for (i, obj) in self.objects.iter().enumerate() {
+            if let Some(obj) = obj {
+                last_live_idx = i;
+                let idx = match obj {
+                    ManagedObject::Str(_) => 0,
+                    ManagedObject::List(_) => 1,
+                    ManagedObject::Dict(_) => 2,
+                    ManagedObject::DictStr(_) => 3,
+                    ManagedObject::Struct(_) => 4,
+                    ManagedObject::Enum(_) | ManagedObject::OptionSome(_) => 5,
+                    ManagedObject::Function(_) => 6,
+                    ManagedObject::Builder(_) => 7,
+                    ManagedObject::Range(_, _, _) => 8,
+                    ManagedObject::Tuple(_) => 9,
+                    ManagedObject::File(_) => 10,
+                    ManagedObject::Module(_) => 11,
+                    ManagedObject::Shape(_) => 12,
+                    ManagedObject::SplitIter(_) => 13,
+                };
+                counts[idx] += 1;
+            }
         }
         let total: usize = counts.iter().sum();
         format!(
-            "Heap: {} objects ({} Str, {} List, {} Dict, {} Struct, {} Enum, {} Func, {} other), {} free slots",
+            "Heap: {} objects ({} Str, {} List, {} Dict, {} Struct, {} Enum, {} Func, {} other), {} free slots\n\
+             len={}, cap={}, last_live={}",
             total, counts[0], counts[1], counts[2], counts[4], counts[5], counts[6],
             counts[3] + counts[7] + counts[8] + counts[9] + counts[10] + counts[11] + counts[12] + counts[13],
-            self.free_list.len()
+            self.free_list.len(),
+            self.objects.len(),
+            self.objects.capacity(),
+            last_live_idx
         )
     }
 

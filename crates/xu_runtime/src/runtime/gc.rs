@@ -88,6 +88,24 @@ impl Runtime {
         self.heap.mark_all(&roots, &[&self.env], &[&self.locals]);
         self.heap.sweep();
         self.cleanup_intern_cache();
+
+        // If heap is still fragmented after sweep, clear small_int_strings and GC again
+        // This allows the heap to be compacted by truncating trailing None slots
+        let free_count = self.heap.free_slot_count();
+        let total_slots = self.heap.objects.len();
+        let live_count = total_slots.saturating_sub(free_count);
+
+        if free_count > live_count && free_count > 10000 {
+            // Clear small_int_strings cache so these objects can be collected
+            self.caches.small_int_strings.clear();
+            // Also clear bytecode_string_cache to allow full compaction
+            self.caches.bytecode_string_cache.clear();
+            // Run GC again to collect the now-unreferenced strings
+            let roots = self.collect_gc_roots(extra_roots);
+            self.heap.mark_all(&roots, &[&self.env], &[&self.locals]);
+            self.heap.sweep();
+            self.cleanup_intern_cache();
+        }
     }
 
     /// Perform garbage collection (generational GC version).
@@ -98,6 +116,18 @@ impl Runtime {
         let roots = self.collect_gc_roots(extra_roots);
         self.full_gc(&roots);
         self.cleanup_intern_cache();
+
+        // If heap is still fragmented after sweep, clear small_int_strings and GC again
+        let free_count = self.heap.free_slot_count();
+        let total_slots = self.heap.objects.len();
+        let live_count = total_slots.saturating_sub(free_count);
+
+        if free_count > live_count && free_count > 10000 {
+            self.caches.small_int_strings.clear();
+            let roots = self.collect_gc_roots(extra_roots);
+            self.full_gc(&roots);
+            self.cleanup_intern_cache();
+        }
     }
 
     /// Perform full garbage collection (generational GC version)
