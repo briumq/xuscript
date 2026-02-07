@@ -150,6 +150,30 @@ function benchStringScan(n) {
   return { case: "string-scan", scale: n, result: (c1 && c2 && c3) ? 1 : 0, duration_ms: Number(t1 - t0) / 1e6 };
 }
 
+function benchClosureCreate(n) {
+  const t0 = nowMs();
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    const captured = i;
+    const f = (x) => x + captured;
+    total += f(1);
+  }
+  const t1 = nowMs();
+  return { case: "closure-create", scale: n, result: total, duration_ms: Number(t1 - t0) / 1e6 };
+}
+
+function benchClosureCall(n) {
+  const captured = 42;
+  const f = (x) => x + captured;
+  const t0 = nowMs();
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    total += f(i);
+  }
+  const t1 = nowMs();
+  return { case: "closure-call", scale: n, result: total, duration_ms: Number(t1 - t0) / 1e6 };
+}
+
 function runCase(fn, n, warms, repeat) {
   for (let i = 0; i < warms; i++) fn(n);
   let total = 0;
@@ -182,6 +206,8 @@ const fns = [
   benchDictUpdateHot,
   benchStringUnicode,
   benchStringScan,
+  benchClosureCreate,
+  benchClosureCall,
 ];
 for (const fn of fns) {
   const item = runCase(fn, n, warms, repeat);

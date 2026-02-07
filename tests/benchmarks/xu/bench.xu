@@ -172,6 +172,30 @@ func bench_string_scan(N: int) -> float {
   return (t1 - t0) / 1000.0
 }
 
+func bench_closure_create(N: int) -> float {
+  // Create N closures that capture a variable
+  let t0 = now_us()
+  var sum = 0
+  for i in [0..N-1] {
+    let captured = i
+    let f = |x: int| x + captured
+    sum += f(1)
+  }
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
+}
+
+func bench_closure_call(N: int) -> float {
+  // Create one closure and call it N times
+  let captured = 42
+  let f = |x: int| x + captured
+  let t0 = now_us()
+  var sum = 0
+  for i in [0..N-1] { sum += f(i) }
+  let t1 = now_us()
+  return (t1 - t0) / 1000.0
+}
+
 func main() {
   var N = parse_int(BENCH_SCALE)
   out_json("loop", N, bench_loop(N))
@@ -188,6 +212,8 @@ func main() {
   out_json("dict-update-hot", N, bench_dict_update_hot(N))
   out_json("string-unicode", N, bench_string_unicode(N))
   out_json("string-scan", N, bench_string_scan(N))
+  out_json("closure-create", N, bench_closure_create(N))
+  out_json("closure-call", N, bench_closure_call(N))
 }
 
 main()

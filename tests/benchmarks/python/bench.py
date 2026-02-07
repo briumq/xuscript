@@ -140,6 +140,26 @@ def bench_string_scan(n):
     t1 = time.perf_counter()
     return {"case": "string-scan", "scale": n, "result": int(c1 and c2 and c3), "duration_ms": (t1 - t0) * 1000.0}
 
+def bench_closure_create(n):
+    t0 = time.perf_counter()
+    total = 0
+    for i in range(n):
+        captured = i
+        f = lambda x, c=captured: x + c
+        total += f(1)
+    t1 = time.perf_counter()
+    return {"case": "closure-create", "scale": n, "result": total, "duration_ms": (t1 - t0) * 1000.0}
+
+def bench_closure_call(n):
+    captured = 42
+    f = lambda x: x + captured
+    t0 = time.perf_counter()
+    total = 0
+    for i in range(n):
+        total += f(i)
+    t1 = time.perf_counter()
+    return {"case": "closure-call", "scale": n, "result": total, "duration_ms": (t1 - t0) * 1000.0}
+
 def run_case(fn, n, warms, repeat):
     for _ in range(warms):
         fn(n)
@@ -175,6 +195,8 @@ def main():
         bench_dict_update_hot,
         bench_string_unicode,
         bench_string_scan,
+        bench_closure_create,
+        bench_closure_call,
     ]
     for fn in fns:
         item = run_case(fn, args.scale, warms, repeat)

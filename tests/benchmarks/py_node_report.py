@@ -215,6 +215,8 @@ def _run_benchmarks(args):
         "dict-update-hot",
         "string-unicode",
         "string-scan",
+        "closure-create",
+        "closure-call",
     ]
 
     md = []
