@@ -239,7 +239,7 @@ impl Runtime {
         v
     }
 
-    /// Get cached string Value for small integers (0-9999999)
+    /// Get cached string Value for small integers (0-99999)
     /// Returns None if the integer is out of range
     /// Uses lazy initialization to avoid upfront memory allocation
     #[inline]
@@ -269,14 +269,30 @@ impl Runtime {
     /// Intern a string value - returns cached Value if the string was seen before.
     /// This is useful for operations like split() that may produce many duplicate strings.
     /// Only interns strings <= 64 bytes to avoid unbounded cache growth.
+    /// Cache is limited to MAX_INTERN_SIZE entries to prevent memory accumulation.
     #[inline]
     pub fn intern_str_value(&mut self, s: &str) -> Value {
         // Only intern short strings to limit cache size
         const MAX_INTERN_LEN: usize = 64;
+        const MAX_INTERN_SIZE: usize = 100_000;  // 提高到10万以减少性能影响
+
         if s.len() > MAX_INTERN_LEN {
             // Don't intern long strings - just create directly
             let text = crate::core::text::Text::from_str(s);
             return Value::str(self.alloc(crate::core::heap::ManagedObject::Str(text)));
+        }
+
+        // Limit cache size - clear half when full
+        if self.caches.string_value_intern.len() >= MAX_INTERN_SIZE {
+            let to_remove = MAX_INTERN_SIZE / 2;
+            let keys: Vec<_> = self.caches.string_value_intern
+                .keys()
+                .take(to_remove)
+                .cloned()
+                .collect();
+            for k in keys {
+                self.caches.string_value_intern.swap_remove(&k);
+            }
         }
 
         // Compute hash for lookup

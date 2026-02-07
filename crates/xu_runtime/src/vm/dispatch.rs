@@ -61,7 +61,7 @@ pub(crate) fn run_bytecode(rt: &mut Runtime, bc: &Bytecode) -> Result<Flow, Stri
         // so this index is always in bounds.
         let op = unsafe { ops.get_unchecked(ip) };
         stmt_count = stmt_count.wrapping_add(1);
-        // Check GC every 1024 instructions (was 128)
+        // Check GC every 1024 instructions
         if stmt_count & 1023 == 0 {
             rt.maybe_gc_with_roots(&stack);
         }

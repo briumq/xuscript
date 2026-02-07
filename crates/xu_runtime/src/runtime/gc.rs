@@ -95,11 +95,14 @@ impl Runtime {
         let total_slots = self.heap.objects.len();
         let live_count = total_slots.saturating_sub(free_count);
 
+        // 只在内存碎片严重时清理缓存（恢复原来的条件）
         if free_count > live_count && free_count > 10000 {
             // Clear small_int_strings cache so these objects can be collected
             self.caches.small_int_strings.clear();
             // Also clear bytecode_string_cache to allow full compaction
             self.caches.bytecode_string_cache.clear();
+            // Clear string_value_intern cache as well
+            self.caches.string_value_intern.clear();
             // Run GC again to collect the now-unreferenced strings
             let roots = self.collect_gc_roots(extra_roots);
             self.heap.mark_all(&roots, &[&self.env], &[&self.locals]);
@@ -124,6 +127,8 @@ impl Runtime {
 
         if free_count > live_count && free_count > 10000 {
             self.caches.small_int_strings.clear();
+            self.caches.bytecode_string_cache.clear();
+            self.caches.string_value_intern.clear();
             let roots = self.collect_gc_roots(extra_roots);
             self.full_gc(&roots);
             self.cleanup_intern_cache();
