@@ -81,24 +81,38 @@ pub(super) fn dispatch(
         MethodKind::StrSplit => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             validate_str_param(rt, &args[0], "separator")?;
-            
+
             let sep = get_str_from_value(rt, &args[0])?;
             let s = expect_str(rt, recv)?;
-            
-            // 先收集所有分割后的字符串
+
+            // Eagerly create all strings (original behavior for compatibility)
             let parts: Vec<String> = s
                 .as_str()
                 .split(&sep)
                 .map(|p| p.to_string())
                 .collect();
-            
-            // 然后创建Value对象
+
             let mut items = Vec::with_capacity(parts.len());
             for p_str in parts {
                 items.push(create_str_value(rt, &p_str));
             }
-            
+
             Ok(create_list_value(rt, items))
+        }
+        MethodKind::StrSplitLazy => {
+            validate_arity(rt, method, args.len(), 1, 1)?;
+            validate_str_param(rt, &args[0], "separator")?;
+
+            let sep = get_str_from_value(rt, &args[0])?;
+            let s = expect_str(rt, recv)?;
+
+            // Return a lazy split iterator - strings are created on demand during iteration
+            let split_data = crate::core::heap::SplitIterData {
+                source: s.clone(),
+                separator: crate::Text::from_str(&sep),
+            };
+            let id = rt.alloc(crate::core::heap::ManagedObject::SplitIter(Box::new(split_data)));
+            Ok(Value::split_iter(id))
         }
         MethodKind::StrToInt => {
             validate_arity(rt, method, args.len(), 0, 0)?;

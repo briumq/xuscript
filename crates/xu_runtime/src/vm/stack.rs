@@ -40,6 +40,15 @@ pub(crate) enum IterState {
         items: Vec<Value>,
         idx: usize,
     },
+    /// Iterating over string split results (lazy)
+    StringSplit {
+        /// Source string to split
+        source: String,
+        /// Separator string
+        separator: String,
+        /// Current byte position in source
+        pos: usize,
+    },
 }
 
 /// Exception handler state.

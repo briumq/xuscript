@@ -300,9 +300,48 @@ impl Runtime {
                         if i == end { break; }
                         i = i.saturating_add(step);
                     }
+                } else if tag == crate::core::value::TAG_SPLIT_ITER {
+                    // Lazy string split iterator
+                    let id = iter.as_obj_id();
+                    let (source, separator) = if let crate::core::heap::ManagedObject::SplitIter(data) = self.heap.get(id) {
+                        (data.source.as_str().to_string(), data.separator.as_str().to_string())
+                    } else {
+                        (String::new(), String::new())
+                    };
+
+                    // Iterate over split parts lazily
+                    let mut pos = 0;
+                    while pos < source.len() {
+                        let remaining = &source[pos..];
+                        let (part, next_pos) = if let Some(sep_pos) = remaining.find(&separator) {
+                            (&remaining[..sep_pos], pos + sep_pos + separator.len())
+                        } else {
+                            (remaining, source.len())
+                        };
+
+                        let part_val = self.intern_str_value(part);
+                        self.set_loop_var(&s.var, local_idx, use_local, part_val);
+                        if let Some(flow) = self.exec_loop_body(&s.body) {
+                            if matches!(flow, Flow::Break) { break; }
+                            return flow;
+                        }
+                        pos = next_pos;
+                    }
+                    // Handle empty source or source without separator
+                    if source.is_empty() || (!source.contains(&separator) && pos == 0) {
+                        if !source.is_empty() {
+                            let part_val = self.intern_str_value(&source);
+                            self.set_loop_var(&s.var, local_idx, use_local, part_val);
+                            if let Some(flow) = self.exec_loop_body(&s.body) {
+                                if !matches!(flow, Flow::Break) {
+                                    return flow;
+                                }
+                            }
+                        }
+                    }
                 } else {
                     return self.throw_err(self.error(xu_syntax::DiagnosticKind::InvalidIteratorType {
-                        expected: "list".to_string(),
+                        expected: "list, range, dict, or split iterator".to_string(),
                         actual: iter.type_name().to_string(),
                         iter_desc,
                     }));

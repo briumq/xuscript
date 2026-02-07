@@ -23,6 +23,17 @@ pub enum ManagedObject {
     Function(Function),
     Str(Text),
     Shape(Box<super::value::Shape>),
+    /// Lazy string split iterator - stores source string and separator
+    SplitIter(Box<SplitIterData>),
+}
+
+/// Data for lazy string split iterator
+#[derive(Clone)]
+pub struct SplitIterData {
+    /// Source string to split
+    pub source: Text,
+    /// Separator string
+    pub separator: Text,
 }
 
 impl ManagedObject {
@@ -47,6 +58,7 @@ impl ManagedObject {
             ManagedObject::Shape(s) => 64 + s.prop_map.capacity() * 32,
             ManagedObject::Range(_, _, _) => 32,
             ManagedObject::OptionSome(_) => 16,
+            ManagedObject::SplitIter(s) => 64 + s.source.len() + s.separator.len(),
         }
     }
 }
@@ -271,7 +283,8 @@ impl Heap {
                     ManagedObject::Builder(_) |
                     ManagedObject::File(_) |
                     ManagedObject::Range(_, _, _) |
-                    ManagedObject::Shape(_) => {}
+                    ManagedObject::Shape(_) |
+                    ManagedObject::SplitIter(_) => {}
                 }
             }
         }
@@ -344,7 +357,7 @@ impl Heap {
     }
 
     pub fn memory_stats(&self) -> String {
-        let mut counts: [usize; 14] = [0; 14];
+        let mut counts: [usize; 15] = [0; 15];
         for obj in self.objects.iter().flatten() {
             let idx = match obj {
                 ManagedObject::Str(_) => 0,
@@ -360,6 +373,7 @@ impl Heap {
                 ManagedObject::File(_) => 10,
                 ManagedObject::Module(_) => 11,
                 ManagedObject::Shape(_) => 12,
+                ManagedObject::SplitIter(_) => 13,
             };
             counts[idx] += 1;
         }
@@ -367,7 +381,7 @@ impl Heap {
         format!(
             "Heap: {} objects ({} Str, {} List, {} Dict, {} Struct, {} Enum, {} Func, {} other), {} free slots",
             total, counts[0], counts[1], counts[2], counts[4], counts[5], counts[6],
-            counts[3] + counts[7] + counts[8] + counts[9] + counts[10] + counts[11] + counts[12],
+            counts[3] + counts[7] + counts[8] + counts[9] + counts[10] + counts[11] + counts[12] + counts[13],
             self.free_list.len()
         )
     }

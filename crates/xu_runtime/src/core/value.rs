@@ -463,8 +463,8 @@ pub fn i64_to_text_fast(i: i64) -> Text {
 // ============================================================================
 
 pub const QNAN: u64 = 0x7ff8000000000000;
-pub const TAG_BASE: u64 = 0xfff0000000000000;
-pub const TAG_MASK: u64 = 0x000f000000000000;
+pub const TAG_BASE: u64 = 0xffe0000000000000;  // Changed from 0xfff0 to 0xffe0 to allow 5-bit tags
+pub const TAG_MASK: u64 = 0x001f000000000000;  // Changed from 0x000f to 0x001f for 5-bit tags
 pub const PAYLOAD_MASK: u64 = 0x0000ffffffffffff;
 
 pub const TAG_INT: u64 = 0x0001;
@@ -483,6 +483,7 @@ pub const TAG_ENUM: u64 = 0x000c;
 pub const TAG_BUILDER: u64 = 0x000d;
 pub const TAG_TUPLE: u64 = 0x000e;
 pub const TAG_OPTION: u64 = 0x000f;
+pub const TAG_SPLIT_ITER: u64 = 0x0010;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Value(u64);
@@ -566,6 +567,9 @@ impl Value {
     pub fn option_some(id: ObjectId) -> Self {
         Self::from_obj(TAG_OPTION, id)
     }
+    pub fn split_iter(id: ObjectId) -> Self {
+        Self::from_obj(TAG_SPLIT_ITER, id)
+    }
 
     #[inline(always)]
     pub fn is_f64(&self) -> bool {
@@ -573,7 +577,8 @@ impl Value {
     }
     #[inline(always)]
     pub fn is_int(&self) -> bool {
-        (self.0 & 0xffff000000000000) == 0xfff1000000000000
+        // TAG_BASE | (TAG_INT << 48) = 0xffe0 | 0x0001 = 0xffe1
+        (self.0 & 0xffff000000000000) == 0xffe1000000000000
     }
     #[inline(always)]
     pub fn is_bool(&self) -> bool {
@@ -645,6 +650,7 @@ impl Value {
                 TAG_ENUM => "enum",
                 TAG_BUILDER => "builder",
                 TAG_TUPLE => "tuple",
+                TAG_SPLIT_ITER => "split_iterator",
                 _ => "unknown",
             }
         }

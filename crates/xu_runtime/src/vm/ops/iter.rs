@@ -8,7 +8,7 @@
 use xu_ir::Bytecode;
 
 use crate::core::heap::{ManagedObject, ObjectId};
-use crate::core::value::{DictKey, TAG_DICT, TAG_LIST, TAG_RANGE};
+use crate::core::value::{DictKey, TAG_DICT, TAG_LIST, TAG_RANGE, TAG_SPLIT_ITER};
 use crate::core::Value;
 use crate::errors::messages::{NOT_A_DICT, NOT_A_LIST};
 use crate::vm::ops::helpers::pop_stack;
@@ -191,9 +191,46 @@ pub(crate) fn op_foreach_init(
             iters.push(IterState::Dict { keys, idx: 1 });
             first
         }
+    } else if tag == TAG_SPLIT_ITER {
+        // Lazy string split iterator
+        let id = iterable.as_obj_id();
+        let (source, separator) = match rt.heap.get(id) {
+            ManagedObject::SplitIter(data) => {
+                (data.source.as_str().to_string(), data.separator.as_str().to_string())
+            }
+            _ => {
+                return Err(rt.error(xu_syntax::DiagnosticKind::Raw("Not a split iterator".into())));
+            }
+        };
+
+        // Find first split part
+        if let Some(sep_pos) = source.find(&separator) {
+            let first_part = &source[..sep_pos];
+            let first_val = rt.intern_str_value(first_part);
+            let next_pos = sep_pos + separator.len();
+            iters.push(IterState::StringSplit {
+                source,
+                separator,
+                pos: next_pos,
+            });
+            first_val
+        } else if !source.is_empty() {
+            // No separator found, return whole string as single element
+            let first_val = rt.intern_str_value(&source);
+            iters.push(IterState::StringSplit {
+                source: String::new(), // Empty source means iteration done after this
+                separator,
+                pos: 0,
+            });
+            first_val
+        } else {
+            // Empty source string
+            *ip = end;
+            return Ok(true);
+        }
     } else {
         return Err(rt.error(xu_syntax::DiagnosticKind::InvalidIteratorType {
-            expected: "list, range, or dict".to_string(),
+            expected: "list, range, dict, or split iterator".to_string(),
             actual: iterable.type_name().to_string(),
             iter_desc: "bytecode foreach".to_string(),
         }));
@@ -282,6 +319,29 @@ pub(crate) fn op_foreach_next(
                 let item = items[*dict_idx];
                 *dict_idx += 1;
                 Some(item)
+            }
+        }
+        IterState::StringSplit {
+            source,
+            separator,
+            pos,
+        } => {
+            if *pos >= source.len() {
+                None
+            } else {
+                // Find next separator
+                let remaining = &source[*pos..];
+                if let Some(sep_pos) = remaining.find(separator.as_str()) {
+                    let part = &remaining[..sep_pos];
+                    let val = rt.intern_str_value(part);
+                    *pos += sep_pos + separator.len();
+                    Some(val)
+                } else {
+                    // No more separators, return rest of string
+                    let val = rt.intern_str_value(remaining);
+                    *pos = source.len(); // Mark as done
+                    Some(val)
+                }
             }
         }
     };

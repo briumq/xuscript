@@ -59,6 +59,7 @@ pub(crate) enum MethodKind {
     // String 专用方法
     StrFormat,
     StrSplit,
+    StrSplitLazy,
     StrToInt,
     StrToFloat,
     StrTryToInt,
@@ -151,6 +152,7 @@ impl MethodKind {
             // String 专用
             "format" => Self::StrFormat,
             "split" => Self::StrSplit,
+            "split_lazy" => Self::StrSplitLazy,
             "to_int" => Self::StrToInt,
             "to_float" => Self::StrToFloat,
             "try_to_int" => Self::StrTryToInt,
