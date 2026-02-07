@@ -60,7 +60,7 @@ if ulimit -v "$MAX_MEMORY_KB" 2>/dev/null; then
   echo "[Guard] Memory limit applied to Xu process" >&2
 fi
 
-BENCH_SCALE="$SCALE" run_with_timeout "$XU_BIN" run --no-diags "tests/benchmarks/xu/full_suite.xu" >"$OUT_XU" 2>"$ERR_XU" || {
+BENCH_SCALE="$SCALE" run_with_timeout "$XU_BIN" run --no-diags "tests/benchmarks/xu/bench.xu" >"$OUT_XU" 2>"$ERR_XU" || {
   echo "Xu benchmark timed out or failed" >&2
   # 打印错误输出以便调试
   if [ -s "$ERR_XU" ]; then

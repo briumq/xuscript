@@ -1,60 +1,84 @@
 # xu_driver
 
-前端“编排层”：把 `normalize/lex/parse/analyze/compile` 组织成稳定的对外 API，并为运行时提供可复用的 `Frontend` 接口（用于动态引入时编译）。
+Frontend orchestration layer for the XuScript compiler.
 
-## 在整体架构中的位置
+## Overview
 
-- 上游：`xu_cli`（命令行）、`xu_runtime`（动态 `引入` 时调用前端）
-- 下游：`xu_syntax`（Source/Span/Diagnostic）、`xu_lexer`、`xu_parser`、`xu_ir`
-- 总览：见 [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md)
+This crate coordinates the compilation pipeline (normalize → lex → parse → analyze → compile) and provides a stable API for both CLI and runtime use. It also implements the `Frontend` trait for dynamic module loading.
 
-```mermaid
-flowchart LR
-  CLI[xu_cli] --> D[xu_driver]
-  RT[xu_runtime] --> D
-  D --> SY[xu_syntax]
-  D --> LX[xu_lexer]
-  D --> PS[xu_parser]
-  D --> IR[xu_ir]
+## Architecture
+
+```
+xu_cli ──→ xu_driver ──→ xu_lexer
+              ↓              ↓
+xu_runtime ←─┘         xu_parser
+                            ↓
+                        xu_ir
 ```
 
-## 核心对象
+## Key Components
 
-- `Driver`：对外门面（Facade），提供：
-  - `lex_file / lex_text`
-  - `parse_file / parse_text / parse_text_timed`
-  - `compile_file`
-- `ImportCache`：用于跨文件/模块分析的缓存（运行时与前端都需要“按规范化路径缓存”的能力）
+| Component | File | Description |
+|-----------|------|-------------|
+| `Driver` | `frontend.rs` | Main facade for compilation |
+| `analyze_module` | `analyzer/` | Static analysis and type checking |
+| `compile_module` | `bytecode_compiler.rs` | AST to bytecode compilation |
 
-入口实现：`src/frontend.rs`。
+## Usage
 
-## 典型数据流
+```rust
+use xu_driver::Driver;
 
-### 解析 + 静态分析
+let driver = Driver::new();
 
-```mermaid
-flowchart TD
-  A[SourceText] --> B[Lexer::lex]
-  B --> C[Parser::parse]
-  C --> D[analyze_module]
-  D --> E[Module AST + diagnostics]
+// Parse only
+let result = driver.parse_file("example.xu")?;
+
+// Full compilation to executable
+let compiled = driver.compile_file("example.xu", true)?;
+// compiled.executable: Executable
+// compiled.diagnostics: Vec<Diagnostic>
 ```
 
-### 编译为可执行产物
+## Driver API
 
-```mermaid
-flowchart TD
-  AST[Module AST] --> BC[bytecode_compiler::compile_module]
-  BC --> EXE[Executable::Bytecode(Program)]
+| Method | Description |
+|--------|-------------|
+| `lex_file` / `lex_text` | Tokenize source |
+| `parse_file` / `parse_text` | Parse to AST |
+| `compile_file` | Full compilation to `Executable` |
+
+## Frontend Trait
+
+The `xu_ir::Frontend` trait allows the runtime to compile modules dynamically during `use` statements:
+
+```rust
+impl Frontend for Driver {
+    fn compile_text_no_analyze(&self, path: &str, text: &str)
+        -> Result<CompiledUnit, String>;
+}
 ```
 
-## 与运行时的契约（Frontend trait）
+This intentionally skips static analysis to avoid complex state dependencies during runtime module loading.
 
-- `xu_ir::Frontend` 定义了最小接口：`compile_text_no_analyze`
-- `Driver` 在实现该接口时，刻意跳过静态分析：
-  - 场景：运行时动态加载模块时需要“可执行 + 诊断”，但不应引入过多全局状态依赖
-  - 输出：`xu_ir::CompiledUnit { text, executable, diagnostics }`
+## Compilation Pipeline
 
-## 测试
+```
+SourceText
+    ↓ normalize
+NormalizedText
+    ↓ lex
+Vec<Token>
+    ↓ parse
+Module (AST)
+    ↓ analyze
+Module + Diagnostics
+    ↓ compile
+Executable::Bytecode(Program)
+```
 
-- `crates/xu_driver/tests`：以“静态分析行为”为主的测试（例如类型相关参数化测试）
+## Tests
+
+Located in `crates/xu_driver/tests/`:
+- Type system tests
+- Static analysis behavior tests

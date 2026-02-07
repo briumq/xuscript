@@ -1,47 +1,73 @@
 # xu_ir
 
-实现层之间的“共享语言”：统一承载 AST（语法树）与 Bytecode（字节码），并通过 `Executable` 把“可运行产物”的形态抽象出来。
+Intermediate representation shared between compiler stages.
 
-## 在整体架构中的位置
+## Overview
 
-- 上游：`xu_parser` 产出 AST；`xu_driver` 产出 Bytecode
-- 下游：`xu_runtime` 消费 `Executable`（AST 路径或 Bytecode 路径）
-- 总览：见 [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md)
+This crate defines the shared data structures used across the XuScript compiler:
+- **AST**: Abstract Syntax Tree from parsing
+- **Bytecode**: VM instructions from compilation
+- **Executable**: Unified representation for runtime execution
 
-```mermaid
-flowchart LR
-  P[xu_parser] --> IR[xu_ir]
-  D[xu_driver] --> IR
-  IR --> RT[xu_runtime]
+## Architecture
+
+```
+xu_parser → xu_ir (AST)
+               ↓
+xu_driver → xu_ir (Bytecode)
+               ↓
+xu_runtime ← xu_ir (Executable)
 ```
 
-## 关键类型
+## Key Types
 
-- AST：`Module / Stmt / Expr / TypeRef ...`（`src/ast.rs`）
-- Bytecode：`Bytecode / Op ...`（`src/bytecode.rs`）
-- `Program`：`{ module, bytecode }`（`src/program.rs`）
-- `Executable`：`Ast(Module)` 或 `Bytecode(Program)`（`src/executable.rs`）
-- `Frontend`：运行时可插拔的编译前端（`src/frontend.rs`）
+| Type | File | Description |
+|------|------|-------------|
+| `Module`, `Stmt`, `Expr` | `ast.rs` | AST node types |
+| `Bytecode`, `Op` | `bytecode.rs` | VM instruction set |
+| `Program` | `program.rs` | Compiled module with bytecode |
+| `Executable` | `executable.rs` | `Ast(Module)` or `Bytecode(Program)` |
+| `Frontend` | `frontend.rs` | Pluggable compilation interface |
 
-## Executable 双路径
+## Executable Dual-Path
 
-同一份源码可以以不同形态进入运行时：
+The same source code can be executed via two paths:
 
-```mermaid
-flowchart TD
-  S[SourceText] --> AST[Module AST]
-  AST -->|Executable::Ast| A[xu_runtime::Runtime::exec_module]
-  AST --> BC[Bytecode compile]
-  BC -->|Executable::Bytecode(Program)| B[xu_runtime::Runtime::exec_program]
-  B --> VM[VM: run_bytecode]
+```
+SourceText
+    ↓
+Module (AST)
+    ├──→ Executable::Ast ──→ AST Interpreter
+    │
+    └──→ Bytecode Compiler
+              ↓
+         Executable::Bytecode ──→ VM
 ```
 
-保留双路径的意义：
+### Why Two Paths?
 
-- AST 路径：更适合调试与语义对照（可直接在解释器层逐节点求值）
-- Bytecode 路径：更适合性能与可控的执行模型（指令循环、局部变量槽位等）
+| Path | Use Case |
+|------|----------|
+| AST | Debugging, semantic inspection, simpler implementation |
+| Bytecode | Performance, controlled execution model, local variable slots |
 
-## 演进约束（建议）
+## Usage
 
-- AST 与 Bytecode 的语义需保持同构：新增语法/语义时，优先在 AST 与 VM 两条路径同时补齐
-- `Executable` 是跨 crate 的稳定边界：避免把上层实现细节泄漏到 runtime
+```rust
+use xu_ir::{Executable, Module, Program};
+
+// AST path
+let executable = Executable::Ast(module);
+
+// Bytecode path
+let executable = Executable::Bytecode(program);
+
+// Runtime executes either
+runtime.exec_executable(&executable)?;
+```
+
+## Design Constraints
+
+- AST and Bytecode semantics must remain equivalent
+- `Executable` is the stable boundary between compiler and runtime
+- New language features should be implemented in both paths

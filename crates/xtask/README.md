@@ -1,22 +1,58 @@
 # xtask
 
-工程任务入口：用 Rust 代码封装日常开发任务（fmt/clippy/test/examples/perf 等），避免依赖复杂脚本与平台差异。
+Development task runner for the XuScript project.
 
-## 在整体架构中的位置
+## Overview
 
-- 对用户不可见（开发者工具）
-- 通过 `cargo run -p xtask -- <cmd>` 调用
-- 常用于 CI 本地复现与一键回归
+This crate provides a Rust-based task runner for common development operations, avoiding shell script complexity and platform differences.
 
-## 命令概览
+## Usage
 
-- `verify`：组合执行 fmt/clippy/test/examples/可选项目回归
-- `fmt`：格式检查
-- `clippy` / `lint`：lint（严格模式会开启更多 clippy 组）
-- `test`：workspace 全量测试
-- `examples`：对 `examples/` 做 check/ast/run 回归
-- `codegen-examples`：对示例做 JS/Python codegen，并可选运行生成产物
-- `perf`：性能基准相关（可选更新 baseline）
-- `bench-report`：生成基准对比报告
+```bash
+cargo run -p xtask -- <command>
 
-入口实现：`src/main.rs`。
+# Or with alias
+cargo xtask <command>
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `verify` | Run full CI checks (fmt + clippy + test) |
+| `fmt` | Check code formatting |
+| `clippy` / `lint` | Run linter |
+| `test` | Run all tests |
+| `examples` | Verify example programs |
+| `perf` | Run performance benchmarks |
+
+## Examples
+
+```bash
+# Full verification (recommended before commit)
+cargo run -p xtask -- verify
+
+# Just run tests
+cargo run -p xtask -- test
+
+# Check formatting
+cargo run -p xtask -- fmt
+
+# Run linter
+cargo run -p xtask -- clippy
+```
+
+## Verify Command
+
+The `verify` command runs the complete CI pipeline:
+
+1. `cargo fmt --check` - Code formatting
+2. `cargo clippy` - Linting
+3. `cargo test` - All tests
+4. Example verification
+
+This is the recommended command to run before committing changes.
+
+## Source
+
+Entry point: `src/main.rs`

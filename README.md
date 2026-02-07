@@ -1,55 +1,48 @@
-# 序语言 (XuLang) v1.1
+# XuScript v0.1.2
 
-序语言 (Xu) 是一门强类型、结构化的脚本语言，设计目标是“结构化、无歧义、可执行”。v1.1 版本采用英文关键字，提供完整的 Rust 实现与命令行工具。
+XuScript (Xu 脚本) is a strongly-typed, structured scripting language designed to be "structured, unambiguous, and executable". It provides a complete Rust implementation with CLI tools.
 
-## 项目总览
+## Features
 
-### 架构分层
-- `xu_syntax`：Span/Source/Token/Diagnostic 等基础类型
-- `xu_lexer`：源码归一化与词法分析
-- `xu_parser`：表达式与语句解析、错误恢复、AST 生成
-- `xu_driver`：前端编排与静态分析、字节码编译
-- `xu_ir`：AST/Bytecode/Executable 等共享 IR
-- `xu_runtime`：解释执行、作用域与闭包、异常、最小标准库
-- `xu_cli`：命令行入口 `tokens`/`check`/`ast`/`run`
+- **Strong typing** with type inference
+- **First-class functions** and closures
+- **Pattern matching** with exhaustiveness checking
+- **Structs and enums** with methods
+- **Module system** with imports/exports
+- **Dual execution**: AST interpreter and bytecode VM
 
-### 规范与文档
-- **语言规范**：[docs/Xu 语言规范 v1.1.md](docs/Xu%20语言规范%20v1.1.md)
-- **标准库参考**：[docs/标准库参考 v1.1.md](docs/标准库参考%20v1.1.md)
-- **语法定义**：[docs/序语言语法定义v1.1.md](docs/序语言语法定义v1.1.md)
-- **测试指南**：[docs/Xu 语言测试用例 v1.1.md](docs/Xu%20语言测试用例%20v1.1.md)
-- **未完成功能跟踪**：[docs/未完成功能跟踪列表.md](docs/未完成功能跟踪列表.md)
+## Quick Start
 
-## 快速开始
+### Prerequisites
 
-### 依赖
-- 安装 Rust/Cargo（稳定版）
+- Rust/Cargo (stable)
 
-### 运行
-1. **本地一键门禁**：
-   ```bash
-   cargo run -p xtask -- verify
-   ```
+### Installation
 
-2. **运行示例**：
-   ```bash
-   # 运行脚本
-   cargo run -- run examples/01_basics.xu
-   
-   # 语法检查
-   cargo run -- check examples/02_control_flow.xu
-   ```
+```bash
+git clone https://github.com/aspect-build/xuscript.git
+cd xuscript
+cargo build --release
+```
 
-## 命令行工具
+### Usage
 
-- `xu tokens <file>`：打印 Token 流
-- `xu check <file>`：词法 + 语法检查
-- `xu ast <file>`：输出 AST
-- `xu run <file>`：解释执行
+```bash
+# Run a script
+./target/release/xu run examples/01_basics.xu
 
-## 开发者指南
+# Check syntax
+./target/release/xu check examples/02_control_flow.xu
 
-### 语法概览
+# Print AST
+./target/release/xu ast examples/01_basics.xu
+
+# Print tokens
+./target/release/xu tokens examples/01_basics.xu
+```
+
+## Language Overview
+
 ```xu
 use "math"
 
@@ -58,22 +51,168 @@ func main() {
     if list.len() > 0 {
         println("List is not empty")
     }
-    
+
     for i in list {
         println("Item: {i}")
     }
 }
 ```
 
-### 模块系统
-- **导入**：`use "path"` 或 `use "path" as alias`。
-- **导出**：默认导出所有顶层符号，使用 `inner` 修饰符隐藏。
-- **路径解析**：优先相对于当前文件解析。
+### Types
 
-### 质量门禁
-提交前请确保通过所有测试：
+| Type | Example |
+|------|---------|
+| `int` | `42`, `-1` |
+| `float` | `3.14`, `-0.5` |
+| `bool` | `true`, `false` |
+| `string` | `"hello"`, `"value: {x}"` |
+| `list` | `[1, 2, 3]` |
+| `dict` | `{"a": 1, "b": 2}` |
+| `Option` | `Option#some(x)`, `Option#none` |
+
+### Control Flow
+
+```xu
+// If-else
+if x > 0 {
+    println("positive")
+} else if x < 0 {
+    println("negative")
+} else {
+    println("zero")
+}
+
+// Match
+match value {
+    Option#some(x) { println("Got: {x}") }
+    Option#none { println("Nothing") }
+}
+
+// Loops
+for i in 0..10 { println(i) }
+for item in list { println(item) }
+while condition { ... }
+```
+
+### Functions
+
+```xu
+func add(a: int, b: int) -> int {
+    return a + b
+}
+
+// Anonymous functions
+let double = func(x: int) -> int { return x * 2 }
+```
+
+### Structs and Methods
+
+```xu
+struct Point {
+    x: int,
+    y: int,
+}
+
+impl Point {
+    func new(x: int, y: int) -> Point {
+        return Point { x: x, y: y }
+    }
+
+    func distance(self) -> float {
+        return math.sqrt(self.x * self.x + self.y * self.y)
+    }
+}
+```
+
+## Project Structure
+
+```
+xuscript/
+├── crates/              # Rust crates
+├── examples/            # Example programs
+├── tests/               # Test suites
+├── stdlib/              # Standard library
+└── docs/                # Documentation (Chinese)
+```
+
+### Crates
+
+| Crate | Description |
+|-------|-------------|
+| [xu_syntax](crates/xu_syntax/) | Core types: Source, Span, Token, Diagnostic |
+| [xu_lexer](crates/xu_lexer/) | Lexical analysis and source normalization |
+| [xu_parser](crates/xu_parser/) | Parsing (Token → AST) with error recovery |
+| [xu_ir](crates/xu_ir/) | Intermediate representation (AST, Bytecode, Executable) |
+| [xu_driver](crates/xu_driver/) | Frontend orchestration (lex → parse → analyze → compile) |
+| [xu_runtime](crates/xu_runtime/) | Execution engine: AST interpreter and bytecode VM |
+| [xu_cli](crates/xu_cli/) | Command-line interface (`xu` binary) |
+| [xtask](crates/xtask/) | Development task runner |
+
+### Compiler Pipeline
+
+```
+Source → xu_lexer → xu_parser → xu_driver → xu_runtime
+           ↓           ↓           ↓            ↓
+        Tokens       AST      Bytecode      Execution
+```
+
+## Testing
+
+```bash
+# Run all tests
+cargo test
+
+# Run spec tests only
+cargo test -p xu_runtime --test runner
+
+# Update golden files
+XU_UPDATE_GOLDEN=1 cargo test -p xu_runtime --test runner
+```
+
+## Benchmarks
+
+Performance comparison with Python and Node.js:
+
+```bash
+# Run benchmarks (1M iterations)
+python3 tests/benchmarks/py_node_report.py --runs 3 --scales 1000000
+```
+
+Results are saved to `tests/benchmarks/report.md`.
+
+## Development
+
+### Quality Gate
+
+Before committing, ensure all checks pass:
+
 ```bash
 cargo run -p xtask -- verify
 ```
 
-更多详细信息请参阅 [docs/](docs/) 目录下的文档。
+This runs:
+- `cargo fmt --check`
+- `cargo clippy`
+- `cargo test`
+
+### CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `xu run <file>` | Execute a script |
+| `xu check <file>` | Syntax and type check |
+| `xu ast <file>` | Print AST |
+| `xu tokens <file>` | Print token stream |
+
+## Documentation
+
+Detailed documentation is available in the `docs/` directory (Chinese):
+
+- Language Specification
+- Standard Library Reference
+- Grammar Definition
+- Test Guide
+
+## License
+
+MIT

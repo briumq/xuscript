@@ -580,7 +580,7 @@ checksum = "d7249219f66ced02969388cf2bb044a09756a083d0fab1e566056b04d9fbcaa5"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -588,7 +588,7 @@ dependencies = [
 
 [[package]]
 name = "xu_cli"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "assert_cmd",
  "mimalloc",
@@ -600,7 +600,7 @@ dependencies = [
 
 [[package]]
 name = "xu_driver"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bumpalo",
  "xu_ir",
@@ -611,7 +611,7 @@ dependencies = [
 
 [[package]]
 name = "xu_ir"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bumpalo",
  "xu_syntax",
@@ -619,7 +619,7 @@ dependencies = [
 
 [[package]]
 name = "xu_lexer"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "phf",
  "proptest",
@@ -628,7 +628,7 @@ dependencies = [
 
 [[package]]
 name = "xu_parser"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bumpalo",
  "proptest",
@@ -639,7 +639,7 @@ dependencies = [
 
 [[package]]
 name = "xu_runtime"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "ahash",
  "bumpalo",
@@ -661,7 +661,7 @@ dependencies = [
 
 [[package]]
 name = "xu_syntax"
-version = "0.1.0"
+version = "0.1.2"
 
 [[package]]
 name = "zerocopy"

@@ -126,7 +126,7 @@ def bench_once(scale):
         env["BENCH_SCALE"] = str(scale)
         env["BENCH_SMOKE"] = "0"
         try:
-            p = subprocess.run([xu_bin, "run", "--no-diags", "tests/benchmarks/xu/full_suite.xu"],
+            p = subprocess.run([xu_bin, "run", "--no-diags", "tests/benchmarks/xu/bench.xu"],
                              capture_output=True, text=True, env=env, timeout=SINGLE_RUN_TIMEOUT)
             for line in p.stdout.splitlines():
                 line = line.strip()
@@ -210,7 +210,6 @@ def _run_benchmarks(args):
         "struct-method",
         "func-call",
         "branch-heavy",
-        "try-catch",
         "list-push-pop",
         "dict-miss",
         "dict-update-hot",

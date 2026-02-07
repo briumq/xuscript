@@ -1,61 +1,96 @@
 # xu_runtime
 
-运行时与虚拟机：负责模块加载、内置函数/标准库注册、环境与堆管理，以及 AST/字节码两种形态的执行。
+Runtime and virtual machine for XuScript execution.
 
-## 在整体架构中的位置
+## Overview
 
-- 上游：`xu_cli`（驱动执行），`xu_driver`（作为可插拔前端供动态引入使用）
-- 下游：直接对外提供 `Runtime`，并消费 `xu_ir::Executable`
-- 总览：见 [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md)
+This crate provides the execution environment for XuScript programs:
+- Module loading and caching
+- Built-in functions and standard library
+- Heap and environment management
+- Dual execution paths: AST interpreter and bytecode VM
 
-```mermaid
-flowchart LR
-  CLI[xu_cli] --> RT[xu_runtime::Runtime]
-  IR[xu_ir::Executable] --> RT
-  RT --> Loader[module_loader]
-  RT --> Builtins[builtins_registry]
-  RT --> VM[ir::run_bytecode]
+## Architecture
+
+```
+xu_cli
+   ↓
+xu_runtime::Runtime ←── xu_ir::Executable
+   ├── Module Loader
+   ├── Builtins Registry
+   ├── AST Interpreter (ast_exec/)
+   └── Bytecode VM (vm/)
 ```
 
-## 核心对象与入口
+## Key Components
 
-- `Runtime`：核心执行上下文（见 `src/runtime/mod.rs`）
-  - `exec_executable`：统一入口，分发到 `exec_module` 或 `exec_program`
-  - `set_frontend`：注入 `xu_ir::Frontend`（供运行时 `引入` 编译用）
-  - `set_entry_path / set_stdlib_path / set_args`：注入执行所需的路径与参数
-- VM：字节码解释循环（`src/runtime/ir.rs`）
-- 模块加载：路径解析、缓存、循环检测（`src/runtime/module_loader.rs`）
-- 内置与能力：
-  - builtins：`src/runtime/builtins*.rs`
-  - capabilities：`src/runtime/capabilities.rs`（IO/Clock 等可替换能力，便于测试与沙箱化）
+| Directory | Description |
+|-----------|-------------|
+| `runtime/` | Core `Runtime` struct and execution logic |
+| `ast_exec/` | AST interpreter implementation |
+| `vm/` | Bytecode virtual machine |
+| `builtins/` | Built-in function implementations |
+| `methods/` | Type method implementations |
+| `core/` | Value types, heap, and memory management |
+| `modules/` | Module loading and resolution |
 
-## 执行模型（高层）
+## Usage
 
-### 入口执行
+```rust
+use xu_runtime::Runtime;
+use xu_ir::Executable;
 
-- 每次执行会重置运行时状态（输出缓冲、模块缓存、结构体/枚举注册、局部变量槽位等）
-- 执行结束后，若定义了 `主程序` 且为函数，会自动调用一次
+let mut runtime = Runtime::new();
 
-### AST 与字节码
+// Configure runtime
+runtime.set_entry_path("example.xu")?;
+runtime.set_frontend(Box::new(driver));
 
-```mermaid
-flowchart TD
-  EXE[Executable] -->|Ast(Module)| AST[exec_module]
-  EXE -->|Bytecode(Program)| BC[exec_program]
-  BC --> VM[run_bytecode]
+// Execute
+let result = runtime.exec_executable(&executable)?;
+println!("{}", result.output);
 ```
 
-## 模块系统（运行时视角）
+## Runtime API
 
-- `引入` 发生时，运行时负责：
-  - 解析路径（相对导入优先以导入方文件目录为基准）
-  - 规范化路径并做缓存（避免重复加载）
-  - 检测循环引入并给出路径链条（便于定位）
-- 标准库：
-  - 通过 `stdlib_path` 指向仓库的 `stdlib/` 目录
-  - `xu_cli` 会尝试从可执行文件位置或 CWD 推断并注入该路径
+| Method | Description |
+|--------|-------------|
+| `exec_executable` | Execute AST or bytecode |
+| `set_frontend` | Inject compiler for dynamic imports |
+| `set_entry_path` | Set script entry point |
+| `set_stdlib_path` | Set standard library location |
+| `set_args` | Set script arguments |
 
-## 测试
+## Execution Model
 
-- `crates/xu_runtime/tests/runner.rs`：统一测试入口（分策略跑 specs/edge/xu/benchmarks）
-- `crates/xu_runtime/tests/*`：包含 golden、属性测试、性能基准与回归集合
+### Entry Execution
+
+1. Reset runtime state (output buffer, module cache, etc.)
+2. Execute top-level statements
+3. If `main` function exists, call it automatically
+
+### Dual Execution Paths
+
+```
+Executable
+    ├── Ast(Module) ──→ exec_module (AST interpreter)
+    │
+    └── Bytecode(Program) ──→ exec_program ──→ VM
+```
+
+## Module System
+
+When a `use` statement is encountered:
+1. Resolve path (relative to importing file)
+2. Normalize and cache path
+3. Detect circular imports (report with chain)
+4. Compile and execute module
+5. Return exports as dict
+
+## Tests
+
+Located in `crates/xu_runtime/tests/`:
+- `runner.rs` - Unified test runner for specs/edge/integration
+- Golden file tests
+- Property-based tests
+- Performance benchmarks
