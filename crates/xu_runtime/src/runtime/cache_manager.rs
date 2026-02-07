@@ -16,6 +16,7 @@ type HashMap<K, V> = FastHashMap<K, V>;
 /// - string_pool: 字符串池
 /// - bytecode_string_cache: 字节码字符串缓存
 /// - small_int_strings: 小整数字符串缓存
+/// - string_value_intern: 字符串 Value 驻留缓存
 pub struct CacheManager {
     /// 方法查找缓存: (type_name, method_name) -> Value
     pub method_cache: HashMap<(String, String), Value>,
@@ -38,6 +39,9 @@ pub struct CacheManager {
     pub small_int_strings: Vec<Option<Value>>,
     /// 缓存的 Option::none 值
     pub cached_option_none: Option<Value>,
+    /// 字符串 Value 驻留缓存 (hash -> Value)
+    /// 用于 split() 等操作产生的重复字符串
+    pub string_value_intern: HashMap<u64, Value>,
 }
 
 impl CacheManager {
@@ -54,6 +58,7 @@ impl CacheManager {
             bytecode_string_cache: fast_map_new(),
             small_int_strings: Vec::new(),
             cached_option_none: None,
+            string_value_intern: fast_map_new(),
         }
     }
 
@@ -65,7 +70,7 @@ impl CacheManager {
         self.dict_version_last = None;
         self.ic_slots.clear();
         self.ic_method_slots.clear();
-        // 注意：string_pool, bytecode_string_cache, small_int_strings 不重置
+        // 注意：string_pool, bytecode_string_cache, small_int_strings, string_value_intern 不重置
         // 因为它们可以跨执行复用
     }
 }

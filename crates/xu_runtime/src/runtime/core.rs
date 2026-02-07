@@ -266,6 +266,44 @@ impl Runtime {
         }
     }
 
+    /// Intern a string value - returns cached Value if the string was seen before.
+    /// This is useful for operations like split() that may produce many duplicate strings.
+    /// Only interns strings <= 64 bytes to avoid unbounded cache growth.
+    #[inline]
+    pub fn intern_str_value(&mut self, s: &str) -> Value {
+        // Only intern short strings to limit cache size
+        const MAX_INTERN_LEN: usize = 64;
+        if s.len() > MAX_INTERN_LEN {
+            // Don't intern long strings - just create directly
+            let text = crate::core::text::Text::from_str(s);
+            return Value::str(self.alloc(crate::core::heap::ManagedObject::Str(text)));
+        }
+
+        // Compute hash for lookup
+        let hash = {
+            use std::hash::{BuildHasher, Hasher};
+            let mut h = self.caches.string_value_intern.hasher().build_hasher();
+            h.write(s.as_bytes());
+            h.finish()
+        };
+
+        // Check cache
+        if let Some(&val) = self.caches.string_value_intern.get(&hash) {
+            // Verify it's actually the same string (hash collision check)
+            if let crate::core::heap::ManagedObject::Str(cached_text) = self.heap.get(val.as_obj_id()) {
+                if cached_text.as_str() == s {
+                    return val;
+                }
+            }
+        }
+
+        // Create new string and cache it
+        let text = self.intern_string(s);
+        let val = Value::str(self.alloc(crate::core::heap::ManagedObject::Str(text)));
+        self.caches.string_value_intern.insert(hash, val);
+        val
+    }
+
     pub(crate) fn option_some(&mut self, v: Value) -> Value {
         // Use optimized OptionSome variant to avoid Box allocation
         Value::option_some(self.alloc(crate::core::heap::ManagedObject::OptionSome(v)))

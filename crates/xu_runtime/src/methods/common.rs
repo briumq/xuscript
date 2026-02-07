@@ -141,9 +141,9 @@ pub fn get_dict_key_from_value(rt: &mut Runtime, value: &Value) -> Result<crate:
     }
 }
 
-/// 创建字符串Value的辅助函数
+/// 创建字符串Value的辅助函数（使用 intern 优化）
 pub fn create_str_value(rt: &mut Runtime, s: &str) -> Value {
-    Value::str(rt.alloc(crate::core::heap::ManagedObject::Str(s.into())))
+    rt.intern_str_value(s)
 }
 
 /// 创建列表Value的辅助函数
