@@ -25,22 +25,6 @@ cd xuscript
 cargo build --release
 ```
 
-### Usage
-
-```bash
-# Run a script
-./target/release/xu run examples/01_basics.xu
-
-# Check syntax
-./target/release/xu check examples/02_control_flow.xu
-
-# Print AST
-./target/release/xu ast examples/01_basics.xu
-
-# Print tokens
-./target/release/xu tokens examples/01_basics.xu
-```
-
 ## Language Overview
 
 ```xu
