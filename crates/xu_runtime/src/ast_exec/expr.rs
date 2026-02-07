@@ -263,30 +263,42 @@ impl Runtime {
                 }
             }
             Expr::FuncLit(def) => {
-                // First, freeze the current environment to promote attached frames to heap.
-                // This ensures that both the original env and the closure share the same scope.
-                let captured_env = self.env.freeze();
+                // Check if we need to capture any variables
+                let has_locals = self.locals.is_active() && self.locals.has_bindings();
+                let has_params = self.current_param_bindings.as_ref().map_or(false, |b| !b.is_empty());
+                let needs_capture = has_locals || has_params;
 
-                // If locals are active, we need to capture them too
-                let captured_env = if self.locals.is_active() {
-                    let mut env = captured_env;
+                // Only create a new frame and capture if needed
+                let captured_env = if needs_capture {
+                    // Full freeze to promote attached frames to heap
+                    let mut env = self.env.freeze();
                     // Use push_detached so values are stored in scope.values, not stack
-                    // This is important because the closure's stack will be empty when called
                     env.push_detached();
-                    // Use all_bindings() to capture variables from ALL frames, not just current
-                    for (name, value) in self.locals.all_bindings() {
-                        env.define(name, value);
+
+                    // Collect all bindings first, then batch define
+                    let mut all_captured: Vec<(String, Value)> = Vec::new();
+
+                    if has_locals {
+                        all_captured = self.locals.all_bindings();
                     }
-                    if let Some(bindings) = self.current_param_bindings.as_ref() {
-                        for (name, idx) in bindings {
-                            if let Some(value) = self.get_local_by_index(*idx) {
-                                env.define(name.clone(), value);
+                    if has_params {
+                        if let Some(bindings) = self.current_param_bindings.as_ref() {
+                            all_captured.reserve(bindings.len());
+                            for (name, idx) in bindings {
+                                if let Some(value) = self.get_local_by_index(*idx) {
+                                    all_captured.push((name.clone(), value));
+                                }
                             }
                         }
                     }
+
+                    if !all_captured.is_empty() {
+                        env.define_batch(all_captured);
+                    }
                     env
                 } else {
-                    captured_env
+                    // Fast path: only share global frame when no local capture needed
+                    self.env.freeze_global_only()
                 };
 
                 let needs_env_frame = needs_env_frame(&def.body);

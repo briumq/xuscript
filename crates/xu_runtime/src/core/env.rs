@@ -107,6 +107,18 @@ impl Env {
         }
     }
 
+    /// Fast freeze that only shares the global frame.
+    /// Use this when the closure doesn't capture any local variables.
+    #[inline]
+    pub(crate) fn freeze_global_only(&self) -> Self {
+        // Only share the global frame (first frame)
+        Self {
+            stack: Vec::new(),
+            frames: vec![self.frames[0].clone()],
+            name_cache: fast_map_new(),
+        }
+    }
+
     pub fn fork_for_call(&self) -> Self {
         // When calling a function, we usually want to start with the same environment base.
         // If this is a closure call, self is the closure's env (already detached).
@@ -211,6 +223,29 @@ impl Env {
                 scope.names.insert(name.clone(), idx);
                 self.name_cache.insert(name.clone(), (0, idx as u32));
                 scope.mut_flags.insert(name.clone(), false);
+            }
+        }
+    }
+
+    /// Batch define multiple bindings at once.
+    /// More efficient than calling define() multiple times.
+    #[inline]
+    pub fn define_batch(&mut self, bindings: Vec<(String, Value)>) {
+        if bindings.is_empty() {
+            return;
+        }
+        if let Some(frame) = self.frames.last_mut() {
+            let mut scope = frame.scope.borrow_mut();
+            // Pre-allocate capacity
+            scope.values.reserve(bindings.len());
+            scope.names.reserve(bindings.len());
+
+            for (name, value) in bindings {
+                // For detached frames (which is what we use for closures),
+                // we can skip the attached check
+                let idx = scope.values.len();
+                scope.values.push(value);
+                scope.names.insert(name, idx);
             }
         }
     }

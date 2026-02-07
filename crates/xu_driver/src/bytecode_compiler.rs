@@ -352,7 +352,7 @@ impl Compiler {
         let locals_count = inner.scopes.iter().map(|s| s.locals.len()).sum();
         let fun = BytecodeFunction {
             def: def.clone(),
-            bytecode: Box::new(inner.bc),
+            bytecode: std::rc::Rc::new(inner.bc),
             locals_count,
         };
         Some(self.add_constant(xu_ir::Constant::Func(fun)))

@@ -209,6 +209,24 @@ impl LocalSlots {
     /// Capture all bindings from all frames for closure capture.
     /// Inner scopes shadow outer scopes (later frames take precedence).
     pub fn all_bindings(&self) -> Vec<(String, Value)> {
+        // Fast path: if no bindings at all, return empty
+        if self.maps.iter().all(|m| m.is_empty()) {
+            return Vec::new();
+        }
+
+        // Fast path: single frame - no shadowing possible
+        if self.maps.len() == 1 {
+            let map = &self.maps[0];
+            let values = &self.values[0];
+            let mut out = Vec::with_capacity(map.len());
+            for (name, idx) in map {
+                if let Some(v) = values.get(*idx).cloned() {
+                    out.push((name.clone(), v));
+                }
+            }
+            return out;
+        }
+
         let mut seen: FastHashMap<String, Value> = fast_map_new();
         // Iterate from innermost to outermost, so inner shadows outer
         for (map, values) in self.maps.iter().zip(self.values.iter()).rev() {
@@ -222,6 +240,19 @@ impl LocalSlots {
             }
         }
         seen.into_iter().collect()
+    }
+
+    /// Check if there are any bindings to capture (fast check without allocation)
+    #[inline]
+    pub fn has_bindings(&self) -> bool {
+        self.maps.iter().any(|m| !m.is_empty())
+    }
+
+    /// Get total number of bindings across all frames (for capacity hint)
+    #[inline]
+    #[allow(dead_code)]
+    pub fn total_bindings_count(&self) -> usize {
+        self.maps.iter().map(|m| m.len()).sum()
     }
 }
 

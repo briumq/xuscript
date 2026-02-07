@@ -500,51 +500,59 @@ pub(crate) fn op_make_function(
         let bytecode = &func_bc.bytecode;
         let locals_count = func_bc.locals_count;
 
-        // 创建独立的环境帧用于捕获，避免污染外部环境
-        rt.env.push();
+        // 检查是否需要捕获变量
+        let has_locals = rt.locals.is_active() && rt.locals.has_bindings();
+        let has_params = rt.current_param_bindings.as_ref().map_or(false, |b| !b.is_empty());
+        let needs_capture = has_locals || has_params;
 
-        if rt.locals.is_active() {
-            // Use all_bindings() to capture variables from ALL frames, not just current
-            let bindings = rt.locals.all_bindings();
-            if !bindings.is_empty() {
-                let env = &mut rt.env;
-                for (name, value) in bindings {
-                    // 在新帧中定义变量，不会覆盖外部同名变量
-                    env.define(name, value);
-                }
+        // 只有在需要捕获变量时才创建新的环境帧
+        if needs_capture {
+            rt.env.push();
+
+            // Collect all bindings first, then batch define
+            let mut all_captured: Vec<(String, Value)> = Vec::new();
+
+            if has_locals {
+                all_captured = rt.locals.all_bindings();
             }
-        }
-        if let Some(bindings) = rt.current_param_bindings.as_ref() {
-            if !bindings.is_empty() {
-                let mut captured: Vec<(String, Value)> = Vec::with_capacity(bindings.len());
-                for (name, idx) in bindings {
-                    if let Some(value) = rt.get_local_by_index(*idx) {
-                        captured.push((name.clone(), value));
+            if has_params {
+                if let Some(bindings) = rt.current_param_bindings.as_ref() {
+                    all_captured.reserve(bindings.len());
+                    for (name, idx) in bindings {
+                        if let Some(value) = rt.get_local_by_index(*idx) {
+                            all_captured.push((name.clone(), value));
+                        }
                     }
                 }
-                let env = &mut rt.env;
-                for (name, value) in captured {
-                    // 在新帧中定义变量，不会覆盖外部同名变量
-                    env.define(name, value);
-                }
+            }
+
+            if !all_captured.is_empty() {
+                rt.env.define_batch(all_captured);
             }
         }
+
         let needs_env_frame = bytecode
             .ops
             .iter()
             .any(|op| matches!(op, Op::MakeFunction(_)));
+
+        let captured_env = if needs_capture {
+            let env = rt.env.freeze();
+            rt.env.pop_without_clear();
+            env
+        } else {
+            // Fast path: only share global frame when no local capture needed
+            rt.env.freeze_global_only()
+        };
+
         let fun = crate::core::value::BytecodeFunction {
             def: def.clone(),
-            bytecode: std::rc::Rc::new((**bytecode).clone()),
-            env: rt.env.freeze(),
+            bytecode: std::rc::Rc::clone(bytecode),
+            env: captured_env,
             needs_env_frame,
             locals_count,
             type_sig_ic: std::cell::Cell::new(None),
         };
-
-        // 弹出临时帧，但不清除 scope（因为 freeze() 返回的 Env 共享这个 scope）
-        // 使用 pop_without_clear() 而不是 pop()
-        rt.env.pop_without_clear();
 
         let id = rt
             .heap

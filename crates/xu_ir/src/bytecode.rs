@@ -1,12 +1,22 @@
 //! Bytecode representation for the Xu virtual machine.
 
+use std::rc::Rc;
+
 use crate::{AssignOp, EnumDef, FuncDef, Pattern, StructDef};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct BytecodeFunction {
     pub def: FuncDef,
-    pub bytecode: Box<Bytecode>,
+    pub bytecode: Rc<Bytecode>,
     pub locals_count: usize,
+}
+
+impl PartialEq for BytecodeFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.def == other.def
+            && self.locals_count == other.locals_count
+            && *self.bytecode == *other.bytecode
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
