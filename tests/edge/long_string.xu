@@ -1,0 +1,32 @@
+// Test long string operations
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+func main() {
+    // Build a long string
+    let parts: [string] = []
+    for i in [0..999] {
+        parts.push("item_" + to_text(i))
+    }
+    let long_str = parts.join(",")
+
+    // Test length
+    assert(long_str.length() > 5000, "string should be long")
+
+    // Test split
+    let split_parts = long_str.split(",")
+    assert(split_parts.length() == 1000, "should split into 1000 parts")
+    assert(split_parts[0] == "item_0", "first part should be item_0")
+    assert(split_parts[999] == "item_999", "last part should be item_999")
+
+    // Test contains
+    assert(contains(long_str, "item_500"), "should contain item_500")
+    assert(!contains(long_str, "nonexistent"), "should not contain nonexistent")
+
+    // Test starts_with and ends_with
+    assert(starts_with(long_str, "item_0"), "should start with item_0")
+    assert(ends_with(long_str, "item_999"), "should end with item_999")
+
+    println("Long string test passed")
+}
+
+main()

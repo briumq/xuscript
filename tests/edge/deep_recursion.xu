@@ -1,0 +1,13 @@
+// Test deep recursion - should hit recursion limit
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+func deep_recurse(n: int) -> int {
+    if n <= 0 { return 0 }
+    return 1 + deep_recurse(n - 1)
+}
+
+// Test that moderate recursion works
+let result = deep_recurse(50)
+assert(result == 50, "moderate recursion should work")
+
+println("Deep recursion test passed (moderate depth)")

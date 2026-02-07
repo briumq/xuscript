@@ -1,0 +1,22 @@
+// Test stack trace on panic
+// This file is expected to panic
+
+func level3() {
+    let d: {string: int} = {}
+    // This will panic - key not found
+    let _ = d["nonexistent"]
+}
+
+func level2() {
+    level3()
+}
+
+func level1() {
+    level2()
+}
+
+func main() {
+    level1()
+}
+
+main()

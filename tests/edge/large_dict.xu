@@ -1,0 +1,34 @@
+// Test large dictionary operations
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+func main() {
+    // Create a large dictionary
+    let d: {string: int} = {}
+    let size = 10000
+
+    // Insert many items
+    for i in [0..size-1] {
+        d.insert("key_" + to_text(i), i)
+    }
+    assert(d.length() == size, "dict should have correct size")
+
+    // Verify some values
+    assert(d["key_0"] == 0, "first key should be 0")
+    assert(d["key_9999"] == 9999, "last key should be 9999")
+    assert(d["key_5000"] == 5000, "middle key should be 5000")
+
+    // Test contains
+    assert(d.contains("key_100"), "should contain key_100")
+    assert(!d.contains("nonexistent"), "should not contain nonexistent")
+
+    // Test iteration
+    var count = 0
+    for k in d.keys() {
+        count += 1
+    }
+    assert(count == size, "iteration should cover all items")
+
+    println("Large dict test passed")
+}
+
+main()

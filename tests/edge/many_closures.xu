@@ -1,0 +1,31 @@
+// Test creating many closures
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+func main() {
+    // Create closures and immediately use them
+    var sum = 0
+
+    for i in [0..99] {
+        let captured = i * 10
+        let f = |x: int| x + captured
+        sum += f(1)
+    }
+
+    // sum = 100 * 1 + (0 + 10 + 20 + ... + 990) = 100 + 49500 = 49600
+    assert(sum == 49600, "sum of all closures should be 49600")
+
+    // Test multiple closures in same scope
+    let a = 100
+    let b = 200
+    let f1 = |x: int| x + a
+    let f2 = |x: int| x + b
+    let f3 = |x: int| x + a + b
+
+    assert(f1(5) == 105, "f1(5) should be 105")
+    assert(f2(5) == 205, "f2(5) should be 205")
+    assert(f3(5) == 305, "f3(5) should be 305")
+
+    println("Many closures test passed")
+}
+
+main()

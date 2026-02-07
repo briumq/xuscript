@@ -1,0 +1,73 @@
+// Test closure capture in struct methods
+// This tests the fix for lambda closures not capturing method parameters
+
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+NumberList has {
+    items: [int] = []
+
+    // Test capturing method parameter in filter
+    func filter_greater(threshold: int) -> [int] {
+        return self.items.filter(|x| x > threshold)
+    }
+
+    // Test capturing method parameter in map
+    func map_with_offset(offset: int) -> [int] {
+        return self.items.map(|x| x + offset)
+    }
+
+    // Test capturing local variable in filter
+    func filter_in_range(min: int, max: int) -> [int] {
+        let lower = min
+        let upper = max
+        return self.items.filter(|x| x >= lower && x <= upper)
+    }
+
+    // Test capturing multiple parameters
+    func transform(scale: int, offset: int) -> [int] {
+        return self.items.map(|x| x * scale + offset)
+    }
+
+    // Test nested closure capture
+    func find_first_greater(threshold: int) -> Option[int] {
+        return self.items.find(|x| x > threshold)
+    }
+}
+
+func main() {
+    let list = NumberList{ items: [1, 5, 10, 15, 20, 25] }
+
+    // Test filter_greater
+    let filtered = list.filter_greater(12)
+    assert(filtered.length() == 3, "filter_greater should return 3 items")
+    assert(filtered[0] == 15, "first filtered item should be 15")
+    assert(filtered[1] == 20, "second filtered item should be 20")
+    assert(filtered[2] == 25, "third filtered item should be 25")
+
+    // Test map_with_offset
+    let mapped = list.map_with_offset(100)
+    assert(mapped.length() == 6, "map_with_offset should return 6 items")
+    assert(mapped[0] == 101, "first mapped item should be 101")
+    assert(mapped[5] == 125, "last mapped item should be 125")
+
+    // Test filter_in_range
+    let ranged = list.filter_in_range(5, 20)
+    assert(ranged.length() == 4, "filter_in_range should return 4 items")
+    assert(ranged[0] == 5, "first ranged item should be 5")
+    assert(ranged[3] == 20, "last ranged item should be 20")
+
+    // Test transform
+    let transformed = list.transform(2, 10)
+    assert(transformed[0] == 12, "transform(1) should be 12")  // 1 * 2 + 10
+    assert(transformed[1] == 20, "transform(5) should be 20")  // 5 * 2 + 10
+
+    // Test find_first_greater
+    match list.find_first_greater(18) {
+        Option#some(v): assert(v == 20, "find_first_greater(18) should be 20")
+        _: assert(false, "find_first_greater should find a value")
+    }
+
+    println("All method capture tests passed!")
+}
+
+main()

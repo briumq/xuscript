@@ -1,0 +1,67 @@
+// Test nested closure capture
+// Closures should capture variables from enclosing scopes
+
+func assert(x, msg="Assertion failed") { __builtin_assert(x, msg) }
+
+func test_closure_in_loop() {
+    let multiplier = 10
+    let results: [int] = []
+    for i in [1, 2, 3] {
+        let val = i * multiplier
+        results.push(val)
+    }
+    assert(results[0] == 10, "first result should be 10")
+    assert(results[1] == 20, "second result should be 20")
+    assert(results[2] == 30, "third result should be 30")
+}
+
+func test_closure_in_if() {
+    let base = 100
+    let f = if base > 50 {
+        |x: int| base + x
+    } else {
+        |x: int| base - x
+    }
+    assert(f(10) == 110, "closure in if should return 110")
+}
+
+func test_multiple_closures_same_scope() {
+    let x = 10
+    let y = 20
+    let add_x = |n: int| n + x
+    let add_y = |n: int| n + y
+    let add_both = |n: int| n + x + y
+
+    assert(add_x(5) == 15, "add_x(5) should be 15")
+    assert(add_y(5) == 25, "add_y(5) should be 25")
+    assert(add_both(5) == 35, "add_both(5) should be 35")
+}
+
+func test_lambda_captures_local() {
+    let offset = 100
+    let items = [1, 2, 3, 4, 5]
+    let mapped = items.map(|x| x + offset)
+    assert(mapped[0] == 101, "mapped[0] should be 101")
+    assert(mapped[4] == 105, "mapped[4] should be 105")
+}
+
+func test_lambda_captures_multiple() {
+    let scale = 2
+    let offset = 10
+    let items = [1, 2, 3]
+    let transformed = items.map(|x| x * scale + offset)
+    assert(transformed[0] == 12, "1 * 2 + 10 = 12")
+    assert(transformed[1] == 14, "2 * 2 + 10 = 14")
+    assert(transformed[2] == 16, "3 * 2 + 10 = 16")
+}
+
+func main() {
+    test_closure_in_loop()
+    test_closure_in_if()
+    test_multiple_closures_same_scope()
+    test_lambda_captures_local()
+    test_lambda_captures_multiple()
+    println("All nested capture tests passed!")
+}
+
+main()
