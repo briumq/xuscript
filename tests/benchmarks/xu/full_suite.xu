@@ -71,21 +71,21 @@ func bench_dict_hot(N: int) -> float {
 
 func bench_string(N: int) -> float {
   let t0 = now_us()
-  let b = builder_new()
-  for i in [0..N-1] {
-    builder_push(b, to_text(i))
-    builder_push(b, ",")
-  }
-  let _s = builder_finalize(b)
+  // Match Python: arr = [str(i) for i in range(n)]; s = ",".join(arr); parts = s.split(",")
+  let arr: [int] = []
+  for i in [0..N-1] { arr.push(i) }
+  let s = arr.join(",")
+  let _parts = s.split(",")
   let t1 = now_us()
   return (t1 - t0) / 1000.0
 }
 
 func bench_string_builder(N: int) -> float {
   let t0 = now_us()
-  let b = builder_new()
-  for i in [0..N-1] { builder_push(b, to_text(i)); builder_push(b, ",") }
-  let _s = builder_finalize(b)
+  // Match Python: parts = []; for i in range(n): parts.append(str(i)); s = ",".join(parts)
+  let parts: [int] = []
+  for i in [0..N-1] { parts.push(i) }
+  let _s = parts.join(",")
   let t1 = now_us()
   return (t1 - t0) / 1000.0
 }

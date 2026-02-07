@@ -76,16 +76,32 @@ pub(super) fn dispatch(
         MethodKind::ListJoin => {
             validate_arity(rt, method, args.len(), 1, 1)?;
             validate_str_param(rt, &args[0], "separator")?;
-            
+
             let sep = get_str_from_value(rt, &args[0])?;
             let list = expect_list(rt, recv)?;
-            
-            let strs: Vec<String> = list
-                .iter()
-                .map(|item| value_to_string(item, &rt.heap))
-                .collect();
-            
-            Ok(create_str_value(rt, &strs.join(&sep)))
+
+            // Optimized: write directly to a single String buffer
+            // Estimate capacity: average 4 chars per item + separator
+            let estimated_cap = list.len() * (4 + sep.len());
+            let mut result = String::with_capacity(estimated_cap);
+            let mut first = true;
+
+            for item in list.iter() {
+                if !first {
+                    result.push_str(&sep);
+                }
+                first = false;
+
+                // Fast path for integers - use itoa
+                if item.is_int() {
+                    let mut buf = itoa::Buffer::new();
+                    result.push_str(buf.format(item.as_i64()));
+                } else {
+                    result.push_str(&value_to_string(item, &rt.heap));
+                }
+            }
+
+            Ok(create_str_value(rt, &result))
         }
         MethodKind::Len => {
             validate_arity(rt, method, args.len(), 0, 0)?;
